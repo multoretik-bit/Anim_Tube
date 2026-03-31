@@ -1,5 +1,5 @@
-// GEMINI AUTOMATOR (RESTORED + HOVER FIX)
-console.log("✅ Gemini Bridge: Active");
+// CHATGPT AUTOMATOR
+console.log("✅ ChatGPT Bridge: Active");
 
 chrome.runtime.onMessage.addListener((request) => {
     if (request.type === "ANIMTUBE_CMD_GRAB") {
@@ -64,7 +64,7 @@ async function grabLatestImage() {
         const blob = await res.blob();
         const reader = new FileReader();
         reader.onloadend = () => {
-            chrome.runtime.sendMessage({ type: "FROM_GEMINI", base64: reader.result });
+            chrome.runtime.sendMessage({ type: "FROM_CHATGPT", base64: reader.result });
             reportStatus("✅ Кадр отправлен!");
         };
         reader.readAsDataURL(blob);

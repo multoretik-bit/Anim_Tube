@@ -1,6 +1,6 @@
 // AnimTube Bridge v1.1 - BULK & DELETE Support
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.type === "TO_GEMINI") {
+    if (request.type === "TO_CHATGPT") {
         executeLiteralCycle(request.prompt, request.assets, request.assetIds);
     } else if (request.type === "ANIMTUBE_CMD_SCRIPT") {
         executeScriptCycle(request.prefix);
@@ -8,7 +8,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         executeSplitCycle(request.script, request.prefix);
     } else if (request.type === "ANIMTUBE_STATUS") {
         relayToStudio(request);
-    } else if (request.type === "FROM_GEMINI") {
+    } else if (request.type === "FROM_CHATGPT") {
         relayToStudio(request);
         setTimeout(() => {
             focusStudio();
@@ -24,34 +24,36 @@ async function executeSplitCycle(scriptText, customPrefix) {
 
     report("🤖 РОБОТ: Запуск разделения сценария на промпты...");
 
-    // 1. Find Gemini Tab
+    // 1. Find ChatGPT Tab
     const tabs = await chrome.tabs.query({});
-    const geminiTab = tabs.find(t => t.url && t.url.includes("gemini.google.com"));
+    const aiTab = tabs.find(t => t.url && (t.url.includes("chatgpt.com") || t.url.includes("chat.openai.com")));
 
-    if (!geminiTab) {
-        report("❌ Gemini не открыт. Откройте его и попробуйте снова.");
+    if (!aiTab) {
+        report("❌ ChatGPT не открыт. Откройте его и попробуйте снова.");
         return;
     }
 
-    chrome.tabs.update(geminiTab.id, { active: true });
+    chrome.tabs.update(aiTab.id, { active: true });
     await sleep(1500);
 
     // 2. Input the Split Instruction
     report("⌨️ Ввод сценария и инструкции по разделению...");
     await chrome.scripting.executeScript({
-        target: { tabId: geminiTab.id },
+        target: { tabId: aiTab.id },
         func: (text, prefix) => {
-            const editor = document.querySelector(".ql-editor") || document.querySelector("input") || document.querySelector("textarea");
+            const editor = document.querySelector("#prompt-textarea");
             if (editor) {
-                // v1.2.3: Use custom prefix if provided
                 const finalInstruction = (prefix && prefix.trim()) ? prefix : "Please split this script into a chronological list of detailed image prompts for an animation. Format each line as 'Prompt N: [Description]'.";
                 const prompt = finalInstruction + "\n\n" + text;
                 
-                if (editor.tagName === "DIV") editor.innerHTML = "<p>" + prompt.replace(/\n/g, '<br>') + "</p>";
-                else editor.value = prompt;
+                editor.focus();
+                editor.value = prompt;
+                
+                // Trigger input event for ChatGPT
+                editor.dispatchEvent(new Event('input', { bubbles: true }));
                 
                 setTimeout(() => {
-                    const sendBtn = document.querySelector('button[aria-label*="Send"], .send-button, [data-test-id="send-button"]');
+                    const sendBtn = document.querySelector('[data-testid="send-button"]');
                     if (sendBtn) sendBtn.click();
                 }, 500);
             }
@@ -59,17 +61,17 @@ async function executeSplitCycle(scriptText, customPrefix) {
         args: [scriptText, customPrefix]
     });
 
-    // 3. Wait for Gemini (60 seconds as requested)
+    // 3. Wait for ChatGPT (60 seconds)
     const waitTime = 60;
     for (let i = waitTime; i >= 0; i--) {
-        report(`⌛ Gemini создает 20 кадров... (${i}с)`);
+        report(`⌛ ChatGPT создает кадры... (${i}с)`);
         await sleep(1000);
     }
 
-    // 4. Capture the Result (Try to click Copy Button + innerText fallback)
-    report("📋 Копирование промптов из Gemini...");
+    // 4. Capture the Result
+    report("📋 Копирование промптов из ChatGPT...");
     await chrome.scripting.executeScript({
-        target: { tabId: geminiTab.id },
+        target: { tabId: aiTab.id },
         func: async () => {
             const sleep = (ms) => new Promise(r => setTimeout(r, ms));
             // Scroll to bottom
@@ -87,11 +89,11 @@ async function executeSplitCycle(scriptText, customPrefix) {
         }
     });
 
-    // Capture the text as well for the Studio relay (fallback/parsed)
+    // Capture the text
     const captureResult = await chrome.scripting.executeScript({
-        target: { tabId: geminiTab.id },
+        target: { tabId: aiTab.id },
         func: async () => {
-            const responses = document.querySelectorAll('.model-response-text, .message-content, .prose, [data-message-author-role="assistant"]');
+            const responses = document.querySelectorAll('[data-message-author-role="assistant"]');
             if (responses.length > 0) {
                 const lastRes = responses[responses.length - 1];
                 return lastRes.innerText || lastRes.textContent;
@@ -107,8 +109,8 @@ async function executeSplitCycle(scriptText, customPrefix) {
         await sleep(1500);
         focusStudio();
         await sleep(1000);
-        // Relay to Studio so the "Bulk Paste" can be auto-triggered or manually pasted
-        relayToStudio({ type: "FROM_GEMINI_PROMPTS", text: parsedText });
+        // Relay to Studio
+        relayToStudio({ type: "FROM_CHATGPT_PROMPTS", text: parsedText });
     } else {
         report("❌ Не удалось захватить промпты.");
     }
@@ -119,36 +121,35 @@ async function executeScriptCycle(prefix) {
     const report = (msg) => relayToStudio({ type: "ANIMTUBE_STATUS", text: msg });
 
     const tabs = await chrome.tabs.query({});
-    const geminiTab = tabs.find(t => t.url && t.url.includes("gemini.google.com"));
+    const aiTab = tabs.find(t => t.url && (t.url.includes("chatgpt.com") || t.url.includes("chat.openai.com")));
     
-    if (!geminiTab) {
-        report("❌ Ошибка: Вкладка Gemini не найдена!");
+    if (!aiTab) {
+        report("❌ Ошибка: Вкладка ChatGPT не найдена!");
         return;
     }
 
-    report("🛰️ ПЕРЕКЛЮЧЕНИЕ НА GEMINI...");
+    report("🛰️ ПЕРЕКЛЮЧЕНИЕ НА CHATGPT...");
     
     // 1. Focus & Paste
-    await chrome.windows.update(geminiTab.windowId, { focused: true });
-    await chrome.tabs.update(geminiTab.id, { active: true });
+    await chrome.windows.update(aiTab.windowId, { focused: true });
+    await chrome.tabs.update(aiTab.id, { active: true });
     await sleep(1500); 
 
     report("✏️ Ввожу запрос для сценария...");
     await chrome.scripting.executeScript({
-        target: { tabId: geminiTab.id },
+        target: { tabId: aiTab.id },
         func: async (text) => {
-            const editor = document.querySelector('div[contenteditable="true"]') || document.querySelector('.ql-editor');
+            const editor = document.querySelector('#prompt-textarea');
             if (editor) {
                 editor.focus();
-                document.execCommand('selectAll', false, null);
-                document.execCommand('delete', false, null);
-                document.execCommand('insertText', false, text);
+                editor.value = text;
+                
+                // Trigger input event
+                editor.dispatchEvent(new Event('input', { bubbles: true }));
                 
                 await new Promise(r => setTimeout(r, 800));
                 
-                const sendBtn = document.querySelector('button[aria-label*="Send"]') || 
-                                document.querySelector('button[aria-label*="Отправить"]') ||
-                                document.querySelector('.send-button');
+                const sendBtn = document.querySelector('[data-testid="send-button"]');
                 if (sendBtn) sendBtn.click();
             }
         },
@@ -160,15 +161,15 @@ async function executeScriptCycle(prefix) {
         report(`⏳ Ожидание сценария: ${i} сек...`);
         await sleep(1000);
         if (i % 30 === 0) {
-            // Re-focus Gemini occasionally just in case
-            chrome.tabs.update(geminiTab.id, { active: true });
+            // Re-focus ChatGPT
+            chrome.tabs.update(aiTab.id, { active: true });
         }
     }
 
-    // 3. Native Copy Button Click (v1.0.1 - Full Automation)
+    // 3. Native Copy Button Click
     report("📋 Скроллинг и глубокий поиск кнопки копирования...");
     const scriptCapture = await chrome.scripting.executeScript({
-        target: { tabId: geminiTab.id },
+        target: { tabId: aiTab.id },
         func: async () => {
             const sleep = (ms) => new Promise(r => setTimeout(r, ms));
             
@@ -178,17 +179,11 @@ async function executeScriptCycle(prefix) {
                 await sleep(500);
             }
             
-            // 2. Scan ALL buttons for a "Copy" label
-            const allBtns = Array.from(document.querySelectorAll('button'));
-            const copyBtns = allBtns.filter(b => {
-                const label = (b.getAttribute('aria-label') || "").toLowerCase();
-                const title = (b.getAttribute('title') || "").toLowerCase();
-                return label.includes("copy") || label.includes("копировать") || 
-                       title.includes("copy") || title.includes("копировать");
-            });
+            // 2. Scan for Copy button
+            const copyBtns = document.querySelectorAll('button[aria-label="Copy"]');
 
-            // 3. Get the text itself just in case (fallback and relay)
-            const responses = document.querySelectorAll('.model-response-text, .message-content, .prose, [data-message-author-role="assistant"]');
+            // 3. Get the text itself
+            const responses = document.querySelectorAll('[data-message-author-role="assistant"]');
             let capturedText = "";
             if (responses.length > 0) {
                 const lastRes = responses[responses.length - 1];
@@ -200,7 +195,7 @@ async function executeScriptCycle(prefix) {
                 targetedBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 await sleep(1000);
                 targetedBtn.click();
-                chrome.runtime.sendMessage({ type: "ANIMTUBE_STATUS", text: "✅ Кнопка Gemini нажата. Сценарий в буфере." });
+                chrome.runtime.sendMessage({ type: "ANIMTUBE_STATUS", text: "✅ Кнопка ChatGPT нажата. Сценарий в буфере." });
                 await sleep(1000);
             } else if (capturedText) {
                 await navigator.clipboard.writeText(capturedText.trim());
@@ -238,7 +233,7 @@ async function executeScriptCycle(prefix) {
                         }
                     }
                     // Relay the script through the web page message bus
-                    window.postMessage({ type: "FROM_GEMINI_SCRIPT", text: text }, "*");
+                    window.postMessage({ type: "FROM_CHATGPT_SCRIPT", text: text }, "*");
                 },
                 args: [fullScriptText]
             });
@@ -257,11 +252,11 @@ async function executeLiteralCycle(promptText, assets, assetIds) {
 
     // 0. FIND TABS
     const tabs = await chrome.tabs.query({});
-    const geminiTab = tabs.find(t => t.url && t.url.includes("gemini.google.com"));
+    const aiTab = tabs.find(t => t.url && (t.url.includes("chatgpt.com") || t.url.includes("chat.openai.com")));
     const studioTab = tabs.find(t => t.url && (t.url.includes("localhost") || t.url.includes("127.0.0.1") || t.title.includes("AnimTube")));
 
-    if (!geminiTab) {
-        report("❌ Ошибка: Вкладка Gemini не найдена!");
+    if (!aiTab) {
+        report("❌ Ошибка: Вкладка ChatGPT не найдена!");
         return;
     }
 
@@ -280,45 +275,26 @@ async function executeLiteralCycle(promptText, assets, assetIds) {
         await sleep(1000);
         report("⏳ Ожидание 3 сек — Studio копирует промт... (1)");
         await sleep(1000);
-        report("✅ Промт в буфере! Перехожу в Gemini...");
+        report("✅ Промт в буфере! Перехожу в ChatGPT...");
         await sleep(300);
     }
 
-    // --- STEP 1: FOCUS GEMINI & PASTE TEXT ---
-    chrome.windows.update(geminiTab.windowId, { focused: true });
-    chrome.tabs.update(geminiTab.id, { active: true });
+    // --- STEP 1: FOCUS CHATGPT & PASTE TEXT ---
+    chrome.windows.update(aiTab.windowId, { focused: true });
+    chrome.tabs.update(aiTab.id, { active: true });
     await sleep(1500); 
     
-    report("✏️ Вставляю текст промта в Gemini...");
+    report("✏️ Вставляю текст промта в ChatGPT...");
     await chrome.scripting.executeScript({
-        target: { tabId: geminiTab.id },
+        target: { tabId: aiTab.id },
         func: (text) => {
-            const editor = document.querySelector('div[contenteditable="true"]') || document.querySelector('.ql-editor') || document.querySelector('textarea');
+            const editor = document.querySelector("#prompt-textarea");
             if (editor) {
                 editor.focus();
-                // Очистка
-                document.execCommand('selectAll', false, null);
-                document.execCommand('delete', false, null);
+                editor.value = text;
                 
-                // Вставка через clipboard API если возможно, иначе через insertText
-                // Но так как мы в executeScript, у нас есть доступ к 'text' (аргумент)
-                
-                // Для надежности вставки многострочного текста в Gemini:
-                if (editor.tagName === "DIV") {
-                    editor.innerText = text;
-                } else {
-                    editor.value = text;
-                }
-                
-                // Триггерим события, чтобы Gemini "увидел" текст
-                ['input', 'change', 'keydown', 'keyup', 'blur'].forEach(t => {
-                    editor.dispatchEvent(new Event(t, { bubbles: true }));
-                });
-                
-                // Маленький хак для Gemini: если innerText не сработал на 100%, пробуем еще и execCommand
-                if (editor.innerText.length < 5) {
-                    document.execCommand('insertText', false, text);
-                }
+                // Trigger input event
+                editor.dispatchEvent(new Event('input', { bubbles: true }));
             }
         },
         args: [promptText]
@@ -346,10 +322,10 @@ async function executeLiteralCycle(promptText, assets, assetIds) {
         await sleep(500);
     }
 
-    // --- STEP 3: RETURN TO GEMINI FOR ASSETS ---
-    chrome.windows.update(geminiTab.windowId, { focused: true });
-    chrome.tabs.update(geminiTab.id, { active: true });
-    report("🤔 Возврат в Gemini. Вставка ассетов (3 сек)...");
+    // --- STEP 3: RETURN TO CHATGPT FOR ASSETS ---
+    chrome.windows.update(aiTab.windowId, { focused: true });
+    chrome.tabs.update(aiTab.id, { active: true });
+    report("🤔 Возврат в ChatGPT. Вставка ассетов (3 сек)...");
     await sleep(3000);
 
     // --- STEP 4: PASTE ASSETS ---
@@ -360,7 +336,7 @@ async function executeLiteralCycle(promptText, assets, assetIds) {
             func: async (imageAssets) => {
                 const report = (msg) => chrome.runtime.sendMessage({ type: "ANIMTUBE_STATUS", text: msg });
                 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-                const editor = document.querySelector('div[contenteditable="true"]') || document.querySelector('.ql-editor');
+                const editor = document.querySelector("#prompt-textarea");
                 if (editor) {
                     for (const base64 of imageAssets) {
                         try {
@@ -403,22 +379,16 @@ async function executeLiteralCycle(promptText, assets, assetIds) {
     await sleep(1000);
 
     await chrome.scripting.executeScript({
-        target: { tabId: geminiTab.id },
+        target: { tabId: aiTab.id },
         func: async () => {
             const report = (msg) => chrome.runtime.sendMessage({ type: "ANIMTUBE_STATUS", text: msg });
             const sleep = (ms) => new Promise(r => setTimeout(r, ms));
             
-            const sendBtn = document.querySelector('button[aria-label*="Send"]') || document.querySelector('button[aria-label*="Отправить"]');
+            const sendBtn = document.querySelector('[data-testid="send-button"]');
             if (sendBtn) {
                 sendBtn.click();
-            } else {
-                const editor = document.querySelector('div[contenteditable="true"]') || document.querySelector('.ql-editor');
-                if (editor) {
-                    editor.focus();
-                    editor.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
-                }
             }
-            report("🚀 ЦИКЛ ЗАВЕРШЕН (v11.17)!");
+            report("🚀 ЦИКЛ ЗАВЕРШЕН!");
             
             // Wait for generation
             await sleep(81000);
@@ -430,15 +400,16 @@ async function executeLiteralCycle(promptText, assets, assetIds) {
                 const img = frames[frames.length - 1];
                 img.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
                 await sleep(1400);
-                let p = img;
-                for (let i = 0; i < 7; i++) { if (p.parentElement) p = p.parentElement; }
-                const copyBtn = p.querySelector('button[aria-label*="Copy"], button[aria-label*="Копировать"]');
+                
+                const responses = document.querySelectorAll('[data-message-author-role="assistant"]');
+                const lastRes = responses[responses.length - 1];
+                const copyBtn = lastRes ? lastRes.querySelector('button[aria-label="Copy"]') : null;
                 if (copyBtn) copyBtn.click();
                 
                 const res = await fetch(img.src);
                 const blob = await res.blob();
                 const reader = new FileReader();
-                reader.onloadend = () => chrome.runtime.sendMessage({ type: "FROM_GEMINI", base64: reader.result });
+                reader.onloadend = () => chrome.runtime.sendMessage({ type: "FROM_CHATGPT", base64: reader.result });
                 reader.readAsDataURL(blob);
             }
         }

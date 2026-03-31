@@ -7,7 +7,7 @@
     --bg-glass: rgba(255, 255, 255, 0.03);
     
     --accent-primary: #6366f1; /* Indigo */
-    --accent-gemini: #5eb5f7;
+    --accent-chatgpt: #10a37f;
     --accent-grok: #ec4899;
     --accent-success: #10b981;
     
@@ -1108,7 +1108,7 @@ textarea:focus {
 }
 
 .script-textarea:focus {
-    border-color: var(--accent-gemini);
+    border-color: var(--accent-chatgpt);
 }
 
 .script-actions {
@@ -1138,7 +1138,7 @@ textarea:focus {
     transform: translateY(-2px);
 }
 
-.script-btn-copy:hover { border-color: var(--accent-gemini); color: var(--accent-gemini); }
+.script-btn-copy:hover { border-color: var(--accent-chatgpt); color: var(--accent-chatgpt); }
 .script-btn-del:hover { border-color: #ef4444; color: #ef4444; }
 .script-btn-download:hover { border-color: #10b981; color: #10b981; }
 
@@ -1222,9 +1222,9 @@ textarea:focus {
 }
 
 @keyframes scriptGlow {
-    0% { box-shadow: 0 0 0 0 rgba(94, 181, 247, 0.2); }
-    70% { box-shadow: 0 0 0 15px rgba(94, 181, 247, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(94, 181, 247, 0); }
+    0% { box-shadow: 0 0 0 0 rgba(16, 163, 127, 0.2); }
+    70% { box-shadow: 0 0 0 15px rgba(16, 163, 127, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(16, 163, 127, 0); }
 }
 
 .script-header {
@@ -1264,7 +1264,7 @@ textarea:focus {
 }
 
 .script-textarea:focus {
-    border-color: var(--accent-gemini);
+    border-color: var(--accent-chatgpt);
 }
 
 .script-btn {
@@ -1284,7 +1284,7 @@ textarea:focus {
 }
 
 .script-btn-paste {
-    background: linear-gradient(135deg, var(--accent-gemini), #2563eb);
+    background: linear-gradient(135deg, var(--accent-chatgpt), #10b981);
     color: white;
     border: none;
     box-shadow: 0 5px 15px rgba(37, 99, 235, 0.3);
@@ -1372,7 +1372,7 @@ textarea:focus {
 
 .scenario-split-card:hover {
     background: rgba(255, 255, 255, 0.05);
-    border-color: var(--accent-gemini);
+    border-color: var(--accent-chatgpt);
 }
 
 .scenario-split-info {
@@ -1383,7 +1383,7 @@ textarea:focus {
     font-weight: 700;
     font-size: 16px;
     margin-bottom: 4px;
-    color: var(--accent-gemini);
+    color: var(--accent-chatgpt);
 }
 
 .scenario-split-preview {

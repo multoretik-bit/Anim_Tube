@@ -137,8 +137,8 @@ function setupGlobalListeners() {
             return;
         }
 
-        // 2. Image Arrival (Internal transfer from Gemini)
-        if (event.data.type === "FROM_GEMINI") {
+        // 2. Image Arrival (Internal transfer from ChatGPT)
+        if (event.data.type === "FROM_CHATGPT") {
             console.log("📥 Image data received. Staging for landing...");
             state.assembly.pendingImage = event.data.base64;
             // We DON'T handle it yet. We wait for the Auto-Paste signal from the extension.
@@ -156,7 +156,7 @@ function setupGlobalListeners() {
         }
 
         // 5. SCRIPT ARRIVAL (v12.0)
-        if (event.data.type === "FROM_GEMINI_SCRIPT") {
+        if (event.data.type === "FROM_CHATGPT_SCRIPT") {
             handleIncomingScript(event.data.text);
         }
 
@@ -167,7 +167,7 @@ function setupGlobalListeners() {
         }
 
         // 7. PROMPTS ARRIVAL (v1.2)
-        if (event.data.type === "FROM_GEMINI_PROMPTS") {
+        if (event.data.type === "FROM_CHATGPT_PROMPTS") {
             handleIncomingPrompts(event.data.text);
         }
     });
@@ -195,7 +195,7 @@ function startScriptGeneration(isAutomatic = false) {
     const pendingScript = {
         id: "pending-" + Date.now(),
         isPending: true,
-        text: "Ожидание возврата робота из Gemini...",
+        text: "Ожидание возврата робота из ChatGPT...",
         scriptNum: nextNum,
         created: new Date().toLocaleTimeString()
     };
@@ -204,7 +204,7 @@ function startScriptGeneration(isAutomatic = false) {
     saveState();
     renderProjectScripts();
 
-    logStatus("📝 Запуск генерации сценария в Gemini...", "info");
+    logStatus("📝 Запуск генерации сценария в ChatGPT...", "info");
     sendToBridge({ 
         type: "ANIMTUBE_CMD_SCRIPT", 
         prefix: prefix 
@@ -324,10 +324,10 @@ function renderProjectScenariosForSplitting() {
             <div id="frames-grid-${s.id}" class="scenario-frames-grid" style="display: block;">
                 <div class="bulk-paste-area">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 15px;">
-                        <div class="frame-label" style="color: var(--accent-gemini); flex: 1;">📥 МАССОВАЯ ВСТАВКА (GEMINI)</div>
+                        <div class="frame-label" style="color: var(--accent-chatgpt); flex: 1;">📥 МАССОВАЯ ВСТАВКА (CHATGPT)</div>
                         <div style="display: flex; gap: 10px;">
-                            <button id="btn-paste-split-${s.id}" class="btn btn-gemini" onclick="pasteFromGeminiToScenario('${s.id}')" style="padding: 8px 16px; font-size: 11px;">
-                                📥 ВСТАВИТЬ (GEMINI)
+                            <button id="btn-paste-split-${s.id}" class="btn btn-chatgpt" onclick="pasteFromChatGPTToScenario('${s.id}')" style="padding: 8px 16px; font-size: 11px;">
+                                📥 ВСТАВИТЬ (CHATGPT)
                             </button>
                             <button id="btn-distribute-split-${s.id}" class="btn btn-primary" onclick="distributePromptsToGenerator('${s.id}', document.getElementById('bulk-textarea-${s.id}').value)" style="padding: 8px 16px; font-size: 11px;">
                                 🧩 ОТПРАВИТЬ В ГЕНЕРАТОР
@@ -335,7 +335,7 @@ function renderProjectScenariosForSplitting() {
                         </div>
                     </div>
                     <textarea id="bulk-textarea-${s.id}" class="bulk-textarea" 
-                              placeholder="Вставьте сюда текст из Gemini..." 
+                              placeholder="Вставьте сюда текст из ChatGPT..." 
                               oninput="autoResizeTextarea(this)"></textarea>
                 </div>
             </div>
@@ -433,7 +433,7 @@ function autoResizeTextarea(el) {
     el.style.height = (el.scrollHeight) + 'px';
 }
 
-async function pasteFromGeminiToScenario(scriptId) {
+async function pasteFromChatGPTToScenario(scriptId) {
     const btn = document.getElementById(`btn-paste-split-${scriptId}`);
     if (btn) btn.classList.add('triggering');
 
@@ -488,9 +488,9 @@ function startScriptSplitting(scriptId) {
         
         if (copyBtn) copyBtn.classList.remove('triggering');
 
-    // STEP 2 & 3: Switch & Send to Gemini
+    // STEP 2 & 3: Switch & Send to ChatGPT
     setTimeout(() => {
-        logStatus("🚀 Шаг 2: Переход в Gemini. Шаг 3: Вставка сценария...", "success");
+        logStatus("🚀 Шаг 2: Переход в ChatGPT. Шаг 3: Вставка сценария...", "success");
         
         // v1.2.3: Use Folder-level split instruction
         const folder = getFolderForProject(state.activeProjectId);
@@ -558,7 +558,7 @@ function handleIncomingPrompts(rawText) {
         .map(l => l.replace(/^(Prompt|Промт|Кадр)\s*\d*[:\s]*/i, '').trim());
 
     if (lines.length === 0) {
-        logStatus("⚠️ Не удалось распознать промпты в ответе Gemini.", "error");
+        logStatus("⚠️ Не удалось распознать промпты в ответе ChatGPT.", "error");
         return;
     }
 
@@ -628,7 +628,7 @@ function renderProjectScripts() {
         return `
         <div class="script-card ${isCollapsed ? 'collapsed' : 'expanded'} ${isPending ? 'pending' : ''}" id="script-card-${s.id}">
             <div class="script-header" onclick="toggleScript('${s.id}')">
-                <span style="font-weight: 800; color: var(--accent-gemini);">СЦЕНАРИЙ #${scriptNum}</span>
+                <span style="font-weight: 800; color: var(--accent-chatgpt);">СЦЕНАРИЙ #${scriptNum}</span>
                 <span style="opacity: 0.5; font-size: 11px; margin-left: 10px;">${s.created}</span>
                 <span id="script-status-${s.id}" style="margin-left: auto; font-size: 11px; font-weight: 800;">
                     ${isPending ? '⌛ ОЖИДАНИЕ РОБОТА...' : '✅ ГОТОВО'}
@@ -645,8 +645,8 @@ function renderProjectScripts() {
                 >${s.text}</textarea>
                 
                 <div class="script-actions" style="margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
-                    <button class="script-btn script-btn-paste" onclick="pasteScriptFromClipboard('${s.id}')" style="background: var(--accent-gemini); color: white; border: none; flex: 1.5; font-weight: 800;">
-                        📥 ВСТАВИТЬ (GEMINI)
+                    <button class="script-btn script-btn-paste" onclick="pasteScriptFromClipboard('${s.id}')" style="background: var(--accent-chatgpt); color: white; border: none; flex: 1.5; font-weight: 800;">
+                        📥 ВСТАВИТЬ (CHATGPT)
                     </button>
                     <button class="script-btn script-btn-copy" onclick="copyScriptToClipboard('${s.id}')" style="flex: 1;">📋 Копировать</button>
                     <button class="script-btn script-btn-download" onclick="downloadScript('${s.id}')" style="flex: 1;">📥 .txt</button>
@@ -1120,7 +1120,7 @@ function startRollAssembly() {
     document.getElementById('btn-stop-assembly').style.display = 'flex';
     document.getElementById('receiving-slot-panel').style.display = 'block';
     
-    logStatus("🎬 Сборка запущена. Переключаемся в Gemini...", "info");
+    logStatus("🎬 Сборка запущена. Переключаемся в ChatGPT...", "info");
     processNextItem();
 }
 
@@ -1346,7 +1346,7 @@ async function processNextItem() {
         slotBox.innerHTML = `
             <div class="transfer-status">
                 <span class="loading-icon" style="font-size: 40px; display: block; margin-bottom: 15px;">⏳</span>
-                <p id="receiving-text">ОЖИДАНИЕ ПЕРЕДАЧИ ИЗ GEMINI...</p>
+                <p id="receiving-text">ОЖИДАНИЕ ПЕРЕДАЧИ ИЗ CHATGPT...</p>
                 <button id="btn-auto-paste" class="btn-auto-paste">
                     <span class="btn-icon">⚡</span> ВСТАВИТЬ КАДР (АВТО)
                 </button>
@@ -1447,7 +1447,7 @@ async function processNextItem() {
 
     state.assembly.lastSentPrompt = fullPrompt;
     sendToBridge({ 
-        type: "ANIMTUBE_CMD", 
+        type: "TO_CHATGPT", 
         prompt: fullPrompt,
         assets: matchingAssets,
         assetIds: matchedIds // v11.16

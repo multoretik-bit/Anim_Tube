@@ -6,7 +6,7 @@ window.addEventListener("message", (event) => {
     // Only handle AUTO commands
     if (event.data.type === "ANIMTUBE_AUTO_CMD") {
         chrome.runtime.sendMessage({
-            type: "TO_GEMINI",
+            type: "TO_CHATGPT",
             prompt: event.data.prompt || "",
             assets: event.data.assets || [],
             assetIds: event.data.assetIds || []
