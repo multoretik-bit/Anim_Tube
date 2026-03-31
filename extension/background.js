@@ -265,7 +265,21 @@ async function executeLiteralCycle(promptText, assets, assetIds) {
         return;
     }
 
-    // --- STEP 1: FOCUS GEMINI & PASTE TEXT FIRST (v11.17) ---
+    // --- STEP 0.5: STAY ON STUDIO FOR 3 SEC — копируем промт в буфер ---
+    if (studioTab) {
+        chrome.windows.update(studioTab.windowId, { focused: true });
+        chrome.tabs.update(studioTab.id, { active: true });
+        report("📋 Студия: копирую промт... (3)");
+        await sleep(1000);
+        report("📋 Студия: копирую промт... (2)");
+        await sleep(1000);
+        report("📋 Студия: копирую промт... (1)");
+        await sleep(1000);
+        report("✅ Промт скопирован! Перехожу в Gemini...");
+        await sleep(300);
+    }
+
+    // --- STEP 1: FOCUS GEMINI & PASTE TEXT (v11.17) ---
     chrome.windows.update(geminiTab.windowId, { focused: true });
     chrome.tabs.update(geminiTab.id, { active: true });
     await sleep(800); 
@@ -286,7 +300,7 @@ async function executeLiteralCycle(promptText, assets, assetIds) {
         args: [promptText]
     });
 
-    report("🤔 Промт введен (v11.17). Жду 3 сек...");
+    report("🤔 Промт введен. Жду 3 сек...");
     await sleep(3000);
 
     // --- STEP 2: RETURN TO STUDIO FOR VISUAL COPY (v11.17) ---
