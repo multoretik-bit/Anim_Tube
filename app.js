@@ -274,8 +274,16 @@ function processSuperAutoSplitting() {
     const idx = state.assembly.superAuto.splittingIdx;
 
     if (idx >= scripts.length) {
-        logStatus("🎊 [СУПЕР-АВТО]: Пакетная подготовка полностью завершена!", "success");
-        stopSuperAutomation();
+        logStatus("🤖 [СУПЕР-АВТО]: Разделение завершено! Перехожу к финальной сборке...", "success");
+        state.assembly.superAuto.phase = 'assembly';
+        
+        setTimeout(() => {
+            switchProjectTab('frames');
+            setTimeout(() => {
+                logStatus("🚀 [СУПЕР-АВТО]: ЗАПУСК ПЛОТНОЙ СБОРКИ КАДРОВ...", "success");
+                startRollAssembly();
+            }, 1000);
+        }, 1500);
         return;
     }
 
@@ -520,26 +528,15 @@ function handleIncomingPrompts(rawText) {
         logStatus("🤖 РОБОТ: Данные получены! Авто-вставка и отправка в генератор...", "success");
         
         setTimeout(() => {
-            // 1. Simulate the visual "Paste" click
+            // 1. Robotic Click on "Paste" button
             const pBtn = document.getElementById(`btn-paste-split-${sid}`);
-            if (pBtn) pBtn.classList.add('triggering');
+            if (pBtn) pBtn.click(); 
 
-            // 2. Put text into the textarea
-            const textarea = document.getElementById(`bulk-textarea-${sid}`);
-            if (textarea) {
-                textarea.value = rawText;
-                autoResizeTextarea(textarea);
-            }
-            
-            // 3. Distribute directly to generator
-            const btnDist = document.getElementById(`btn-distribute-split-${sid}`);
-            if (btnDist) btnDist.classList.add('triggering');
-            
-            distributePromptsToGenerator(sid, rawText);
-            
             setTimeout(() => {
-                if (pBtn) pBtn.classList.remove('triggering');
-                if (btnDist) btnDist.classList.remove('triggering');
+                // 2. Robotic Click on "Distribute" button
+                const btnDist = document.getElementById(`btn-distribute-split-${sid}`);
+                if (btnDist) btnDist.click(); 
+                
                 state.assembly.activeSplittingScriptId = null;
                 state.assembly.pendingPrompts = null;
                 
@@ -548,7 +545,7 @@ function handleIncomingPrompts(rawText) {
                     state.assembly.superAuto.splittingIdx++;
                     setTimeout(processSuperAutoSplitting, 2000);
                 }
-            }, 800);
+            }, 1000);
         }, 500);
         return;
     }
@@ -1330,7 +1327,12 @@ async function processNextItem() {
 
     if (state.assembly.currentIdx >= state.assembly.queue.length) {
         logStatus("✅ Пакетная сборка завершена!", "success");
-        stopRollAssembly(false);
+        
+        if (state.assembly.superAuto.active && state.assembly.superAuto.phase === 'assembly') {
+            stopSuperAutomation();
+        } else {
+            stopRollAssembly(false);
+        }
         return;
     }
 
