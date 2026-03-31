@@ -255,10 +255,6 @@ function renderProjectScenariosForSplitting() {
                     <div class="scenario-split-name">СЦЕНАРИЙ #${scriptNum}</div>
                     <div class="scenario-split-preview">${preview}</div>
                 </div>
-                <div class="scenario-split-actions" style="display: flex; gap: 8px;">
-                    <button class="btn btn-secondary" onclick="toggleScenarioFrames('${s.id}')" title="Раскрыть список из 20 кадров">
-                        📂 Промпты (${(s.frames || []).filter(f => f).length}/20)
-                    </button>
                     <button id="copy-btn-split-${s.id}" class="btn btn-secondary" onclick="copyScriptToClipboard('${s.id}')" title="Копировать текст">
                         📋
                     </button>
@@ -269,7 +265,7 @@ function renderProjectScenariosForSplitting() {
                 </div>
             </div>
             
-            <div id="frames-grid-${s.id}" class="scenario-frames-grid" style="display: ${s.isFramesExpanded ? 'grid' : 'none'};">
+            <div id="frames-grid-${s.id}" class="scenario-frames-grid" style="display: block;">
                 <div class="bulk-paste-area">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 15px;">
                         <div class="frame-label" style="color: var(--accent-gemini); flex: 1;">📥 МАССОВАЯ ВСТАВКА (GEMINI)</div>
@@ -277,25 +273,15 @@ function renderProjectScenariosForSplitting() {
                             <button id="btn-paste-split-${s.id}" class="btn btn-gemini" onclick="pasteFromGeminiToScenario('${s.id}')" style="padding: 8px 16px; font-size: 11px;">
                                 📥 ВСТАВИТЬ (GEMINI)
                             </button>
-                            <button id="btn-distribute-split-${s.id}" class="btn btn-primary" onclick="parseBulkFrames('${s.id}', document.getElementById('bulk-textarea-${s.id}').value)" style="padding: 8px 16px; font-size: 11px;">
-                                🧩 РАСПРЕДЕЛИТЬ ПО КАДРАМ
+                            <button id="btn-distribute-split-${s.id}" class="btn btn-primary" onclick="distributePromptsToGenerator('${s.id}', document.getElementById('bulk-textarea-${s.id}').value)" style="padding: 8px 16px; font-size: 11px;">
+                                🧩 ОТПРАВИТЬ В ГЕНЕРАТОР
                             </button>
                         </div>
                     </div>
                     <textarea id="bulk-textarea-${s.id}" class="bulk-textarea" 
                               placeholder="Вставьте сюда текст из Gemini..." 
-                              oninput="parseBulkFrames('${s.id}', this.value)"></textarea>
+                              oninput="autoResizeTextarea(this)"></textarea>
                 </div>
-                ${(s.frames || Array(20).fill("")).map((f, i) => `
-                    <div class="frame-slot">
-                        <div class="frame-label">FRAME ${i + 1}</div>
-                        <textarea 
-                            class="frame-input" 
-                            placeholder="Ожидание промпта от Gemini..." 
-                            oninput="updateScenarioFrame('${s.id}', ${i}, this.value)"
-                        >${f}</textarea>
-                    </div>
-                `).join('')}
             </div>
         `;
     }).join("");
@@ -352,73 +338,43 @@ function addManualScenario() {
     logStatus("✅ Сценарий успешно добавлен вручную!", "success");
 }
 
-function toggleScenarioFrames(id) {
+function distributePromptsToGenerator(scriptId, rawText) {
     const project = getCurrentProject();
-    if (!project || !project.scripts) return;
-    const script = project.scripts.find(s => s.id == id);
-    if (script) {
-        script.isFramesExpanded = !script.isFramesExpanded;
-        renderProjectScenariosForSplitting();
-    }
-}
-
-function updateScenarioFrame(scriptId, frameIdx, value) {
-    const project = getCurrentProject();
-    if (!project || !project.scripts) return;
-    const script = project.scripts.find(s => s.id == scriptId);
-    if (script && script.frames) {
-        script.frames[frameIdx] = value;
-        saveState();
-    }
-}
-
-function parseBulkFrames(scriptId, rawText) {
-    const project = getCurrentProject();
-    if (!project || !project.scripts) return;
-    const script = project.scripts.find(s => s.id == scriptId);
-    if (!script || !script.frames) return;
-
-    // v1.2.8: Precision Marker-based Splitting
-    const markers = [];
-    // Regex to find "Frame" followed by optional space and digits
-    // We look for Frame, optionally surrounded by stars (markdown)
-    const regex = /\**Frame\s*(\d+)\**/gi;
-    let match;
+    if (!project) return;
     
-    // 1. Find all marker positions
-    while ((match = regex.exec(rawText)) !== null) {
-        markers.push({ 
-            index: match.index, 
-            length: match[0].length,
-            num: parseInt(match[1]) 
-        });
-    }
-
-    if (markers.length === 0) {
-        logStatus("⚠️ В тексте не найдено слово 'Frame'. Распределение не выполнено.", "error");
+    // v1.3.0: New Line-based Splitting
+    const lines = rawText.split('\n').map(l => l.trim()).filter(l => l.length > 5);
+    
+    if (lines.length === 0) {
+        logStatus("⚠️ Не найдено контента для распределения.", "error");
         return;
     }
 
-    // 2. Extract content between markers
-    let frameIdx = 0;
-    for (let i = 0; i < markers.length && frameIdx < 20; i++) {
-        const start = markers[i].index + markers[i].length;
-        const end = (i + 1 < markers.length) ? markers[i+1].index : rawText.length;
-        
-        let content = rawText.substring(start, end).trim();
-        
-        // Clean up markdown/symbols (colons, stars, dashes at the start)
-        content = content.replace(/^[:\s\-*]+/, '').trim();
-        
-        if (content.length > 0) {
-            script.frames[frameIdx] = content;
-            frameIdx++;
-        }
-    }
+    if (!project.promptsList) project.promptsList = [];
+    
+    // Add new lines to the project's prompt list
+    lines.forEach(line => {
+        // Clean up markdown/noise
+        const clean = line.replace(/^[:\s\-*]+/, '').trim();
+        if (clean) project.promptsList.push(clean);
+    });
 
     saveState();
-    renderProjectScenariosForSplitting();
-    logStatus(`✅ Алгоритм "От кадра до кадра" распределил ${frameIdx} промптов!`, "success");
+    
+    // Clear the textarea
+    const textarea = document.getElementById(`bulk-textarea-${scriptId}`);
+    if (textarea) textarea.value = "";
+    
+    logStatus(`✅ Добавлено ${lines.length} промптов в генератор!`, "success");
+    
+    // Auto-switch to Generator Tab
+    showTab('frames');
+    renderProjectPrompts();
+}
+
+function autoResizeTextarea(el) {
+    el.style.height = 'auto';
+    el.style.height = (el.scrollHeight) + 'px';
 }
 
 async function pasteFromGeminiToScenario(scriptId) {
@@ -439,10 +395,11 @@ async function pasteFromGeminiToScenario(scriptId) {
 
     if (text && text.length > 5) {
         const textarea = document.getElementById(`bulk-textarea-${scriptId}`);
-        if (textarea) textarea.value = text;
-        
-        // Auto-distribute
-        parseBulkFrames(scriptId, text);
+        if (textarea) {
+            textarea.value = text;
+            autoResizeTextarea(textarea);
+        }
+        logStatus("📥 Текст вставлен! Нажмите «Отправить в Генератор» для распределения.", "success");
     } else {
         logStatus("⚠️ В буфере не найдено подходящего текста.", "error");
     }
@@ -498,33 +455,38 @@ function startScriptSplitting(scriptId) {
 }
 
 function handleIncomingPrompts(rawText) {
-    // v1.2.7: Store for manual/auto distribution
+    // Store for manual/auto distribution
     state.assembly.pendingPrompts = rawText;
     
-    // v1.2.7: Automated Splitting Bridge (Sequence Auto-Click)
+    // Automated Splitting Bridge
     if (state.assembly.activeSplittingScriptId) {
         const sid = state.assembly.activeSplittingScriptId;
-        logStatus("🤖 РОБОТ: Данные получены! Начинаю авто-вставку и распределение...", "success");
+        logStatus("🤖 РОБОТ: Данные получены! Авто-вставка и отправка в генератор...", "success");
         
-        // Use the explicit functions to keep UI in sync
         setTimeout(() => {
-            pasteFromGeminiToScenario(sid);
+            // 1. Put text into the textarea
+            const textarea = document.getElementById(`bulk-textarea-${sid}`);
+            if (textarea) {
+                textarea.value = rawText;
+                autoResizeTextarea(textarea);
+            }
+            
+            // 2. Distribute directly to generator
+            const btnDist = document.getElementById(`btn-distribute-split-${sid}`);
+            if (btnDist) btnDist.classList.add('triggering');
+            
+            distributePromptsToGenerator(sid, rawText);
             
             setTimeout(() => {
-                const btnDist = document.getElementById(`btn-distribute-split-${sid}`);
-                if (btnDist) btnDist.classList.add('triggering');
-                
-                parseBulkFrames(sid, rawText);
-                
-                setTimeout(() => {
-                    if (btnDist) btnDist.classList.remove('triggering');
-                    state.assembly.activeSplittingScriptId = null;
-                }, 1000);
-            }, 1000);
+                if (btnDist) btnDist.classList.remove('triggering');
+                state.assembly.activeSplittingScriptId = null;
+                state.assembly.pendingPrompts = null;
+            }, 800);
         }, 500);
         return;
     }
 
+    // Fallback: direct injection into project prompt list
     const project = getCurrentProject();
     if (!project) return;
 
