@@ -153,11 +153,21 @@ function startScriptGeneration() {
     const folder = getFolderForProject(project.id);
     const prefix = folder ? folder.scriptPrefix : "Напиши сценарий для серии...";
     
-    // UI: Show Status Panel
-    const panel = document.getElementById('script-receiving-panel');
-    const text = document.getElementById('script-receiving-text');
-    if (panel) panel.style.display = 'block';
-    if (text) text.innerText = "🚀 ИНИЦИАЛИЗАЦИЯ РОБОТА...";
+    // UI: Create a PENDING script card at the TOP
+    if (!project.scripts) project.scripts = [];
+    const nextNum = project.scripts.length + 1;
+    
+    const pendingScript = {
+        id: "pending-" + Date.now(),
+        isPending: true,
+        text: "Ожидание возврата робота из Gemini...",
+        scriptNum: nextNum,
+        created: new Date().toLocaleTimeString()
+    };
+    
+    project.scripts.unshift(pendingScript);
+    saveState();
+    renderProjectScripts();
 
     logStatus("📝 Запуск генерации сценария в Gemini...", "info");
     window.postMessage({ 
@@ -170,22 +180,27 @@ function handleIncomingScript(text) {
     const project = getCurrentProject();
     if (!project) return;
 
-    const newScript = {
-        id: Date.now(),
-        text: text,
-        created: new Date().toLocaleTimeString()
-    };
-
-    if (!project.scripts) project.scripts = [];
-    project.scripts.unshift(newScript);
+    // Find the pending slot (the first one)
+    const pendingIdx = project.scripts.findIndex(s => s.isPending);
+    
+    if (pendingIdx !== -1) {
+        project.scripts[pendingIdx].isPending = false;
+        project.scripts[pendingIdx].text = text;
+        project.scripts[pendingIdx].id = Date.now(); // Replace placeholder ID
+    } else {
+        // Fallback: just add a new one
+        const newScript = {
+            id: Date.now(),
+            text: text,
+            created: new Date().toLocaleTimeString()
+        };
+        if (!project.scripts) project.scripts = [];
+        project.scripts.unshift(newScript);
+    }
+    
     saveState();
     renderProjectScripts();
-    
-    // Hide Status Panel
-    const panel = document.getElementById('script-receiving-panel');
-    if (panel) panel.style.display = 'none';
-    
-    logStatus("✅ Сценарий успешно получен и добавлен в проект!", "success");
+    logStatus("✅ Сценарий успешно вставлен в слот!", "success");
 }
 
 function renderProjectScripts() {
@@ -202,8 +217,22 @@ function renderProjectScripts() {
     const sorted = [...project.scripts].sort((a, b) => b.id - a.id);
 
     container.innerHTML = sorted.map((s, idx) => {
-        const scriptNum = sorted.length - idx;
+        const scriptNum = s.scriptNum || (sorted.length - idx);
         const isCollapsed = s.isCollapsed ?? true;
+        
+        if (s.isPending) {
+            return `
+            <div class="script-card script-pending">
+                <div class="script-header" style="background: var(--accent-gemini); color: #000;">
+                    <span style="font-weight: 800;">ОЖИДАНИЕ СЦЕНАРИЯ #${scriptNum}...</span>
+                </div>
+                <div class="script-body" style="padding: 24px; text-align: center; color: var(--accent-gemini);">
+                    <div class="simple-pulse" style="font-size: 30px; margin-bottom: 10px;">🤖</div>
+                    <div style="font-size: 13px; letter-spacing: 1px; font-weight: 700;">НЕ ЗАКРЫВАЙТЕ ВКЛАДКУ GEMINI (90 СЕК)...</div>
+                </div>
+            </div>
+            `;
+        }
         
         return `
         <div class="script-card ${isCollapsed ? 'collapsed' : 'expanded'}" id="script-card-${s.id}">

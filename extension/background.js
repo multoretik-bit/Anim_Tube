@@ -98,6 +98,7 @@ async function executeScriptCycle(prefix) {
 
     await sleep(2000);
     focusStudio();
+    report("✅ СЦЕНАРИЙ СКОПИРОВАН (v12.0)");
 }
 
 async function executeLiteralCycle(promptText, assets, assetIds) {
