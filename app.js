@@ -330,10 +330,7 @@ function startScriptSplitting(scriptId) {
     navigator.clipboard.writeText(text).then(() => {
         logStatus("📋 Сценарий скопирован. Запуск робота...", "success");
     });
-    
-    // Switch to frames tab to show results will land there
-    switchProjectTab('frames');
-    
+    // Switch to Gemini tab handled by extension via message
     window.postMessage({ 
         type: "ANIMTUBE_CMD_SPLIT", 
         script: text 
