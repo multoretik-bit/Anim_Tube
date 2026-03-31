@@ -23,12 +23,30 @@ let state = {
         pendingImage: null,
         scriptQueue: 0,
         activeSplittingScriptId: null,
-        pendingPrompts: ""
+        pendingPrompts: "",
+        superAuto: {
+            active: false,
+            count: 0,
+            phase: 'idle', // 'scripts', 'splitting'
+            splittingIdx: 0
+        }
     },
     isAutoMode: JSON.parse(localStorage.getItem('animtube_auto_mode') || 'false')
 };
 
 const DEFAULT_PREFIX = "Create an image that closely resembles the style of the Peppa Pig cartoon, using the settings and art style of the Peppa Pig animated series: No text and a 1920×1080 frame. ";
+
+// --- EXTENSION ROUTING (v1.3.2) ---
+function sendToBridge(msg) {
+    // If Super Automation is active, route to the "Auto" extension version
+    const isAuto = state.assembly.superAuto && state.assembly.superAuto.active;
+    if (isAuto) {
+        if (msg.type === "ANIMTUBE_CMD") msg.type = "ANIMTUBE_AUTO_CMD";
+        else if (msg.type === "ANIMTUBE_CMD_SCRIPT") msg.type = "ANIMTUBE_AUTO_CMD_SCRIPT";
+        else if (msg.type === "ANIMTUBE_CMD_SPLIT") msg.type = "ANIMTUBE_AUTO_CMD_SPLIT";
+    }
+    window.postMessage(msg, "*");
+}
 
 // --- INITIALIZE ---
 window.onload = async () => {
@@ -187,10 +205,10 @@ function startScriptGeneration(isAutomatic = false) {
     renderProjectScripts();
 
     logStatus("📝 Запуск генерации сценария в Gemini...", "info");
-    window.postMessage({ 
+    sendToBridge({ 
         type: "ANIMTUBE_CMD_SCRIPT", 
         prefix: prefix 
-    }, "*");
+    });
 }
 
 function handleIncomingScript(text) {
@@ -225,13 +243,51 @@ function handleIncomingScript(text) {
         state.assembly.scriptQueue--; 
         logStatus(`⏳ Авто-запуск следующей генерации... Осталось ещё: ${remaining}`, "info");
         setTimeout(() => {
-            if (state.activeProjectId === project.id) { // Ensure user still in project
+            if (state.activeProjectId === project.id) {
                 startScriptGeneration(true);
             } else {
                 state.assembly.scriptQueue = 0;
             }
         }, 3000);
+        return;
     }
+
+    // --- SUPER AUTOMATION: Transition to Phase 2 (Splitting) ---
+    if (state.assembly.superAuto.active && state.assembly.superAuto.phase === 'scripts') {
+        logStatus("🤖 [СУПЕР-АВТО]: Все сценарии готовы! Перехожу к разделению...", "success");
+        state.assembly.superAuto.phase = 'splitting';
+        state.assembly.superAuto.splittingIdx = 0;
+        
+        setTimeout(() => {
+            switchProjectTab('prompts');
+            processSuperAutoSplitting();
+        }, 2000);
+    }
+}
+
+// --- NEW: SUPER AUTOMATION SPLITTING LOOP ---
+function processSuperAutoSplitting() {
+    if (!state.assembly.superAuto.active || state.assembly.superAuto.phase !== 'splitting') return;
+
+    const project = getCurrentProject();
+    const scripts = project.scripts || [];
+    const idx = state.assembly.superAuto.splittingIdx;
+
+    if (idx >= scripts.length) {
+        logStatus("🎊 [СУПЕР-АВТО]: Пакетная подготовка полностью завершена!", "success");
+        stopSuperAutomation();
+        return;
+    }
+
+    const targetScript = scripts[idx];
+    if (targetScript.isPending) {
+        logStatus(`⏳ [СУПЕР-АВТО]: Ожидание готовности сценария #${idx + 1}...`, "info");
+        setTimeout(processSuperAutoSplitting, 2000);
+        return;
+    }
+
+    logStatus(`🤖 [СУПЕР-АВТО]: Разделяю сценарий ${idx + 1}/${scripts.length}...`, "info");
+    startScriptSplitting(targetScript.id);
 }
 
 // --- PROMPT SPLITTING (v1.2) ---
@@ -440,11 +496,11 @@ function startScriptSplitting(scriptId) {
         const folder = getFolderForProject(state.activeProjectId);
         const splitPrefix = (folder && folder.splitPrefix) ? folder.splitPrefix : "Please split this script into a chronological list of detailed image prompts for an animation. Format each line as 'Prompt N: [Description]'.";
 
-        window.postMessage({ 
+        sendToBridge({ 
             type: "ANIMTUBE_CMD_SPLIT", 
             script: text,
             prefix: splitPrefix
-        }, "*");
+        });
         
         // Cleanup UI shift after start
         setTimeout(() => {
@@ -481,6 +537,12 @@ function handleIncomingPrompts(rawText) {
                 if (btnDist) btnDist.classList.remove('triggering');
                 state.assembly.activeSplittingScriptId = null;
                 state.assembly.pendingPrompts = null;
+                
+                // SUPER AUTO: Continue to next
+                if (state.assembly.superAuto.active && state.assembly.superAuto.phase === 'splitting') {
+                    state.assembly.superAuto.splittingIdx++;
+                    setTimeout(processSuperAutoSplitting, 2000);
+                }
             }, 800);
         }, 500);
         return;
@@ -1384,12 +1446,12 @@ async function processNextItem() {
     }
 
     state.assembly.lastSentPrompt = fullPrompt;
-    window.postMessage({ 
+    sendToBridge({ 
         type: "ANIMTUBE_CMD", 
         prompt: fullPrompt,
         assets: matchingAssets,
         assetIds: matchedIds // v11.16
-    }, "*");
+    });
     
     state.assembly.currentIdx++;
     updateProgressUI();
@@ -1740,4 +1802,43 @@ function deletePromptFromProject(index) {
         saveState();
         renderProjectPrompts();
     }
+}
+
+// --- SUPER AUTOMATION (v1.3.1) ---
+function openSuperAutoModal() {
+    document.getElementById('super-auto-overlay').style.display = 'flex';
+}
+
+function closeSuperAutoModal() {
+    document.getElementById('super-auto-overlay').style.display = 'none';
+}
+
+function startSuperAutomation() {
+    const countInput = document.getElementById('super-auto-count');
+    const count = parseInt(countInput.value) || 1;
+    
+    closeSuperAutoModal();
+    
+    state.assembly.superAuto.active = true;
+    state.assembly.superAuto.count = count;
+    state.assembly.superAuto.phase = 'scripts';
+    state.assembly.superAuto.splittingIdx = 0;
+    
+    document.getElementById('btn-super-auto').classList.add('active');
+    
+    logStatus(`🚀 ЗАПУСК СУПЕР-АВТОМАТИЗАЦИИ: ${count} видеороликов.`, "success");
+    
+    // Phase 1: Generated Scripts
+    switchProjectTab('script');
+    const scriptCountInput = document.getElementById('script-count');
+    if (scriptCountInput) scriptCountInput.value = count;
+    
+    startScriptGeneration();
+}
+
+function stopSuperAutomation() {
+    state.assembly.superAuto.active = false;
+    state.assembly.superAuto.phase = 'idle';
+    document.getElementById('btn-super-auto').classList.remove('active');
+    logStatus("🎊 Супер-автоматизация успешно завершена!", "success");
 }

@@ -61,7 +61,10 @@
                     <h2 id="current-project-name">Название проекта</h2>
                     <p style="font-size: 13px; color: var(--text-secondary);">Production Workspace v1.2.1</p>
                 </div>
-                <div style="margin-left: auto; display: flex; gap: 12px;">
+                <div style="margin-left: auto; display: flex; gap: 12px; align-items: center;">
+                    <button class="btn btn-automation-super" id="btn-super-auto" onclick="openSuperAutoModal()" title="СУПЕР-АВТОМАТИЗАЦИЯ (AI PRODUCTION)">
+                        <span class="auto-icon">🤖</span> АВТО-РЕЖИМ
+                    </button>
                     <button class="btn btn-secondary" onclick="downloadProjectFiles()" style="padding: 10px 16px; font-size: 12px;">💾 Скачать проект</button>
                     <button class="btn btn-danger" onclick="deleteCurrentProject()" style="padding: 10px 16px; font-size: 12px;">Удалить папку</button>
                 </div>
@@ -350,6 +353,25 @@
             <div style="display: flex; gap: 12px;">
                 <button class="btn btn-primary" style="flex: 1;" onclick="saveFolderSettings()">Сохранить изменения</button>
                 <button class="btn btn-secondary" onclick="closeFolderSettings()">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: Super Automation -->
+    <div id="super-auto-overlay" class="modal-overlay">
+        <div class="modal">
+            <div style="font-size: 40px; margin-bottom: 20px;">🤖</div>
+            <h2 style="margin-bottom: 12px;">СУПЕР-АВТОМАТИЗАЦИЯ</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 24px; font-size: 14px;">Сколько видеороликов вы хотите создать?<br>(Генерация сценария + Разделение на промпты)</p>
+            
+            <div style="margin-bottom: 30px;">
+                <input type="number" id="super-auto-count" value="1" min="1" max="10" 
+                       style="width: 100%; padding: 15px; border-radius: 12px; background: rgba(0,0,0,0.3); border: 1px solid var(--border-glass); color: white; font-size: 20px; font-weight: 700; text-align: center;">
+            </div>
+
+            <div style="display: flex; gap: 12px;">
+                <button class="btn btn-secondary" onclick="closeSuperAutoModal()" style="flex: 1;">ОТМЕНА</button>
+                <button class="btn btn-primary" onclick="startSuperAutomation()" style="flex: 2;">ЗАПУСТИТЬ</button>
             </div>
         </div>
     </div>
