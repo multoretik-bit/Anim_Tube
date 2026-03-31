@@ -265,6 +265,54 @@ function handleIncomingScript(text) {
     }
 }
 
+// --- NEW: ROBOTIC ASSEMBLY TRIGGER (v1.3.2) ---
+function triggerVisualAssemblyStart() {
+    logStatus("🤖 [СУПЕР-АВТО]: Перехожу к финальной сборке (Фаза 4)...", "success");
+    
+    // 1. Switch Tab
+    switchProjectTab('frames');
+    
+    setTimeout(() => {
+        // 2. USER REQUEST: Explicit Scroll Down to find the button
+        logStatus("🖱️ [СУПЕР-АВТО]: Прокрутка вниз к кнопке пуска...", "info");
+        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        
+        setTimeout(() => {
+            const btnStart = document.getElementById('btn-start-assembly');
+            if (btnStart) {
+                // 3. Highlight and Final Scroll Adjustment
+                btnStart.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                btnStart.classList.add('flash-active');
+                logStatus("🖱️ [СУПЕР-АВТО]: Кнопка найдена. Нажимаю...", "success");
+                
+                setTimeout(() => {
+                    btnStart.classList.remove('flash-active');
+                    // 4. THE VITAL CLICK
+                    btnStart.click(); 
+                    
+                    // If Super Auto is still splitting other scripts, return to splitting tab soon
+                    if (state.assembly.superAuto.active && state.assembly.superAuto.phase === 'splitting') {
+                        setTimeout(() => {
+                            switchProjectTab('prompts');
+                            processSuperAutoSplitting();
+                        }, 5000); // 5 sec show-off on Frames tab
+                    }
+                }, 1200);
+            } else {
+                // If button is hidden, assembly is likely already running
+                logStatus("ℹ️ [СУПЕР-АВТО]: Сборка уже в процессе.", "success");
+                
+                if (state.assembly.superAuto.active && state.assembly.superAuto.phase === 'splitting') {
+                    setTimeout(() => {
+                        switchProjectTab('prompts');
+                        processSuperAutoSplitting();
+                    }, 4000);
+                }
+            }
+        }, 2000); // Wait for scroll to finish
+    }, 1200); // Wait for tab switch
+}
+
 // --- NEW: SUPER AUTOMATION SPLITTING LOOP ---
 function processSuperAutoSplitting() {
     if (!state.assembly.superAuto.active || state.assembly.superAuto.phase !== 'splitting') return;
@@ -274,39 +322,8 @@ function processSuperAutoSplitting() {
     const idx = state.assembly.superAuto.splittingIdx;
 
     if (idx >= scripts.length) {
-        logStatus("🤖 [СУПЕР-АВТО]: Все сценарии разделены. Перехожу к финальной сборке (Фаза 4)...", "success");
-        state.assembly.superAuto.phase = 'assembly';
-        
-        setTimeout(() => {
-            // 1. Switch Tab
-            switchProjectTab('frames');
-            
-            setTimeout(() => {
-                // 2. USER REQUEST: Explicit Scroll Down to find the button
-                logStatus("🖱️ [СУПЕР-АВТО]: Прокрутка вниз к кнопке пуска...", "info");
-                window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-                
-                setTimeout(() => {
-                    const btnStart = document.getElementById('btn-start-assembly');
-                    if (btnStart) {
-                        // 3. Highlight and Final Scroll Adjustment
-                        btnStart.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        btnStart.classList.add('flash-active');
-                        logStatus("🖱️ [СУПЕР-АВТО]: Кнопка найдена. Нажимаю...", "success");
-                        
-                        setTimeout(() => {
-                            btnStart.classList.remove('flash-active');
-                            // 4. THE VITAL CLICK
-                            btnStart.click(); 
-                        }, 1200);
-                    } else {
-                        logStatus("⚠️ [СУПЕР-АВТО]: Кнопка пуска не найдена через 3с! Пробую прямой запуск...", "error");
-                        startRollAssembly();
-                    }
-                }, 2000); // Wait for scroll to finish
-            }, 1500); // Wait for tab switch/render
-        }, 1000);
-        return;
+        logStatus("🤖 [СУПЕР-АВТО]: Все сценарии разделены!", "success");
+        return; 
     }
 
     const targetScript = scripts[idx];
@@ -453,14 +470,8 @@ function distributePromptsToGenerator(scriptId, rawText) {
     
     logStatus(`✅ Добавлено ${lines.length} промптов в генератор!`, "success");
     
-    // Auto-switch to Generator Tab (v1.3.2: ONLY if not in super-auto splitting loop)
-    const isSuperAutoSplitting = state.assembly.superAuto.active && state.assembly.superAuto.phase === 'splitting';
-    if (!isSuperAutoSplitting) {
-        switchProjectTab('frames');
-        renderProjectPrompts();
-    } else {
-        logStatus(`🤖 [СУПЕР-АВТО]: Сценарий #${state.assembly.superAuto.splittingIdx + 1} распределен. Продолжаю...`, "info");
-    }
+    // 🚀 NEW: LITERAL TRANSITION (User requested it after EVERY distribution)
+    triggerVisualAssemblyStart();
 }
 
 function autoResizeTextarea(el) {
@@ -562,15 +573,18 @@ function handleIncomingPrompts(rawText) {
             setTimeout(() => {
                 // 2. Robotic Click on "Distribute" button
                 const btnDist = document.getElementById(`btn-distribute-split-${sid}`);
-                if (btnDist) btnDist.click(); 
+                if (btnDist) {
+                    btnDist.click(); 
+                    // Note: distributePromptsToGenerator now handles the Phase 4 transition & loop continue
+                }
                 
                 state.assembly.activeSplittingScriptId = null;
                 state.assembly.pendingPrompts = null;
                 
-                // SUPER AUTO: Continue to next
                 if (state.assembly.superAuto.active && state.assembly.superAuto.phase === 'splitting') {
                     state.assembly.superAuto.splittingIdx++;
-                    setTimeout(processSuperAutoSplitting, 2000);
+                    // We DON'T call processSuperAutoSplitting here anymore, 
+                    // because triggerVisualAssemblyStart() will do it after its visual sequence.
                 }
             }, 1000);
         }, 500);
