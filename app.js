@@ -324,10 +324,10 @@ function renderProjectScenariosForSplitting() {
             <div id="frames-grid-${s.id}" class="scenario-frames-grid" style="display: block;">
                 <div class="bulk-paste-area">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 15px;">
-                        <div class="frame-label" style="color: var(--accent-chatgpt); flex: 1;">📥 МАССОВАЯ ВСТАВКА (CHATGPT)</div>
+                        <div class="frame-label" style="color: var(--accent-gemini); flex: 1;">📥 МАССОВАЯ ВСТАВКА (GEMINI)</div>
                         <div style="display: flex; gap: 10px;">
-                            <button id="btn-paste-split-${s.id}" class="btn btn-chatgpt" onclick="pasteFromChatGPTToScenario('${s.id}')" style="padding: 8px 16px; font-size: 11px;">
-                                📥 ВСТАВИТЬ (CHATGPT)
+                            <button id="btn-paste-split-${s.id}" class="btn btn-gemini" onclick="pasteFromGeminiToScenario('${s.id}')" style="padding: 8px 16px; font-size: 11px;">
+                                📥 ВСТАВИТЬ (GEMINI)
                             </button>
                             <button id="btn-distribute-split-${s.id}" class="btn btn-primary" onclick="distributePromptsToGenerator('${s.id}', document.getElementById('bulk-textarea-${s.id}').value)" style="padding: 8px 16px; font-size: 11px;">
                                 🧩 ОТПРАВИТЬ В ГЕНЕРАТОР
@@ -335,7 +335,7 @@ function renderProjectScenariosForSplitting() {
                         </div>
                     </div>
                     <textarea id="bulk-textarea-${s.id}" class="bulk-textarea" 
-                              placeholder="Вставьте сюда текст из ChatGPT..." 
+                              placeholder="Вставьте сюда текст из Gemini..." 
                               oninput="autoResizeTextarea(this)"></textarea>
                 </div>
             </div>
@@ -433,7 +433,7 @@ function autoResizeTextarea(el) {
     el.style.height = (el.scrollHeight) + 'px';
 }
 
-async function pasteFromChatGPTToScenario(scriptId) {
+async function pasteFromGeminiToScenario(scriptId) {
     const btn = document.getElementById(`btn-paste-split-${scriptId}`);
     if (btn) btn.classList.add('triggering');
 
@@ -520,20 +520,25 @@ function handleIncomingPrompts(rawText) {
         logStatus("🤖 РОБОТ: Данные получены! Авто-вставка и отправка в генератор...", "success");
         
         setTimeout(() => {
-            // 1. Put text into the textarea
+            // 1. Simulate the visual "Paste" click
+            const pBtn = document.getElementById(`btn-paste-split-${sid}`);
+            if (pBtn) pBtn.classList.add('triggering');
+
+            // 2. Put text into the textarea
             const textarea = document.getElementById(`bulk-textarea-${sid}`);
             if (textarea) {
                 textarea.value = rawText;
                 autoResizeTextarea(textarea);
             }
             
-            // 2. Distribute directly to generator
+            // 3. Distribute directly to generator
             const btnDist = document.getElementById(`btn-distribute-split-${sid}`);
             if (btnDist) btnDist.classList.add('triggering');
             
             distributePromptsToGenerator(sid, rawText);
             
             setTimeout(() => {
+                if (pBtn) pBtn.classList.remove('triggering');
                 if (btnDist) btnDist.classList.remove('triggering');
                 state.assembly.activeSplittingScriptId = null;
                 state.assembly.pendingPrompts = null;
