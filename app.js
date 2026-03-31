@@ -1,5 +1,5 @@
 /**
- * AnimTube v1.0.1 - FULL AUTOMATION Loop
+ * AnimTube v1.1 - BULK & DELETE Support
  * Sequence: Text First -> Website Return -> Visual Copy -> Gemini Send
  */
 
@@ -20,7 +20,8 @@ let state = {
         queue: [],
         isWaitingForImage: false,
         lastSentPrompt: "",
-        pendingImage: null // Store image while waiting for the final switch back
+        pendingImage: null,
+        scriptQueue: 0
     }
 };
 
@@ -32,8 +33,8 @@ window.onload = async () => {
     loadKeysData();
     renderProjects();
     setupGlobalListeners();
-    console.log("🚀 AnimTube v1.0.1 loaded.");
-    logStatus("✨ AnimTube v1.0.1 Ready.", "success");
+    console.log("🚀 AnimTube v1.1 loaded.");
+    logStatus("✨ AnimTube v1.1 Ready.", "success");
 };
 
 function setupGlobalListeners() {
@@ -146,9 +147,16 @@ function setupGlobalListeners() {
 }
 
 // --- SCRIPT MANAGEMENT ---
-function startScriptGeneration() {
+function startScriptGeneration(isAutomatic = false) {
     const project = getCurrentProject();
     if (!project) return;
+
+    if (!isAutomatic) {
+        // Initial manual click: Check the UI for count
+        const countInput = document.getElementById('script-count');
+        const count = parseInt(countInput.value) || 1;
+        state.assembly.scriptQueue = count - 1;
+    }
 
     const folder = getFolderForProject(project.id);
     const prefix = folder ? folder.scriptPrefix : "Напиши сценарий для серии...";
@@ -201,6 +209,20 @@ function handleIncomingScript(text) {
     saveState();
     renderProjectScripts();
     logStatus("✅ Сценарий успешно вставлен в слот!", "success");
+
+    // BULK GENERATION (v1.1)
+    if (state.assembly.scriptQueue > 0) {
+        const remaining = state.assembly.scriptQueue;
+        state.assembly.scriptQueue--; 
+        logStatus(`⏳ Авто-запуск следующей генерации... Осталось ещё: ${remaining}`, "info");
+        setTimeout(() => {
+            if (state.activeProjectId === project.id) { // Ensure user still in project
+                startScriptGeneration(true);
+            } else {
+                state.assembly.scriptQueue = 0;
+            }
+        }, 3000);
+    }
 }
 
 async function pasteScriptFromClipboard(id) {
@@ -573,7 +595,7 @@ function renderProjects() {
             <div class="project-card btn-add-project" onclick="createNewProject()" style="grid-column: 1/-1; height: 180px;">
                 <div class="brand">
                     <span style="font-size: 24px;">📺</span>
-                    <h1>ANIMTUBE<br><small style="font-size: 10px; color: var(--accent-primary); letter-spacing: 2px;">V12.0 ENGINE</small></h1>
+                    <h1>ANIMTUBE<br><small style="font-size: 10px; color: var(--accent-primary); letter-spacing: 2px;">V1.1 STUDIO</small></h1>
                 </div>
                 <p>Нажмите, чтобы создать первый проект или папку</p>
             </div>
@@ -586,6 +608,7 @@ function renderProjects() {
         card.className = "project-card";
         card.onclick = () => openProject(p.id);
         card.innerHTML = `
+            <button class="lib-del-btn" onclick="event.stopPropagation(); deleteProject(${p.id})">×</button>
             <button class="btn-move-project" title="Переместить" onclick="event.stopPropagation(); requestMoveProject(${p.id})">📦</button>
             <div class="folder-icon">🎬</div>
             <div class="project-name">${p.name}</div>
@@ -596,16 +619,31 @@ function renderProjects() {
 }
 
 function deleteFolder(id) {
-    if (!confirm("Удалить папку? Проекты внутри НЕ будут удалены, они переместятся в корень.")) return;
+    const folder = state.folders.find(f => f.id === id);
+    if (!folder) return;
+    if (!confirm(`Удалить папку "${folder.name}"? Проекты внутри НЕ будут удалены, они переместятся в корень.`)) return;
     
-    state.folders = state.folders.filter(f => f.id !== id);
     state.projects.forEach(p => {
         if (p.folderId === id) p.folderId = null;
     });
     
+    state.folders = state.folders.filter(f => f.id !== id);
     saveState();
     renderProjects();
+    logStatus(`🗑️ Папка "${folder.name}" удалена.`, "info");
 }
+
+function deleteProject(id) {
+    const project = state.projects.find(p => p.id === id);
+    if (!project) return;
+    if (!confirm(`Удалить видео-проект "${project.name}"? Это действие необратимо!`)) return;
+
+    state.projects = state.projects.filter(p => p.id !== id);
+    saveState();
+    renderProjects();
+    logStatus(`🗑️ Проект "${project.name}" удален.`, "info");
+}
+
 
 function requestMoveProject(projectId) {
     const options = state.folders.map(f => `${f.id}: ${f.name}`).join('\n');

@@ -1,4 +1,4 @@
-// AnimTube Bridge v1.0.1 - FULL AUTOMATION Loop
+// AnimTube Bridge v1.1 - BULK & DELETE Support
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.type === "TO_GEMINI") {
         executeLiteralCycle(request.prompt, request.assets, request.assetIds);
