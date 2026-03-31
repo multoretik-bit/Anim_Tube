@@ -198,18 +198,59 @@ function renderProjectScripts() {
         return;
     }
 
-    container.innerHTML = project.scripts.map(s => `
-        <div class="script-card">
-            <div class="script-text">${s.text}</div>
-            <div class="script-meta">
-                <span>Создан: ${s.created}</span>
+    // Sort by Date (newest first)
+    const sorted = [...project.scripts].sort((a, b) => b.id - a.id);
+
+    container.innerHTML = sorted.map((s, idx) => {
+        const scriptNum = sorted.length - idx;
+        const isCollapsed = s.isCollapsed ?? true;
+        
+        return `
+        <div class="script-card ${isCollapsed ? 'collapsed' : 'expanded'}" id="script-card-${s.id}">
+            <div class="script-header" onclick="toggleScript('${s.id}')">
+                <span style="font-weight: 800; color: var(--accent-gemini);">СЦЕНАРИЙ #${scriptNum}</span>
+                <span style="opacity: 0.5; font-size: 11px; margin-left: 10px;">${s.created}</span>
+                <span class="script-toggle-icon">${isCollapsed ? '▼' : '▲'}</span>
+            </div>
+            
+            <div class="script-body">
+                <div class="script-text">${s.text}</div>
                 <div class="script-actions">
-                    <button class="script-btn script-btn-copy" onclick="copyScriptToClipboard('${s.id}')">Скопировать</button>
-                    <button class="script-btn script-btn-del" onclick="deleteScript('${s.id}')">Удалить</button>
+                    <button class="script-btn script-btn-copy" onclick="copyScriptToClipboard('${s.id}')">📋 Копировать</button>
+                    <button class="script-btn script-btn-download" onclick="downloadScript('${s.id}')">📥 Скачать .txt</button>
+                    <button class="script-btn script-btn-del" onclick="deleteScript('${s.id}')">🗑️ Удалить</button>
                 </div>
             </div>
         </div>
-    `).join('');
+        `;
+    }).join('');
+}
+
+function toggleScript(id) {
+    const project = getCurrentProject();
+    const script = project.scripts.find(s => s.id == id);
+    if (script) {
+        script.isCollapsed = !(script.isCollapsed ?? true);
+        saveState();
+        renderProjectScripts();
+    }
+}
+
+function downloadScript(id) {
+    const project = getCurrentProject();
+    const script = project.scripts.find(s => s.id == id);
+    if (!script) return;
+
+    const blob = new Blob([script.text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Scenario_${project.name}_${script.id}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    logStatus("💾 Файл сценария сохранен.", "success");
 }
 
 function copyScriptToClipboard(id) {

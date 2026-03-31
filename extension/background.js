@@ -55,26 +55,40 @@ async function executeScriptCycle(prefix) {
         args: [prefix]
     });
 
-    report("⏳ Ожидание генерации сценария (30 сек)...");
-    await sleep(30000);
+    report("⏳ Ожидание генерации сценария (1.5 мин)...");
+    await sleep(90000);
 
     // 2. Capture Text
     report("📋 Копирование сценария...");
     await chrome.scripting.executeScript({
         target: { tabId: geminiTab.id },
         func: async () => {
-            const responses = document.querySelectorAll('.model-response-text, .message-content, [role="log"]');
-            if (responses.length > 0) {
-                const lastResponse = responses[responses.length - 1];
-                const text = lastResponse.innerText || lastResponse.textContent;
-                chrome.runtime.sendMessage({ type: "FROM_GEMINI_SCRIPT", text: text });
+            const selectors = [
+                '.model-response-text',
+                '.message-content',
+                'div[role="log"] .message-content',
+                'chat-window .model-response-text'
+            ];
+            
+            let lastResponseText = "";
+            for (const selector of selectors) {
+                const elements = document.querySelectorAll(selector);
+                if (elements.length > 0) {
+                    const last = elements[elements.length - 1];
+                    lastResponseText = last.innerText || last.textContent;
+                    if (lastResponseText.length > 100) break;
+                }
+            }
+
+            if (lastResponseText.length > 10) {
+                chrome.runtime.sendMessage({ type: "FROM_GEMINI_SCRIPT", text: lastResponseText });
             } else {
-                // Secondary attempt: look for the last assistant block
-                const chatElements = document.querySelectorAll('div');
-                for (let i = chatElements.length - 1; i >= 0; i--) {
-                    if (chatElements[i].innerText && chatElements[i].innerText.length > 500) {
-                         chrome.runtime.sendMessage({ type: "FROM_GEMINI_SCRIPT", text: chatElements[i].innerText });
-                         return;
+                // Final fallback: heavy scan
+                const allDivs = document.querySelectorAll('div');
+                for (let i = allDivs.length - 1; i >= 0; i--) {
+                    if (allDivs[i].innerText && allDivs[i].innerText.length > 300) {
+                        chrome.runtime.sendMessage({ type: "FROM_GEMINI_SCRIPT", text: allDivs[i].innerText });
+                        return;
                     }
                 }
                 chrome.runtime.sendMessage({ type: "ANIMTUBE_STATUS", text: "❌ Не удалось найти текст сценария." });

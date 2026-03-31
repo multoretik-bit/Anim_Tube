@@ -966,61 +966,97 @@ textarea:focus {
 }
 
 /* --- SCRIPT TAB --- */
+/* --- SCRIPTS (v12.0) --- */
 .script-card {
     background: rgba(255, 255, 255, 0.02);
     border: 1px solid var(--border-glass);
     border-radius: 16px;
-    padding: 24px;
-    position: relative;
-    transition: all 0.3s;
+    overflow: hidden;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    margin-bottom: 20px;
 }
 
 .script-card:hover {
+    border-color: rgba(99, 102, 241, 0.4);
     background: rgba(255, 255, 255, 0.04);
-    border-color: var(--accent-primary);
+}
+
+.script-header {
+    padding: 16px 20px;
+    background: rgba(99, 102, 241, 0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+}
+
+.script-header:hover {
+    background: rgba(99, 102, 241, 0.15);
+}
+
+.script-toggle-icon {
+    font-size: 12px;
+    opacity: 0.5;
+    transition: transform 0.3s;
+}
+
+.script-card.expanded .script-toggle-icon {
+    transform: rotate(180deg);
+}
+
+.script-body {
+    transition: max-height 0.5s ease-in-out;
+}
+
+.script-card.collapsed .script-body {
+    max-height: 0;
+    overflow: hidden;
+}
+
+.script-card.expanded .script-body {
+    max-height: 5000px;
+    padding: 24px;
 }
 
 .script-text {
     font-size: 14px;
     line-height: 1.6;
-    color: var(--text-primary);
+    color: var(--text-secondary);
     white-space: pre-wrap;
-    max-height: 300px;
-    overflow-y: auto;
-    margin-bottom: 16px;
-}
-
-.script-meta {
-    font-size: 11px;
-    color: var(--text-dim);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+    margin-bottom: 20px;
 }
 
 .script-actions {
     display: flex;
-    gap: 8px;
+    gap: 10px;
+    border-top: 1px solid var(--border-glass);
+    padding-top: 15px;
 }
 
 .script-btn {
-    padding: 6px 12px;
-    border-radius: 8px;
+    padding: 8px 16px;
+    border-radius: 10px;
+    border: 1px solid var(--border-glass);
+    background: var(--bg-glass);
+    color: var(--text-primary);
     font-size: 12px;
+    font-weight: 600;
     cursor: pointer;
-    border: none;
-    transition: all 0.2s;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
 
-.script-btn-copy {
-    background: var(--accent-primary);
-    color: white;
+.script-btn:hover {
+    background: var(--bg-card);
+    transform: translateY(-2px);
 }
 
-.script-btn-del {
-    background: rgba(239, 68, 68, 0.1);
-    color: #ef4444;
-}
+.script-btn-copy:hover { border-color: var(--accent-gemini); color: var(--accent-gemini); }
+.script-btn-del:hover { border-color: #ef4444; color: #ef4444; }
+.script-btn-download:hover { border-color: #10b981; color: #10b981; }
 
 /* Scrollbar global */
 ::-webkit-scrollbar {
