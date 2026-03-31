@@ -1242,33 +1242,34 @@ textarea:focus {
     background: #ef4444;
     color: white;
 }
-/* --- v1.2 AUTOMATION & SPLITTING --- */
-.nav-item-auto {
-    margin: 20px 0;
-    padding: 12px 16px;
-    background: rgba(255, 255, 255, 0.03);
+/* --- v1.2.1 AUTOMATION (Tab version) --- */
+.tab-item-auto {
+    width: 45px;
+    height: 45px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.05);
     border: 1px dashed var(--border-glass);
     border-radius: 12px;
     cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 12px;
     transition: all 0.3s;
     user-select: none;
+    margin-left: 10px;
 }
 
-.nav-item-auto:hover {
-    background: rgba(255, 255, 255, 0.06);
+.tab-item-auto:hover {
+    background: rgba(255, 255, 255, 0.1);
     border-color: var(--accent-primary);
 }
 
-.nav-item-auto.active {
+.tab-item-auto.active {
     background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(168, 85, 247, 0.1));
     border: 1px solid var(--accent-primary);
     box-shadow: 0 0 15px rgba(99, 102, 241, 0.2);
 }
 
-.nav-item-auto.active .auto-icon {
+.tab-item-auto.active .auto-icon {
     animation: autoIconPulse 2s infinite;
     color: var(--accent-primary);
     text-shadow: 0 0 8px var(--accent-primary);
@@ -1280,15 +1281,51 @@ textarea:focus {
     100% { transform: scale(1); opacity: 1; }
 }
 
-.auto-label {
-    font-size: 11px;
-    font-weight: 800;
-    letter-spacing: 1px;
-    color: var(--text-secondary);
+.scenarios-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
 }
 
-.active .auto-label {
-    color: var(--text-primary);
+.scenario-split-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-glass);
+    border-radius: 16px;
+    padding: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: all 0.3s;
+}
+
+.scenario-split-card:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: var(--accent-gemini);
+}
+
+.scenario-split-info {
+    flex: 1;
+}
+
+.scenario-split-name {
+    font-weight: 700;
+    font-size: 16px;
+    margin-bottom: 4px;
+    color: var(--accent-gemini);
+}
+
+.scenario-split-preview {
+    font-size: 13px;
+    color: var(--text-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 500px;
+}
+
+.scenario-split-actions {
+    display: flex;
+    gap: 12px;
 }
 
 .script-btn-split {

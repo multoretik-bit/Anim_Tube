@@ -233,6 +233,84 @@ function handleIncomingScript(text) {
 }
 
 // --- PROMPT SPLITTING (v1.2) ---
+function renderProjectScenariosForSplitting() {
+    const project = getCurrentProject();
+    const container = document.getElementById('scenarios-splitting-container');
+    if (!project || !container) return;
+
+    if (!project.scripts || project.scripts.length === 0) {
+        container.innerHTML = `<p style="text-align: center; color: var(--text-dim); padding: 40px;">Сценарии еще не добавлены. Загрузите .txt или создайте сценарий в первой вкладке.</p>`;
+        return;
+    }
+
+    container.innerHTML = project.scripts.map((s, idx) => {
+        const preview = s.text.substring(0, 80) + (s.text.length > 80 ? "..." : "");
+        const scriptNum = s.scriptNum || (project.scripts.length - idx);
+
+        return `
+            <div class="scenario-split-card">
+                <div class="scenario-split-info">
+                    <div class="scenario-split-name">СЦЕНАРИЙ #${scriptNum}</div>
+                    <div class="scenario-split-preview">${preview}</div>
+                </div>
+                <div class="scenario-split-actions">
+                    <button class="btn btn-secondary" onclick="startScriptSplitting('${s.text.replace(/'/g, "\\'")}')">
+                        ✂️ Разделить на промпты
+                    </button>
+                    <button class="btn btn-danger" onclick="deleteScript('${s.id}')" style="padding: 10px;">🗑️</button>
+                </div>
+            </div>
+        `;
+    }).join("");
+}
+
+function handleScenarioUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const text = e.target.result;
+        if (text.length < 10) return alert("Файл слишком короткий!");
+
+        const project = getCurrentProject();
+        if (!project) return;
+
+        if (!project.scripts) project.scripts = [];
+        project.scripts.unshift({
+            id: Date.now(),
+            text: text,
+            created: new Date().toLocaleTimeString(),
+            scriptNum: project.scripts.length + 1
+        });
+
+        saveState();
+        renderProjectScenariosForSplitting();
+        logStatus("✅ Сценарий успешно загружен из файла!", "success");
+    };
+    reader.readAsText(file);
+}
+
+function addManualScenario() {
+    const text = prompt("Введите текст сценария:");
+    if (!text || text.length < 10) return;
+
+    const project = getCurrentProject();
+    if (!project) return;
+
+    if (!project.scripts) project.scripts = [];
+    project.scripts.unshift({
+        id: Date.now(),
+        text: text,
+        created: new Date().toLocaleTimeString(),
+        scriptNum: project.scripts.length + 1
+    });
+
+    saveState();
+    renderProjectScenariosForSplitting();
+    logStatus("✅ Сценарий успешно добавлен вручную!", "success");
+}
+
 function startScriptSplitting(text) {
     if (!text || text.length < 10) return alert("Текст слишком короткий для разделения!");
     
@@ -241,7 +319,7 @@ function startScriptSplitting(text) {
 
     logStatus("✂️ Отправка сценария на разделение в Gemini...", "info");
     
-    // Switch to frames tab to show results will land there
+    // Switch to frames tab to show results will land there (v1.2.1: Results land in Tab 4)
     switchProjectTab('frames');
     
     window.postMessage({ 
@@ -493,9 +571,14 @@ function switchProjectTab(tabId) {
         document.getElementById('tab-content-script').classList.add('active');
         if (document.getElementById('project-settings-assets')) document.getElementById('project-settings-assets').style.display = 'none';
         renderProjectScripts();
+    } else if (tabId === 'prompts') {
+        document.getElementById('tab-content-prompts').classList.add('active');
+        if (document.getElementById('project-settings-assets')) document.getElementById('project-settings-assets').style.display = 'none';
+        renderProjectScenariosForSplitting();
     } else if (tabId === 'frames') {
         document.getElementById('tab-content-frames').classList.add('active');
         if (document.getElementById('project-settings-assets')) document.getElementById('project-settings-assets').style.display = 'block';
+        renderProjectPrompts();
     } else {
         // All other tabs show the "Locked" placeholder
         document.getElementById('tab-content-locked').classList.add('active');
