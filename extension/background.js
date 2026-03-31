@@ -63,45 +63,27 @@ async function executeScriptCycle(prefix) {
     await chrome.scripting.executeScript({
         target: { tabId: geminiTab.id },
         func: async () => {
-            const selectors = [
-                '.model-response-text',
-                '.message-content',
-                'div[role="log"] .message-content',
-                'chat-window .model-response-text'
-            ];
-            
-            let lastResponseText = "";
-            for (const selector of selectors) {
-                const elements = document.querySelectorAll(selector);
-                if (elements.length > 0) {
-                    const last = elements[elements.length - 1];
-                    lastResponseText = last.innerText || last.textContent;
-                    if (lastResponseText.length > 100) break;
-                }
+            const containers = document.querySelectorAll('.model-response-text, .message-content, .prose');
+            if (containers.length === 0) {
+               chrome.runtime.sendMessage({ type: "ANIMTUBE_STATUS", text: "❌ Контент не найден." });
+               return;
             }
-
-            if (lastResponseText.length > 10) {
-                // Return everything found
-                chrome.runtime.sendMessage({ type: "FROM_GEMINI_SCRIPT", text: lastResponseText });
+            
+            // 1. Get the very last response block
+            const lastContainer = containers[containers.length - 1];
+            
+            // 2. Clone and clean it
+            const clone = lastContainer.cloneNode(true);
+            const trash = clone.querySelectorAll('button, .action-row, [role="tooltip"], .google-docs-logo');
+            trash.forEach(el => el.remove());
+            
+            const rawText = clone.innerText || clone.textContent;
+            const fullText = rawText.trim();
+            
+            if (fullText.length > 10) {
+                 chrome.runtime.sendMessage({ type: "FROM_GEMINI_SCRIPT", text: fullText });
             } else {
-                // Secondary check: Are there multiple message-content blocks for the last entry?
-                const blocks = document.querySelectorAll('.message-content, .model-response-text');
-                if (blocks.length > 0) {
-                   // Try to find the very last set of continuous blocks or the main container
-                   const last = blocks[blocks.length - 1];
-                   chrome.runtime.sendMessage({ type: "FROM_GEMINI_SCRIPT", text: last.innerText || last.textContent });
-                   return;
-                }
-                
-                // Final fallback: heavy scan
-                const allDivs = document.querySelectorAll('div');
-                for (let i = allDivs.length - 1; i >= 0; i--) {
-                    if (allDivs[i].innerText && allDivs[i].innerText.length > 300) {
-                        chrome.runtime.sendMessage({ type: "FROM_GEMINI_SCRIPT", text: allDivs[i].innerText });
-                        return;
-                    }
-                }
-                chrome.runtime.sendMessage({ type: "ANIMTUBE_STATUS", text: "❌ Не удалось найти текст сценария." });
+                 chrome.runtime.sendMessage({ type: "ANIMTUBE_STATUS", text: "⚠️ Получен пустой сценарий." });
             }
         }
     });

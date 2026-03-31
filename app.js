@@ -213,38 +213,31 @@ function renderProjectScripts() {
         return;
     }
 
-    // Sort by Date (newest first)
-    const sorted = [...project.scripts].sort((a, b) => b.id - a.id);
-
     container.innerHTML = sorted.map((s, idx) => {
         const scriptNum = s.scriptNum || (sorted.length - idx);
-        const isCollapsed = s.isCollapsed ?? true;
-        
-        if (s.isPending) {
-            return `
-            <div class="script-card script-pending">
-                <div class="script-header" style="background: var(--accent-gemini); color: #000;">
-                    <span style="font-weight: 800;">ОЖИДАНИЕ СЦЕНАРИЯ #${scriptNum}...</span>
-                </div>
-                <div class="script-body" style="padding: 24px; text-align: center; color: var(--accent-gemini);">
-                    <div class="simple-pulse" style="font-size: 30px; margin-bottom: 10px;">🤖</div>
-                    <div style="font-size: 13px; letter-spacing: 1px; font-weight: 700;">НЕ ЗАКРЫВАЙТЕ ВКЛАДКУ GEMINI (90 СЕК)...</div>
-                </div>
-            </div>
-            `;
-        }
+        const isCollapsed = s.isCollapsed ?? false; // Default expanded for single scenario
+        const isPending = s.isPending;
         
         return `
-        <div class="script-card ${isCollapsed ? 'collapsed' : 'expanded'}" id="script-card-${s.id}">
+        <div class="script-card ${isCollapsed ? 'collapsed' : 'expanded'} ${isPending ? 'pending' : ''}" id="script-card-${s.id}">
             <div class="script-header" onclick="toggleScript('${s.id}')">
                 <span style="font-weight: 800; color: var(--accent-gemini);">СЦЕНАРИЙ #${scriptNum}</span>
                 <span style="opacity: 0.5; font-size: 11px; margin-left: 10px;">${s.created}</span>
-                <span class="script-toggle-icon">${isCollapsed ? '▼' : '▲'}</span>
+                <span id="script-status-${s.id}" style="margin-left: auto; font-size: 11px; font-weight: 800;">
+                    ${isPending ? '⌛ ГЕНЕРАЦИЯ...' : '✅ ВСТАВЛЕН'}
+                </span>
+                <span class="script-toggle-icon" style="margin-left: 15px;">${isCollapsed ? '▼' : '▲'}</span>
             </div>
             
             <div class="script-body">
-                <div class="script-text">${s.text}</div>
-                <div class="script-actions">
+                <textarea 
+                    class="script-textarea" 
+                    id="script-textarea-${s.id}" 
+                    placeholder="Напишите сценарий здесь или дождитесь робота..."
+                    oninput="updateScriptText('${s.id}', this.value)"
+                >${s.text}</textarea>
+                
+                <div class="script-actions" style="margin-top: 15px;">
                     <button class="script-btn script-btn-copy" onclick="copyScriptToClipboard('${s.id}')">📋 Копировать</button>
                     <button class="script-btn script-btn-download" onclick="downloadScript('${s.id}')">📥 Скачать .txt</button>
                     <button class="script-btn script-btn-del" onclick="deleteScript('${s.id}')">🗑️ Удалить</button>
@@ -253,6 +246,16 @@ function renderProjectScripts() {
         </div>
         `;
     }).join('');
+}
+
+function updateScriptText(id, newText) {
+    const project = getCurrentProject();
+    const script = project.scripts.find(s => s.id == id);
+    if (script) {
+        script.text = newText;
+        // Don't saveState on every char, maybe debounced, but let's keep it simple for now
+        localStorage.setItem('animtube_state', JSON.stringify(appState));
+    }
 }
 
 function toggleScript(id) {

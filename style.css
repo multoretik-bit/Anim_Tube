@@ -1016,15 +1016,27 @@ textarea:focus {
 
 .script-card.expanded .script-body {
     max-height: 5000px;
-    padding: 24px;
+    padding: 20px;
 }
 
-.script-text {
+.script-textarea {
+    width: 100%;
+    min-height: 300px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--border-glass);
+    border-radius: 12px;
+    padding: 15px;
+    color: var(--text-primary);
+    font-family: 'Inter', sans-serif;
     font-size: 14px;
     line-height: 1.6;
-    color: var(--text-secondary);
-    white-space: pre-wrap;
-    margin-bottom: 20px;
+    resize: vertical;
+    outline: none;
+    transition: border-color 0.3s;
+}
+
+.script-textarea:focus {
+    border-color: var(--accent-gemini);
 }
 
 .script-actions {
