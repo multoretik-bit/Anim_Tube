@@ -429,6 +429,61 @@ textarea:focus {
     color: var(--text-primary);
 }
 
+.folder-card {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), var(--bg-card));
+    border-color: rgba(99, 102, 241, 0.3);
+}
+
+.folder-card:hover {
+    border-color: var(--accent-primary);
+    box-shadow: 0 10px 40px rgba(99, 102, 241, 0.15);
+}
+
+.folder-badge {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    background: var(--accent-primary);
+    color: white;
+    font-size: 10px;
+    font-weight: 800;
+    padding: 4px 8px;
+    border-radius: 8px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.breadcrumb-nav {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+.btn-move-project {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    width: 24px;
+    height: 24px;
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s;
+    z-index: 10;
+}
+
+.project-card:hover .btn-move-project { opacity: 1; }
+
 /* --- WORKSPACE NAV --- */
 .workspace-nav {
     display: flex;

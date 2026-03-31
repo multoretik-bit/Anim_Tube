@@ -9,6 +9,8 @@ let state = {
     activePage: 'videos',
     keys: JSON.parse(localStorage.getItem('animtube_keys') || '{"gemini":"", "grok":"", "prefix":""}'),
     projects: JSON.parse(localStorage.getItem('animtube_projects') || '[]'),
+    folders: JSON.parse(localStorage.getItem('animtube_folders') || '[]'),
+    currentFolderId: null,
     activeProjectId: null,
     assembly: {
         isRunning: false,
@@ -221,6 +223,33 @@ window.updateProjectPrefix = (prefix) => {
     }
 };
 
+// --- FOLDER MANAGEMENT ---
+function createNewFolder() {
+    const name = prompt("Введите название папки (Большого проекта):", "Новая папка");
+    if (!name) return;
+
+    const newFolder = {
+        id: Date.now(),
+        name: name,
+        created: new Date().toLocaleDateString()
+    };
+
+    state.folders.unshift(newFolder);
+    saveState();
+    renderProjects();
+    logStatus(`📁 Папка "${name}" создана.`, "success");
+}
+
+function openFolder(id) {
+    state.currentFolderId = id;
+    renderProjects();
+}
+
+function exitFolder() {
+    state.currentFolderId = null;
+    renderProjects();
+}
+
 // --- PROJECT MANAGEMENT ---
 function createNewProject() {
     const name = prompt("Введите название видео-проекта:", "Новый проект");
@@ -229,7 +258,8 @@ function createNewProject() {
     const newProject = {
         id: Date.now(),
         name: name,
-        prefix: DEFAULT_PREFIX, // Default prefix for new projects
+        folderId: state.currentFolderId, // Associate with current folder
+        prefix: DEFAULT_PREFIX, 
         promptsText: "", 
         results: [],
         assets: [], 
@@ -243,28 +273,109 @@ function createNewProject() {
 
 function renderProjects() {
     const container = document.getElementById('project-list-container');
+    const description = document.getElementById('projects-view-description');
     if (!container) return;
 
-    if (state.projects.length === 0) {
+    container.innerHTML = "";
+
+    // 1. Handle Navigation Header (Breadcrumbs)
+    if (state.currentFolderId) {
+        const folder = state.folders.find(f => f.id === state.currentFolderId);
+        const folderName = folder ? folder.name : "Папка";
+        
+        if (description) description.innerHTML = `<span style="color:var(--accent-primary); cursor:pointer;" onclick="exitFolder()">Мои Проекты</span> / <b>${folderName}</b>`;
+        
+        // Add "Back" button as first item
+        const backBtn = document.createElement('div');
+        backBtn.className = "project-card folder-card";
+        backBtn.onclick = exitFolder;
+        backBtn.innerHTML = `
+            <div class="folder-icon">⬅️</div>
+            <div class="project-name">Назад</div>
+        `;
+        container.appendChild(backBtn);
+    } else {
+        if (description) description.innerText = "Управляйте своими анимационными проектами по папкам.";
+    }
+
+    // 2. Render Folders (only at root)
+    if (!state.currentFolderId) {
+        state.folders.forEach(f => {
+            const projectCount = state.projects.filter(p => p.folderId === f.id).length;
+            const card = document.createElement('div');
+            card.className = "project-card folder-card";
+            card.onclick = () => openFolder(f.id);
+            card.innerHTML = `
+                <div class="folder-badge">ПАПКА</div>
+                <div class="folder-icon">📂</div>
+                <div class="project-name">${f.name}</div>
+                <div class="project-meta">${projectCount} проектов • ${f.created}</div>
+                <button class="lib-del-btn" onclick="event.stopPropagation(); deleteFolder(${f.id})">×</button>
+            `;
+            container.appendChild(card);
+        });
+    }
+
+    // 3. Render Projects (filtered by current folder)
+    const filteredProjects = state.projects.filter(p => p.folderId === state.currentFolderId);
+    
+    if (filteredProjects.length === 0 && !state.currentFolderId && state.folders.length === 0) {
         container.innerHTML = `
             <div class="project-card btn-add-project" onclick="createNewProject()" style="grid-column: 1/-1; height: 180px;">
                 <div class="brand">
                     <span style="font-size: 24px;">📺</span>
                     <h1>ANIMTUBE<br><small style="font-size: 10px; color: var(--accent-primary); letter-spacing: 2px;">V12.0 ENGINE</small></h1>
                 </div>
-                <p>Нажмите, чтобы создать первый проект</p>
+                <p>Нажмите, чтобы создать первый проект или папку</p>
             </div>
         `;
         return;
     }
 
-    container.innerHTML = state.projects.map(p => `
-        <div class="project-card" onclick="openProject(${p.id})">
-            <div class="folder-icon">📂</div>
+    filteredProjects.forEach(p => {
+        const card = document.createElement('div');
+        card.className = "project-card";
+        card.onclick = () => openProject(p.id);
+        card.innerHTML = `
+            <button class="btn-move-project" title="Переместить" onclick="event.stopPropagation(); requestMoveProject(${p.id})">📦</button>
+            <div class="folder-icon">🎬</div>
             <div class="project-name">${p.name}</div>
             <div class="project-meta">${p.results ? p.results.length : 0} кадров • ${p.created}</div>
-        </div>
-    `).join('');
+        `;
+        container.appendChild(card);
+    });
+}
+
+function deleteFolder(id) {
+    if (!confirm("Удалить папку? Проекты внутри НЕ будут удалены, они переместятся в корень.")) return;
+    
+    state.folders = state.folders.filter(f => f.id !== id);
+    state.projects.forEach(p => {
+        if (p.folderId === id) p.folderId = null;
+    });
+    
+    saveState();
+    renderProjects();
+}
+
+function requestMoveProject(projectId) {
+    const options = state.folders.map(f => `${f.id}: ${f.name}`).join('\n');
+    const input = prompt("Введите ID папки для перемещения (оставьте пустым для корня):\n\n" + options);
+    
+    if (input === null) return;
+    
+    const targetFolderId = input.trim() === "" ? null : parseInt(input);
+    moveProjectToFolder(projectId, targetFolderId);
+}
+
+function moveProjectToFolder(projectId, folderId) {
+    const project = state.projects.find(p => p.id === projectId);
+    if (project) {
+        project.folderId = folderId;
+        saveState();
+        renderProjects();
+        logStatus(`✅ Проект "${project.name}" перемещен.`, "success");
+    }
 }
 
 function openProject(id) {
@@ -342,6 +453,7 @@ async function downloadProjectFiles() {
 
 function saveState() {
     localStorage.setItem('animtube_projects', JSON.stringify(state.projects));
+    localStorage.setItem('animtube_folders', JSON.stringify(state.folders));
     localStorage.setItem('animtube_keys', JSON.stringify(state.keys));
 }
 

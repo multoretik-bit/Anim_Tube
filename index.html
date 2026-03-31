@@ -37,11 +37,16 @@
             <div class="section-header" style="display: flex; justify-content: space-between; align-items: flex-end;">
                 <div>
                     <h2>Мои Проекты</h2>
-                    <p>Управляйте своими анимационными проектами по папкам.</p>
+                    <p id="projects-view-description">Управляйте своими анимационными проектами по папкам.</p>
                 </div>
-                <button class="btn btn-primary" onclick="createNewProject()">
-                    ➕ Создать проект
-                </button>
+                <div style="display: flex; gap: 12px;">
+                    <button class="btn btn-secondary" onclick="createNewFolder()">
+                        📁 Создать папку
+                    </button>
+                    <button class="btn btn-primary" onclick="createNewProject()">
+                        ➕ Создать проект
+                    </button>
+                </div>
             </div>
 
             <div class="project-grid" id="project-list-container">
