@@ -259,9 +259,6 @@ function renderProjectScenariosForSplitting() {
                     <button class="btn btn-secondary" onclick="toggleScenarioFrames('${s.id}')" title="Раскрыть список из 20 кадров">
                         📂 Промпты (${(s.frames || []).filter(f => f).length}/20)
                     </button>
-                    <button id="btn-paste-split-${s.id}" class="btn btn-gemini" onclick="pasteFromGeminiToScenario('${s.id}')" title="Вставить из Gemini">
-                        📥 ВСТАВИТЬ (GEMINI)
-                    </button>
                     <button id="copy-btn-split-${s.id}" class="btn btn-secondary" onclick="copyScriptToClipboard('${s.id}')" title="Копировать текст">
                         📋
                     </button>
@@ -274,11 +271,16 @@ function renderProjectScenariosForSplitting() {
             
             <div id="frames-grid-${s.id}" class="scenario-frames-grid" style="display: ${s.isFramesExpanded ? 'grid' : 'none'};">
                 <div class="bulk-paste-area">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                        <div class="frame-label" style="color: var(--accent-gemini);">📥 МАССОВАЯ ВСТАВКА (GEMINI)</div>
-                        <button class="btn btn-primary" onclick="parseBulkFrames('${s.id}', document.getElementById('bulk-textarea-${s.id}').value)" style="padding: 4px 10px; font-size: 10px;">
-                            🧩 РАСПРЕДЕЛИТЬ ПО КАДРАМ
-                        </button>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 15px;">
+                        <div class="frame-label" style="color: var(--accent-gemini); flex: 1;">📥 МАССОВАЯ ВСТАВКА (GEMINI)</div>
+                        <div style="display: flex; gap: 10px;">
+                            <button id="btn-paste-split-${s.id}" class="btn btn-gemini" onclick="pasteFromGeminiToScenario('${s.id}')" style="padding: 8px 16px; font-size: 11px;">
+                                📥 ВСТАВИТЬ (GEMINI)
+                            </button>
+                            <button id="btn-distribute-split-${s.id}" class="btn btn-primary" onclick="parseBulkFrames('${s.id}', document.getElementById('bulk-textarea-${s.id}').value)" style="padding: 8px 16px; font-size: 11px;">
+                                🧩 РАСПРЕДЕЛИТЬ ПО КАДРАМ
+                            </button>
+                        </div>
                     </div>
                     <textarea id="bulk-textarea-${s.id}" class="bulk-textarea" 
                               placeholder="Вставьте сюда текст из Gemini..." 
@@ -376,28 +378,29 @@ function parseBulkFrames(scriptId, rawText) {
     const script = project.scripts.find(s => s.id == scriptId);
     if (!script || !script.frames) return;
 
-    // v1.2.6: Improved Splitting (Precision Parsing)
-    // We split by "Frame X" and keep the content after it.
-    // We use a lookahead to ensure we don't lose the keyword if needed, 
-    // but here we just need the content between keywords.
-    const parts = rawText.split(/Frame\s*\d*[:\s]*/i);
+    // v1.2.7: Trigger-based Splitting (Frame as marker)
+    // We split by the word "Frame" (case-insensitive)
+    const parts = rawText.split(/Frame\b/i);
     
-    // The first part (parts[0]) is usually empty or header text.
-    // Subsequent parts (parts[1...]) are the actual frame descriptions.
+    // First part (parts[0]) is everything BEFORE the first "Frame"
+    // The user says "as soon as it reaches the word Frame, it copies what was BEFORE it"
+    // but usually Frame 1 is the first block. 
+    // Let's handle it strictly: every non-empty segment becomes a slot.
     let frameIdx = 0;
-    for (let i = 1; i < parts.length && frameIdx < 20; i++) {
-        let content = parts[i].trim();
-        if (content.length > 5) {
-            // Clean up trailing "Frame" words if any (safety)
-            content = content.split(/Frame/i)[0].trim();
-            script.frames[frameIdx] = content;
+    parts.forEach((part, i) => {
+        let clean = part.trim();
+        // Remove leading numbers/punctuation often following the "Frame" word (e.g. " 1:", " 2**")
+        clean = clean.replace(/^[\s\d:*.-]+/, '').trim();
+        
+        if (clean.length > 2 && frameIdx < 20) {
+            script.frames[frameIdx] = clean;
             frameIdx++;
         }
-    }
+    });
 
     saveState();
     renderProjectScenariosForSplitting();
-    logStatus(`✅ Распределено ${frameIdx} кадров по ячейкам!`, "success");
+    logStatus(`✅ Успешно распределено ${frameIdx} кадров по ячейкам!`, "success");
 }
 
 async function pasteFromGeminiToScenario(scriptId) {
@@ -477,14 +480,30 @@ function startScriptSplitting(scriptId) {
 }
 
 function handleIncomingPrompts(rawText) {
-    // v1.2.6: Store for manual/auto distribution
+    // v1.2.7: Store for manual/auto distribution
     state.assembly.pendingPrompts = rawText;
     
-    // v1.2.5: Automated Splitting Bridge
+    // v1.2.7: Automated Splitting Bridge (Sequence Auto-Click)
     if (state.assembly.activeSplittingScriptId) {
-        logStatus("🤖 РОБОТ: Данные получены. Начинаю распределение по кадрам...", "success");
-        parseBulkFrames(state.assembly.activeSplittingScriptId, rawText);
-        state.assembly.activeSplittingScriptId = null;
+        const sid = state.assembly.activeSplittingScriptId;
+        logStatus("🤖 РОБОТ: Данные получены! Начинаю авто-вставку и распределение...", "success");
+        
+        // Use the explicit functions to keep UI in sync
+        setTimeout(() => {
+            pasteFromGeminiToScenario(sid);
+            
+            setTimeout(() => {
+                const btnDist = document.getElementById(`btn-distribute-split-${sid}`);
+                if (btnDist) btnDist.classList.add('triggering');
+                
+                parseBulkFrames(sid, rawText);
+                
+                setTimeout(() => {
+                    if (btnDist) btnDist.classList.remove('triggering');
+                    state.assembly.activeSplittingScriptId = null;
+                }, 1000);
+            }, 1000);
+        }, 500);
         return;
     }
 
