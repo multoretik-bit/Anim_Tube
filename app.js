@@ -324,17 +324,18 @@ function startScriptSplitting(scriptId) {
     const text = script.text;
     if (!text || text.length < 10) return alert("Текст слишком короткий для разделения!");
     
-    logStatus("✂️ Копирование и отправка на разделение в Gemini...", "info");
+    // STEP 1: Copy to clipboard (using existing function for visual feedback)
+    copyScriptToClipboard(scriptId);
+    logStatus("✂️ Шаг 1: Сценарий скопирован. Подготовка к переходу в Gemini...", "info");
     
-    // Copy to clipboard as requested (v1.2.1)
-    navigator.clipboard.writeText(text).then(() => {
-        logStatus("📋 Сценарий скопирован. Запуск робота...", "success");
-    });
-    // Switch to Gemini tab handled by extension via message
-    window.postMessage({ 
-        type: "ANIMTUBE_CMD_SPLIT", 
-        script: text 
-    }, "*");
+    // STEP 2 & 3: Wait a bit and then trigger extension (Switch & Send)
+    setTimeout(() => {
+        logStatus("🚀 Шаг 2: Переход в Gemini. Запуск разделения...", "success");
+        window.postMessage({ 
+            type: "ANIMTUBE_CMD_SPLIT", 
+            script: text 
+        }, "*");
+    }, 1000); // 1s delay for visual/robotic clarity
 }
 
 function handleIncomingPrompts(rawText) {
