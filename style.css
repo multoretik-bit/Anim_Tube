@@ -244,6 +244,19 @@ textarea:focus {
     text-transform: uppercase;
 }
 
+.btn-gemini {
+    background: rgba(94, 181, 247, 0.15);
+    border: 1px solid var(--accent-gemini);
+    color: var(--accent-gemini);
+    text-shadow: 0 0 10px rgba(94, 181, 247, 0.3);
+}
+
+.btn-gemini:hover {
+    background: var(--accent-gemini);
+    color: white;
+    box-shadow: 0 0 20px rgba(94, 181, 247, 0.4);
+}
+
 .status-pending { background: rgba(255, 255, 255, 0.1); color: var(--text-secondary); }
 .status-working { background: rgba(94, 181, 247, 0.2); color: var(--accent-gemini); }
 .status-done { background: rgba(16, 185, 129, 0.2); color: var(--accent-success); }

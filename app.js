@@ -22,7 +22,8 @@ let state = {
         lastSentPrompt: "",
         pendingImage: null,
         scriptQueue: 0,
-        activeSplittingScriptId: null
+        activeSplittingScriptId: null,
+        pendingPrompts: ""
     },
     isAutoMode: JSON.parse(localStorage.getItem('animtube_auto_mode') || 'false')
 };
@@ -258,6 +259,9 @@ function renderProjectScenariosForSplitting() {
                     <button class="btn btn-secondary" onclick="toggleScenarioFrames('${s.id}')" title="Раскрыть список из 20 кадров">
                         📂 Промпты (${(s.frames || []).filter(f => f).length}/20)
                     </button>
+                    <button id="btn-paste-split-${s.id}" class="btn btn-gemini" onclick="pasteFromGeminiToScenario('${s.id}')" title="Вставить из Gemini">
+                        📥 ВСТАВИТЬ (GEMINI)
+                    </button>
                     <button id="copy-btn-split-${s.id}" class="btn btn-secondary" onclick="copyScriptToClipboard('${s.id}')" title="Копировать текст">
                         📋
                     </button>
@@ -270,9 +274,14 @@ function renderProjectScenariosForSplitting() {
             
             <div id="frames-grid-${s.id}" class="scenario-frames-grid" style="display: ${s.isFramesExpanded ? 'grid' : 'none'};">
                 <div class="bulk-paste-area">
-                    <div class="frame-label" style="margin-bottom: 8px; color: var(--accent-gemini);">📥 ВСТАВИТЬ ОТВЕТ GEMINI (ВСЕ КAДРЫ СРАЗУ)</div>
-                    <textarea class="bulk-textarea" 
-                              placeholder="Вставьте сюда текст из Gemini. Система сама найдет блоки 'Frame N' и разложит их по ячейкам..." 
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <div class="frame-label" style="color: var(--accent-gemini);">📥 МАССОВАЯ ВСТАВКА (GEMINI)</div>
+                        <button class="btn btn-primary" onclick="parseBulkFrames('${s.id}', document.getElementById('bulk-textarea-${s.id}').value)" style="padding: 4px 10px; font-size: 10px;">
+                            🧩 РАСПРЕДЕЛИТЬ ПО КАДРАМ
+                        </button>
+                    </div>
+                    <textarea id="bulk-textarea-${s.id}" class="bulk-textarea" 
+                              placeholder="Вставьте сюда текст из Gemini..." 
                               oninput="parseBulkFrames('${s.id}', this.value)"></textarea>
                 </div>
                 ${(s.frames || Array(20).fill("")).map((f, i) => `
@@ -367,16 +376,20 @@ function parseBulkFrames(scriptId, rawText) {
     const script = project.scripts.find(s => s.id == scriptId);
     if (!script || !script.frames) return;
 
-    // Split by the word "Frame" (case-insensitive)
-    // We look for "Frame" followed by optional space and digits
+    // v1.2.6: Improved Splitting (Precision Parsing)
+    // We split by "Frame X" and keep the content after it.
+    // We use a lookahead to ensure we don't lose the keyword if needed, 
+    // but here we just need the content between keywords.
     const parts = rawText.split(/Frame\s*\d*[:\s]*/i);
     
-    // The first part is usually empty or noise before the first "Frame"
-    // We take the next 20 parts and put them into slots
+    // The first part (parts[0]) is usually empty or header text.
+    // Subsequent parts (parts[1...]) are the actual frame descriptions.
     let frameIdx = 0;
     for (let i = 1; i < parts.length && frameIdx < 20; i++) {
         let content = parts[i].trim();
         if (content.length > 5) {
+            // Clean up trailing "Frame" words if any (safety)
+            content = content.split(/Frame/i)[0].trim();
             script.frames[frameIdx] = content;
             frameIdx++;
         }
@@ -384,7 +397,36 @@ function parseBulkFrames(scriptId, rawText) {
 
     saveState();
     renderProjectScenariosForSplitting();
-    logStatus(`✅ Распознано ${frameIdx} кадров из текста!`, "success");
+    logStatus(`✅ Распределено ${frameIdx} кадров по ячейкам!`, "success");
+}
+
+async function pasteFromGeminiToScenario(scriptId) {
+    const btn = document.getElementById(`btn-paste-split-${scriptId}`);
+    if (btn) btn.classList.add('triggering');
+
+    let text = state.assembly.pendingPrompts;
+    
+    // Fallback to Clipboard
+    if (!text || text.length < 5) {
+        logStatus("📋 Буфер пуст, пробую системный буфер...", "info");
+        try {
+            text = await navigator.clipboard.readText();
+        } catch (e) {
+            logStatus("❌ Ошибка буфера. Используйте Ctrl+V в поле.", "error");
+        }
+    }
+
+    if (text && text.length > 5) {
+        const textarea = document.getElementById(`bulk-textarea-${scriptId}`);
+        if (textarea) textarea.value = text;
+        
+        // Auto-distribute
+        parseBulkFrames(scriptId, text);
+    } else {
+        logStatus("⚠️ В буфере не найдено подходящего текста.", "error");
+    }
+
+    if (btn) setTimeout(() => btn.classList.remove('triggering'), 500);
 }
 
 function startScriptSplitting(scriptId) {
@@ -435,6 +477,9 @@ function startScriptSplitting(scriptId) {
 }
 
 function handleIncomingPrompts(rawText) {
+    // v1.2.6: Store for manual/auto distribution
+    state.assembly.pendingPrompts = rawText;
+    
     // v1.2.5: Automated Splitting Bridge
     if (state.assembly.activeSplittingScriptId) {
         logStatus("🤖 РОБОТ: Данные получены. Начинаю распределение по кадрам...", "success");
