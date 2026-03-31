@@ -1,5 +1,5 @@
 /**
- * AnimTube PRO v11.18 - LINGUISTIC MASTERY Engine
+ * AnimTube v1.0 - OFFICIAL RELEASE
  * Sequence: Text First -> Website Return -> Visual Copy -> Gemini Send
  */
 
@@ -32,8 +32,8 @@ window.onload = async () => {
     loadKeysData();
     renderProjects();
     setupGlobalListeners();
-    console.log("🚀 AnimTube v11.18 Linguistic Mastery loaded.");
-    logStatus("✨ AnimTube v11.18 Linguistic Mastery Ready.", "success");
+    console.log("🚀 AnimTube v1.0 loaded.");
+    logStatus("✨ AnimTube v1.0 Ready.", "success");
 };
 
 function setupGlobalListeners() {

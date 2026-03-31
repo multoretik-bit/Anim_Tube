@@ -1,4 +1,4 @@
-// AnimTube Bridge v11.17 - ULTIMATE RESURRECTION EDITION
+// AnimTube Bridge v1.0 - OFFICIAL RELEASE
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.type === "TO_GEMINI") {
         executeLiteralCycle(request.prompt, request.assets, request.assetIds);
@@ -67,35 +67,39 @@ async function executeScriptCycle(prefix) {
         }
     }
 
-    // 3. Native Copy Button Click (v12.2)
-    report("📋 Нажимаю на родную кнопку копирования Gemini...");
+    // 3. Native Copy Button Click (v1.0)
+    report("📋 Скроллинг и поиск кнопки копирования Gemini...");
     await chrome.scripting.executeScript({
         target: { tabId: geminiTab.id },
         func: async () => {
             const sleep = (ms) => new Promise(r => setTimeout(r, ms));
             
-            // 1. Find all responses
+            // 1. Scroll to the bottom first
+            window.scrollTo({ top: document.body.scrollHeight, behavior: 'auto' });
+            await sleep(2000); // Give it 2 seconds to settle after scroll
+
+            // 2. Find all responses
             const responses = document.querySelectorAll('.model-response-text, .message-content, .prose, [data-message-author-role="assistant"]');
             if (responses.length === 0) {
                 chrome.runtime.sendMessage({ type: "ANIMTUBE_STATUS", text: "❌ Контент не найден. Не могу найти кнопку копирования." });
                 return;
             }
 
-            // 2. Focused on last response
+            // 3. Focused on last response
             const lastResponse = responses[responses.length - 1];
             
-            // 3. Find the "Copy response" button inside or near the last response
+            // 4. Find the "Copy response" button inside or near the last response
             // Gemini uses aria-label="Copy response" (English) or "Копировать ответ" (Russian)
             const copyBtn = lastResponse.parentElement.querySelector('button[aria-label*="Copy"], button[aria-label*="Копировать"]') || 
                             document.querySelector('button[aria-label*="Copy response"]');
             
             if (copyBtn) {
                 copyBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                await sleep(500);
+                await sleep(1000); // Small pause before click
                 copyBtn.click();
                 chrome.runtime.sendMessage({ type: "ANIMTUBE_STATUS", text: "✅ Кнопка Gemini нажата. Сценарий в буфере обмена!" });
             } else {
-                chrome.runtime.sendMessage({ type: "ANIMTUBE_STATUS", text: "⚠️ Кнопка копирования не найдена. Работаю по старой схеме (скрейпинг)..." });
+                chrome.runtime.sendMessage({ type: "ANIMTUBE_STATUS", text: "⚠️ Кнопка копирования не найдена. Скрейпинг..." });
                 
                 // Fallback: Scrape manually
                 const rawText = lastResponse.innerText || lastResponse.textContent;
@@ -106,7 +110,7 @@ async function executeScriptCycle(prefix) {
 
     await sleep(2000);
     focusStudio();
-    report("✅ РОБОТ ЗАВЕРШИЛ ЗАДАЧУ. Нажмите 'Вставить' в слоте сценария.");
+    report("✅ РОБОТ ЗАВЕРШИЛ ЗАДАЧУ (v1.0). Нажмите 'Вставить' в слоте.");
 }
 
 async function executeLiteralCycle(promptText, assets, assetIds) {
