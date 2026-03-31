@@ -274,14 +274,31 @@ function processSuperAutoSplitting() {
     const idx = state.assembly.superAuto.splittingIdx;
 
     if (idx >= scripts.length) {
-        logStatus("🤖 [СУПЕР-АВТО]: Разделение завершено! Перехожу к финальной сборке...", "success");
+        logStatus("🤖 [СУПЕР-АВТО]: Разделение завершено! Прямой запуск сборки...", "success");
         state.assembly.superAuto.phase = 'assembly';
         
         setTimeout(() => {
             switchProjectTab('frames');
             setTimeout(() => {
-                logStatus("🚀 [СУПЕР-АВТО]: ЗАПУСК ПЛОТНОЙ СБОРКИ КАДРОВ...", "success");
-                startRollAssembly();
+                const project = getCurrentProject();
+                if (!project || !project.promptsList || project.promptsList.length === 0) {
+                    logStatus("⚠️ [СУПЕР-АВТО]: Ошибка! Список промптов пуст.", "error");
+                    stopSuperAutomation();
+                    return;
+                }
+                
+                // DIRECT ASSEMBLY START (Bypassing startRollAssembly button logic)
+                state.assembly.queue = [...project.promptsList];
+                state.assembly.currentIdx = 0;
+                state.assembly.isRunning = true;
+                state.assembly.lockedProjectId = state.activeProjectId;
+                
+                document.getElementById('btn-start-assembly').style.display = 'none';
+                document.getElementById('btn-stop-assembly').style.display = 'flex';
+                document.getElementById('receiving-slot-panel').style.display = 'block';
+                
+                logStatus("🚀 [СУПЕР-АВТО]: ПРЯМОЙ ЗАПУСК ГЕНЕРАЦИИ КАДРОВ...", "success");
+                processNextItem();
             }, 1000);
         }, 1500);
         return;
@@ -432,7 +449,7 @@ function distributePromptsToGenerator(scriptId, rawText) {
     logStatus(`✅ Добавлено ${lines.length} промптов в генератор!`, "success");
     
     // Auto-switch to Generator Tab
-    showTab('frames');
+    switchProjectTab('frames');
     renderProjectPrompts();
 }
 
