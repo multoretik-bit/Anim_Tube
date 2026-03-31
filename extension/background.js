@@ -1,13 +1,13 @@
 // AnimTube Bridge v11.17 - ULTIMATE RESURRECTION EDITION
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.type === "TO_GEMINI") {
-        console.log("🚀 Bridge: Signal received. Initiating resurrection cycle...");
         executeLiteralCycle(request.prompt, request.assets, request.assetIds);
+    } else if (request.type === "ANIMTUBE_CMD_SCRIPT") {
+        executeScriptCycle(request.prefix);
     } else if (request.type === "ANIMTUBE_STATUS") {
         relayToStudio(request);
     } else if (request.type === "FROM_GEMINI") {
         relayToStudio(request);
-        console.log("⏳ Image captured. Waiting 3s before switching back...");
         setTimeout(() => {
             focusStudio();
             setTimeout(() => relayToStudio({ type: "ANIMTUBE_CMD_PASTE_AUTO" }), 3000);
@@ -15,6 +15,74 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
     return true;
 });
+
+async function executeScriptCycle(prefix) {
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+    const report = (msg) => relayToStudio({ type: "ANIMTUBE_STATUS", text: msg });
+
+    const tabs = await chrome.tabs.query({});
+    const geminiTab = tabs.find(t => t.url && t.url.includes("gemini.google.com"));
+    
+    if (!geminiTab) {
+        report("❌ Ошибка: Вкладка Gemini не найдена!");
+        return;
+    }
+
+    // 1. Focus & Paste
+    chrome.windows.update(geminiTab.windowId, { focused: true });
+    chrome.tabs.update(geminiTab.id, { active: true });
+    await sleep(1000);
+
+    report("✏️ Ввожу запрос для сценария...");
+    await chrome.scripting.executeScript({
+        target: { tabId: geminiTab.id },
+        func: async (text) => {
+            const editor = document.querySelector('div[contenteditable="true"]') || document.querySelector('.ql-editor');
+            if (editor) {
+                editor.focus();
+                document.execCommand('selectAll', false, null);
+                document.execCommand('delete', false, null);
+                document.execCommand('insertText', false, text);
+                
+                await new Promise(r => setTimeout(r, 500));
+                
+                const sendBtn = document.querySelector('button[aria-label*="Send"]') || document.querySelector('button[aria-label*="Отправить"]');
+                if (sendBtn) sendBtn.click();
+            }
+        },
+        args: [prefix]
+    });
+
+    report("⏳ Ожидание генерации сценария (30 сек)...");
+    await sleep(30000);
+
+    // 2. Capture Text
+    report("📋 Копирование сценария...");
+    await chrome.scripting.executeScript({
+        target: { tabId: geminiTab.id },
+        func: async () => {
+            const responses = document.querySelectorAll('.model-response-text, .message-content, [role="log"]');
+            if (responses.length > 0) {
+                const lastResponse = responses[responses.length - 1];
+                const text = lastResponse.innerText || lastResponse.textContent;
+                chrome.runtime.sendMessage({ type: "FROM_GEMINI_SCRIPT", text: text });
+            } else {
+                // Secondary attempt: look for the last assistant block
+                const chatElements = document.querySelectorAll('div');
+                for (let i = chatElements.length - 1; i >= 0; i--) {
+                    if (chatElements[i].innerText && chatElements[i].innerText.length > 500) {
+                         chrome.runtime.sendMessage({ type: "FROM_GEMINI_SCRIPT", text: chatElements[i].innerText });
+                         return;
+                    }
+                }
+                chrome.runtime.sendMessage({ type: "ANIMTUBE_STATUS", text: "❌ Не удалось найти текст сценария." });
+            }
+        }
+    });
+
+    await sleep(2000);
+    focusStudio();
+}
 
 async function executeLiteralCycle(promptText, assets, assetIds) {
     const sleep = (ms) => new Promise(r => setTimeout(r, ms));

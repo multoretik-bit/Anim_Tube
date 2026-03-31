@@ -965,6 +965,63 @@ textarea:focus {
     color: white;
 }
 
+/* --- SCRIPT TAB --- */
+.script-card {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border-glass);
+    border-radius: 16px;
+    padding: 24px;
+    position: relative;
+    transition: all 0.3s;
+}
+
+.script-card:hover {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: var(--accent-primary);
+}
+
+.script-text {
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--text-primary);
+    white-space: pre-wrap;
+    max-height: 300px;
+    overflow-y: auto;
+    margin-bottom: 16px;
+}
+
+.script-meta {
+    font-size: 11px;
+    color: var(--text-dim);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.script-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.script-btn {
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+}
+
+.script-btn-copy {
+    background: var(--accent-primary);
+    color: white;
+}
+
+.script-btn-del {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+}
+
 /* Scrollbar global */
 ::-webkit-scrollbar {
     width: 8px;

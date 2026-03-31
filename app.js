@@ -131,7 +131,82 @@ function setupGlobalListeners() {
         if (event.data.type === "ANIMTUBE_CMD_VISUAL_COPY") {
             runVisualCopyAnimation(event.data.assetIds);
         }
+
+        // 5. SCRIPT ARRIVAL (v12.0)
+        if (event.data.type === "FROM_GEMINI_SCRIPT") {
+            handleIncomingScript(event.data.text);
+        }
     });
+}
+
+// --- SCRIPT MANAGEMENT ---
+function startScriptGeneration() {
+    const project = getCurrentProject();
+    if (!project || !project.scriptPrefix) return alert("Введите префикс сценария в настройках!");
+    
+    logStatus("📝 Запуск генерации сценария в Gemini...", "info");
+    window.postMessage({ 
+        type: "ANIMTUBE_CMD_SCRIPT", 
+        prefix: project.scriptPrefix 
+    }, "*");
+}
+
+function handleIncomingScript(text) {
+    const project = getCurrentProject();
+    if (!project) return;
+
+    const newScript = {
+        id: Date.now(),
+        text: text,
+        created: new Date().toLocaleTimeString()
+    };
+
+    if (!project.scripts) project.scripts = [];
+    project.scripts.unshift(newScript);
+    saveState();
+    renderProjectScripts();
+    logStatus("✅ Сценарий успешно получен и добавлен в проект!", "success");
+}
+
+function renderProjectScripts() {
+    const project = getCurrentProject();
+    const container = document.getElementById('project-scripts-container');
+    if (!project || !container) return;
+
+    if (!project.scripts || project.scripts.length === 0) {
+        container.innerHTML = `<p style="text-align: center; color: var(--text-dim); padding: 40px;">Сценарии еще не созданы. Нажмите кнопку выше, чтобы начать.</p>`;
+        return;
+    }
+
+    container.innerHTML = project.scripts.map(s => `
+        <div class="script-card">
+            <div class="script-text">${s.text}</div>
+            <div class="script-meta">
+                <span>Создан: ${s.created}</span>
+                <div class="script-actions">
+                    <button class="script-btn script-btn-copy" onclick="copyScriptToClipboard('${s.id}')">Скопировать</button>
+                    <button class="script-btn script-btn-del" onclick="deleteScript('${s.id}')">Удалить</button>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function copyScriptToClipboard(id) {
+    const project = getCurrentProject();
+    const script = project.scripts.find(s => s.id == id);
+    if (script) {
+        navigator.clipboard.writeText(script.text);
+        logStatus("📋 Сценарий скопирован в буфер обмена.", "success");
+    }
+}
+
+function deleteScript(id) {
+    if (!confirm("Удалить этот сценарий?")) return;
+    const project = getCurrentProject();
+    project.scripts = project.scripts.filter(s => s.id != id);
+    saveState();
+    renderProjectScripts();
 }
 
 async function initDB() {
@@ -191,6 +266,7 @@ function showPage(pageId) {
     if (pageId === 'videos') renderProjects();
     if (pageId === 'assets') renderGlobalAssets();
     if (pageId === 'workspace') {
+        renderProjectScripts();
         renderProjectLibrary();
         renderProjectAssets();
     }
@@ -204,8 +280,13 @@ function switchProjectTab(tabId) {
     // 2. Update Content Panes
     document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
     
-    if (tabId === 'frames') {
+    if (tabId === 'script') {
+        document.getElementById('tab-content-script').classList.add('active');
+        if (document.getElementById('project-settings-assets')) document.getElementById('project-settings-assets').style.display = 'none';
+        renderProjectScripts();
+    } else if (tabId === 'frames') {
         document.getElementById('tab-content-frames').classList.add('active');
+        if (document.getElementById('project-settings-assets')) document.getElementById('project-settings-assets').style.display = 'block';
     } else {
         // All other tabs show the "Locked" placeholder
         document.getElementById('tab-content-locked').classList.add('active');
@@ -213,6 +294,15 @@ function switchProjectTab(tabId) {
 
     logStatus(`📂 Переход во вкладку: ${tabId}`, "info");
 }
+
+window.updateProjectScriptPrefix = (prefix) => {
+    const project = getCurrentProject();
+    if (project) {
+        project.scriptPrefix = prefix;
+        saveState();
+        logStatus("✅ Префикс сценария обновлен.", "success");
+    }
+};
 
 window.updateProjectPrefix = (prefix) => {
     const project = getCurrentProject();
@@ -258,8 +348,10 @@ function createNewProject() {
     const newProject = {
         id: Date.now(),
         name: name,
-        folderId: state.currentFolderId, // Associate with current folder
+        folderId: state.currentFolderId, 
         prefix: DEFAULT_PREFIX, 
+        scriptPrefix: "Напиши подробный сценарий для серии мультфильма про...",
+        scripts: [],
         promptsText: "", 
         results: [],
         assets: [], 
@@ -385,28 +477,21 @@ function openProject(id) {
     state.activeProjectId = id;
     document.getElementById('current-project-name').innerText = project.name;
     
-    // Initialize project prefix in UI
+    // Initialize project prefixes in UI
     const prefixInput = document.getElementById('project-specific-prefix');
-    if (prefixInput) {
-        prefixInput.value = project.prefix || DEFAULT_PREFIX;
-        // Migration: ensure project has a prefix if it's old
-        if (!project.prefix) {
-            project.prefix = DEFAULT_PREFIX;
-            saveState();
-        }
-    }
+    if (prefixInput) prefixInput.value = project.prefix || DEFAULT_PREFIX;
 
-    // Migration: Case for v11.19 (Text -> List)
-    if (project.promptsText && (!project.promptsList || project.promptsList.length === 0)) {
-        project.promptsList = project.promptsText.split('\n').map(l => l.trim()).filter(l => l.length > 2);
-        delete project.promptsText;
-        saveState();
-    }
-    if (!project.promptsList) project.promptsList = [];
+    const scriptPrefixInput = document.getElementById('project-script-prefix');
+    if (scriptPrefixInput) scriptPrefixInput.value = project.scriptPrefix || "";
 
-    // Default to "Frames" tab on open
-    switchProjectTab('frames');
+    // Migration: ensure project has script fields if it's old
+    if (!project.scripts) project.scripts = [];
+    if (!project.scriptPrefix) project.scriptPrefix = "Напиши сценарий для серии...";
 
+    // Default to "Script" tab on open
+    switchProjectTab('script');
+
+    renderProjectScripts();
     renderProjectLibrary();
     renderProjectAssets();
     renderProjectPrompts();
@@ -960,17 +1045,18 @@ function logStatus(msg, type) {
 }
 
 function loadKeysData() {
-    document.getElementById('key-gemini').value = state.keys.gemini;
-    document.getElementById('key-grok').value = state.keys.grok;
-    document.getElementById('setting-prefix').value = state.keys.prefix || DEFAULT_PREFIX;
+    const keyGemini = document.getElementById('key-gemini');
+    if (keyGemini) keyGemini.value = state.keys.gemini || "";
+    
+    const keyGrok = document.getElementById('key-grok');
+    if (keyGrok) keyGrok.value = state.keys.grok || "";
 }
 
 function saveKeys() {
     state.keys.gemini = document.getElementById('key-gemini').value;
     state.keys.grok = document.getElementById('key-grok').value;
-    state.keys.prefix = document.getElementById('setting-prefix').value;
     saveState();
-    logStatus("✅ Ключи и глобальный префикс сохранены.", "success");
+    logStatus("✅ API Ключи сохранены.", "success");
 }
 
 async function triggerDeployment() {

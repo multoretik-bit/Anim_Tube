@@ -69,8 +69,8 @@
 
             <!-- TAB NAVIGATION (v12) -->
             <div class="project-tabs">
-                <div class="tab-item locked" id="tab-script" onclick="switchProjectTab('script')">
-                    <span class="tab-icon">📝</span> Создание сценария <span class="lock-icon">🔒</span>
+                <div class="tab-item active" id="tab-script" onclick="switchProjectTab('script')">
+                    <span class="tab-icon">📝</span> Создание сценария
                 </div>
                 <div class="tab-item locked" id="tab-prompts" onclick="switchProjectTab('prompts')">
                     <span class="tab-icon">✂️</span> Разделение сценария <span class="lock-icon">🔒</span>
@@ -78,7 +78,7 @@
                 <div class="tab-item locked" id="tab-voice" onclick="switchProjectTab('voice')">
                     <span class="tab-icon">🎙️</span> Создание озвучки <span class="lock-icon">🔒</span>
                 </div>
-                <div class="tab-item active" id="tab-frames" onclick="switchProjectTab('frames')">
+                <div class="tab-item" id="tab-frames" onclick="switchProjectTab('frames')">
                     <span class="tab-icon">🖼️</span> Создание кадров
                 </div>
                 <div class="tab-item locked" id="tab-animation" onclick="switchProjectTab('animation')">
@@ -88,8 +88,23 @@
 
             <!-- TAB CONTENTS -->
             <div id="project-tab-contents" style="margin-top: 32px;">
+                <!-- Tab: Script -->
+                <div id="tab-content-script" class="tab-pane active">
+                    <div class="glass-panel" style="margin-bottom: 24px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                            <h3>📝 ГЕНЕРАТОР СЦЕНАРИЕВ</h3>
+                            <button class="btn btn-primary" onclick="startScriptGeneration()">
+                                🚀 Сгенерировать сценарий в Gemini
+                            </button>
+                        </div>
+                        <div id="project-scripts-container" style="display: flex; flex-direction: column; gap: 16px;">
+                            <!-- Scripts injected via JS -->
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Tab: Frames -->
-                <div id="tab-content-frames" class="tab-pane active">
+                <div id="tab-content-frames" class="tab-pane">
                     <div style="display: grid; grid-template-columns: 1fr 400px; gap: 32px;">
                         <!-- Left Column: Generator & Library -->
                         <div style="display: flex; flex-direction: column; gap: 24px;">
@@ -183,17 +198,26 @@
                 </div>
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px;">
-                    <!-- Style Prefix -->
-                    <div class="setting-group">
-                        <label style="display: block; margin-bottom: 12px; font-size: 14px; font-weight: 700; color: var(--text-primary);">ПРЕФИКС СТИЛЯ (PRE-PROMPT)</label>
-                        <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">
-                            Этот текст будет автоматически добавляться в начало каждого промта для поддержания единого стиля в этом проекте.
-                        </p>
-                        <textarea id="project-specific-prefix" style="height: 120px; font-size: 13px; border-color: rgba(99, 102, 241, 0.3);" onchange="window.updateProjectPrefix(this.value)" placeholder="Напр. Style: Peppa Pig, flat vector, 2D..."></textarea>
+                    <!-- Style & Script Prefixes -->
+                    <div class="setting-group" style="display: flex; flex-direction: column; gap: 20px;">
+                        <div>
+                            <label style="display: block; margin-bottom: 8px; font-size: 13px; font-weight: 700; color: var(--text-primary);">ПРЕФИКС СЦЕНАРИЯ (SCRIPT PROMPT)</label>
+                            <p style="font-size: 11px; color: var(--text-secondary); margin-bottom: 8px;">
+                                Что Gemini должен написать? (Напр. "Напиши сценарий для серии Peppa Pig про...")
+                            </p>
+                            <textarea id="project-script-prefix" style="height: 100px; font-size: 12px; border-color: rgba(99, 102, 241, 0.3);" onchange="window.updateProjectScriptPrefix(this.value)" placeholder="Напиши сценарий для серии..."></textarea>
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 8px; font-size: 13px; font-weight: 700; color: var(--text-primary);">ПРЕФИКС СТИЛЯ КАДРОВ (IMAGE PREFIX)</label>
+                            <p style="font-size: 11px; color: var(--text-secondary); margin-bottom: 8px;">
+                                Стиль для каждого кадра (Напр. "Peppa Pig style, 2D...")
+                            </p>
+                            <textarea id="project-specific-prefix" style="height: 100px; font-size: 12px; border-color: rgba(99, 102, 241, 0.3);" onchange="window.updateProjectPrefix(this.value)" placeholder="Style: Peppa Pig..."></textarea>
+                        </div>
                     </div>
 
                     <!-- Project Assets -->
-                    <div class="setting-group">
+                    <div class="setting-group" id="project-settings-assets">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                             <label style="font-size: 14px; font-weight: 700; color: var(--text-primary);">АССЕТЫ ПРОЕКТА</label>
                             <button class="btn btn-secondary" onclick="openAssetSelectorModal()" style="padding: 6px 12px; font-size: 11px; border-radius: 8px;">🔍 ВЫБРАТЬ АССЕТЫ</button>
@@ -255,11 +279,7 @@
                     <label style="display: block; margin-bottom: 8px; font-size: 14px; font-weight: 600;">xAI Grok API Key</label>
                     <input type="password" id="key-grok" style="width: 100%;">
                 </div>
-                <div style="margin-bottom: 32px;">
-                    <label style="display: block; margin-bottom: 8px; font-size: 14px; font-weight: 600;">Префикс стиля (добавляется спереди)</label>
-                    <textarea id="setting-prefix" style="width: 100%; height: 100px; font-size: 13px;"></textarea>
-                </div>
-                <button class="btn btn-primary" style="width: 100%;" onclick="saveKeys()">Сохранить ключи</button>
+                <button class="btn btn-primary" style="width: 100%;" onclick="saveKeys()">Сохранить настройки</button>
 
                 <!-- NEW: CLOUD DEPLOYMENT SECTION (v12.0) -->
                 <div style="margin-top: 40px; padding-top: 32px; border-top: 1px solid var(--border-glass);">
