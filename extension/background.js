@@ -28,10 +28,12 @@ async function executeScriptCycle(prefix) {
         return;
     }
 
+    report("🛰️ ПЕРЕКЛЮЧЕНИЕ НА GEMINI...");
+    
     // 1. Focus & Paste
-    chrome.windows.update(geminiTab.windowId, { focused: true });
-    chrome.tabs.update(geminiTab.id, { active: true });
-    await sleep(1000);
+    await chrome.windows.update(geminiTab.windowId, { focused: true });
+    await chrome.tabs.update(geminiTab.id, { active: true });
+    await sleep(1500); 
 
     report("✏️ Ввожу запрос для сценария...");
     await chrome.scripting.executeScript({

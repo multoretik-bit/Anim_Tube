@@ -136,6 +136,12 @@ function setupGlobalListeners() {
         if (event.data.type === "FROM_GEMINI_SCRIPT") {
             handleIncomingScript(event.data.text);
         }
+
+        // 6. ROBOT STATUS UPDATE (General Relay)
+        if (event.data.type === "ANIMTUBE_STATUS") {
+            const scriptStatus = document.getElementById('script-receiving-text');
+            if (scriptStatus) scriptStatus.innerText = event.data.text.toUpperCase();
+        }
     });
 }
 
@@ -147,6 +153,12 @@ function startScriptGeneration() {
     const folder = getFolderForProject(project.id);
     const prefix = folder ? folder.scriptPrefix : "Напиши сценарий для серии...";
     
+    // UI: Show Status Panel
+    const panel = document.getElementById('script-receiving-panel');
+    const text = document.getElementById('script-receiving-text');
+    if (panel) panel.style.display = 'block';
+    if (text) text.innerText = "🚀 ИНИЦИАЛИЗАЦИЯ РОБОТА...";
+
     logStatus("📝 Запуск генерации сценария в Gemini...", "info");
     window.postMessage({ 
         type: "ANIMTUBE_CMD_SCRIPT", 
@@ -168,6 +180,11 @@ function handleIncomingScript(text) {
     project.scripts.unshift(newScript);
     saveState();
     renderProjectScripts();
+    
+    // Hide Status Panel
+    const panel = document.getElementById('script-receiving-panel');
+    if (panel) panel.style.display = 'none';
+    
     logStatus("✅ Сценарий успешно получен и добавлен в проект!", "success");
 }
 
