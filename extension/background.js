@@ -81,8 +81,18 @@ async function executeScriptCycle(prefix) {
             }
 
             if (lastResponseText.length > 10) {
+                // Return everything found
                 chrome.runtime.sendMessage({ type: "FROM_GEMINI_SCRIPT", text: lastResponseText });
             } else {
+                // Secondary check: Are there multiple message-content blocks for the last entry?
+                const blocks = document.querySelectorAll('.message-content, .model-response-text');
+                if (blocks.length > 0) {
+                   // Try to find the very last set of continuous blocks or the main container
+                   const last = blocks[blocks.length - 1];
+                   chrome.runtime.sendMessage({ type: "FROM_GEMINI_SCRIPT", text: last.innerText || last.textContent });
+                   return;
+                }
+                
                 // Final fallback: heavy scan
                 const allDivs = document.querySelectorAll('div');
                 for (let i = allDivs.length - 1; i >= 0; i--) {
@@ -96,7 +106,7 @@ async function executeScriptCycle(prefix) {
         }
     });
 
-    await sleep(2000);
+    await sleep(3000);
     focusStudio();
     report("✅ СЦЕНАРИЙ СКОПИРОВАН (v12.0)");
 }
