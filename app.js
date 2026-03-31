@@ -290,24 +290,12 @@ function triggerVisualAssemblyStart() {
                     // 4. THE VITAL CLICK
                     btnStart.click(); 
                     
-                    // If Super Auto is still splitting other scripts, return to splitting tab soon
-                    if (state.assembly.superAuto.active && state.assembly.superAuto.phase === 'splitting') {
-                        setTimeout(() => {
-                            switchProjectTab('prompts');
-                            processSuperAutoSplitting();
-                        }, 5000); // 5 sec show-off on Frames tab
-                    }
+                    // ONCE ASSEMBLY STARTS: STAY HERE. No more returning to splitting tab.
+                    logStatus("🏁 [СУПЕР-АВТО]: Сборка активна. Остаюсь во вкладке кадров.", "success");
                 }, 1200);
             } else {
                 // If button is hidden, assembly is likely already running
-                logStatus("ℹ️ [СУПЕР-АВТО]: Сборка уже в процессе.", "success");
-                
-                if (state.assembly.superAuto.active && state.assembly.superAuto.phase === 'splitting') {
-                    setTimeout(() => {
-                        switchProjectTab('prompts');
-                        processSuperAutoSplitting();
-                    }, 4000);
-                }
+                logStatus("ℹ️ [СУПЕР-АВТО]: Сборка уже в процессе. Остаюсь здесь.", "success");
             }
         }, 2000); // Wait for scroll to finish
     }, 1200); // Wait for tab switch
@@ -470,8 +458,16 @@ function distributePromptsToGenerator(scriptId, rawText) {
     
     logStatus(`✅ Добавлено ${lines.length} промптов в генератор!`, "success");
     
-    // 🚀 NEW: LITERAL TRANSITION (User requested it after EVERY distribution)
-    triggerVisualAssemblyStart();
+    // 🚀 NEW: LITERAL TRANSITION (only after ALL target scripts are split)
+    const isSuperAutoSplitting = state.assembly.superAuto.active && state.assembly.superAuto.phase === 'splitting';
+    const scripts = project.scripts || [];
+    const isFinalSplit = state.assembly.superAuto.splittingIdx >= scripts.length;
+
+    if (!isSuperAutoSplitting || isFinalSplit) {
+        triggerVisualAssemblyStart();
+    } else {
+        logStatus(`🤖 [СУПЕР-АВТО]: Сценарий #${state.assembly.superAuto.splittingIdx} распределен. Продолжаю разделение...`, "info");
+    }
 }
 
 function autoResizeTextarea(el) {
@@ -583,8 +579,8 @@ function handleIncomingPrompts(rawText) {
                 
                 if (state.assembly.superAuto.active && state.assembly.superAuto.phase === 'splitting') {
                     state.assembly.superAuto.splittingIdx++;
-                    // We DON'T call processSuperAutoSplitting here anymore, 
-                    // because triggerVisualAssemblyStart() will do it after its visual sequence.
+                    // Super Auto Resume:
+                    setTimeout(processSuperAutoSplitting, 2000);
                 }
             }, 1000);
         }, 500);
