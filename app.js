@@ -338,20 +338,26 @@ function startScriptSplitting(scriptId) {
         
         if (copyBtn) copyBtn.classList.remove('triggering');
 
-        // STEP 2 & 3: Switch & Send to Gemini
+    // STEP 2 & 3: Switch & Send to Gemini
+    setTimeout(() => {
+        logStatus("🚀 Шаг 2: Переход в Gemini. Шаг 3: Вставка сценария...", "success");
+        
+        // v1.2.3: Use Folder-level split instruction
+        const folder = getFolderForProject(state.activeProjectId);
+        const splitPrefix = (folder && folder.splitPrefix) ? folder.splitPrefix : "Please split this script into a chronological list of detailed image prompts for an animation. Format each line as 'Prompt N: [Description]'.";
+
+        window.postMessage({ 
+            type: "ANIMTUBE_CMD_SPLIT", 
+            script: text,
+            prefix: splitPrefix
+        }, "*");
+        
+        // Cleanup UI shift after start
         setTimeout(() => {
-            logStatus("🚀 Шаг 2: Переход в Gemini. Шаг 3: Вставка сценария...", "success");
-            window.postMessage({ 
-                type: "ANIMTUBE_CMD_SPLIT", 
-                script: text 
-            }, "*");
-            
-            // Cleanup UI shift after start
-            setTimeout(() => {
-                document.body.classList.remove('robotic-moving');
-            }, 2000);
-        }, 800);
-    }, 400);
+            document.body.classList.remove('robotic-moving');
+        }, 2000);
+    }, 800);
+}, 400);
 }
 
 function handleIncomingPrompts(rawText) {
@@ -633,6 +639,7 @@ function openFolderSettings(id, event) {
     // Fill values
     document.getElementById('modal-script-prefix').value = folder.scriptPrefix || "Напиши сценарий для серии...";
     document.getElementById('modal-style-prefix').value = folder.prefix || DEFAULT_PREFIX;
+    document.getElementById('modal-split-prefix').value = folder.splitPrefix || "Please split this script into a chronological list of detailed image prompts for an animation. Format each line as 'Prompt N: [Description]'.";
     
     document.getElementById('folder-settings-overlay').classList.add('active');
 }
@@ -649,6 +656,7 @@ function saveFolderSettings() {
 
     folder.scriptPrefix = document.getElementById('modal-script-prefix').value;
     folder.prefix = document.getElementById('modal-style-prefix').value;
+    folder.splitPrefix = document.getElementById('modal-split-prefix').value;
     
     saveState();
     closeFolderSettings();
@@ -672,6 +680,7 @@ function createNewFolder() {
         name: name,
         prefix: DEFAULT_PREFIX,
         scriptPrefix: "Напиши подробный сценарий для серии мультфильма про...",
+        splitPrefix: "Please split this script into a chronological list of detailed image prompts for an animation. Format each line as 'Prompt N: [Description]'.",
         created: new Date().toLocaleDateString()
     };
 

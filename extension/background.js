@@ -5,7 +5,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     } else if (request.type === "ANIMTUBE_CMD_SCRIPT") {
         executeScriptCycle(request.prefix);
     } else if (request.type === "ANIMTUBE_CMD_SPLIT") {
-        executeSplitCycle(request.script);
+        executeSplitCycle(request.script, request.prefix);
     } else if (request.type === "ANIMTUBE_STATUS") {
         relayToStudio(request);
     } else if (request.type === "FROM_GEMINI") {
@@ -18,11 +18,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
 });
 
-async function executeSplitCycle(scriptText) {
+async function executeSplitCycle(scriptText, customPrefix) {
     const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     const report = (text) => chrome.runtime.sendMessage({ type: "ANIMTUBE_STATUS", text: text });
 
-    report("🚀 РОБОТ: Запуск разделения сценария на промпты...");
+    report("🤖 РОБОТ: Запуск разделения сценария на промпты...");
 
     // 1. Find Gemini Tab
     const tabs = await chrome.tabs.query({});
@@ -40,11 +40,14 @@ async function executeSplitCycle(scriptText) {
     report("⌨️ Ввод сценария и инструкции по разделению...");
     await chrome.scripting.executeScript({
         target: { tabId: geminiTab.id },
-        func: (text) => {
+        func: (text, prefix) => {
             const editor = document.querySelector(".ql-editor") || document.querySelector("input") || document.querySelector("textarea");
             if (editor) {
-                const prompt = "Please split this script into a chronological list of detailed image prompts for an animation. Format each line as 'Prompt N: [Description]'. \n\n" + text;
-                if (editor.tagName === "DIV") editor.innerHTML = "<p>" + prompt + "</p>";
+                // v1.2.3: Use custom prefix if provided
+                const finalInstruction = (prefix && prefix.trim()) ? prefix : "Please split this script into a chronological list of detailed image prompts for an animation. Format each line as 'Prompt N: [Description]'.";
+                const prompt = finalInstruction + "\n\n" + text;
+                
+                if (editor.tagName === "DIV") editor.innerHTML = "<p>" + prompt.replace(/\n/g, '<br>') + "</p>";
                 else editor.value = prompt;
                 
                 setTimeout(() => {
@@ -53,7 +56,7 @@ async function executeSplitCycle(scriptText) {
                 }, 500);
             }
         },
-        args: [scriptText]
+        args: [scriptText, customPrefix]
     });
 
     // 3. Wait for Gemini (90 seconds for long scripts)

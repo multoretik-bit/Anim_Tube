@@ -23,7 +23,8 @@ window.addEventListener("message", (event) => {
     if (event.data && event.data.type === "ANIMTUBE_CMD_SPLIT") {
         chrome.runtime.sendMessage({
             type: "ANIMTUBE_CMD_SPLIT",
-            script: event.data.script || ""
+            script: event.data.script || "",
+            prefix: event.data.prefix || ""
         });
     }
 });
