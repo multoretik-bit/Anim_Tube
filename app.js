@@ -1,5 +1,5 @@
 /**
- * AnimTube v1.0 - OFFICIAL RELEASE
+ * AnimTube v1.0.1 - FULL AUTOMATION Loop
  * Sequence: Text First -> Website Return -> Visual Copy -> Gemini Send
  */
 
@@ -32,8 +32,8 @@ window.onload = async () => {
     loadKeysData();
     renderProjects();
     setupGlobalListeners();
-    console.log("🚀 AnimTube v1.0 loaded.");
-    logStatus("✨ AnimTube v1.0 Ready.", "success");
+    console.log("🚀 AnimTube v1.0.1 loaded.");
+    logStatus("✨ AnimTube v1.0.1 Ready.", "success");
 };
 
 function setupGlobalListeners() {

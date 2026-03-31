@@ -1,4 +1,4 @@
-// AnimTube Bridge v1.0 - OFFICIAL RELEASE
+// AnimTube Bridge v1.0.1 - FULL AUTOMATION Loop
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.type === "TO_GEMINI") {
         executeLiteralCycle(request.prompt, request.assets, request.assetIds);
@@ -67,9 +67,9 @@ async function executeScriptCycle(prefix) {
         }
     }
 
-    // 3. Native Copy Button Click (v1.0 - Bulletproof Edition)
+    // 3. Native Copy Button Click (v1.0.1 - Full Automation)
     report("📋 Скроллинг и глубокий поиск кнопки копирования...");
-    await chrome.scripting.executeScript({
+    const scriptCapture = await chrome.scripting.executeScript({
         target: { tabId: geminiTab.id },
         func: async () => {
             const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -77,10 +77,10 @@ async function executeScriptCycle(prefix) {
             // 1. Force multiple scrolls to the bottom
             for (let i = 0; i < 3; i++) {
                 window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-                await sleep(1000);
+                await sleep(500);
             }
             
-            // 2. Scan ALL buttons for a "Copy" label (Smart Hunt)
+            // 2. Scan ALL buttons for a "Copy" label
             const allBtns = Array.from(document.querySelectorAll('button'));
             const copyBtns = allBtns.filter(b => {
                 const label = (b.getAttribute('aria-label') || "").toLowerCase();
@@ -89,35 +89,68 @@ async function executeScriptCycle(prefix) {
                        title.includes("copy") || title.includes("копировать");
             });
 
-            if (copyBtns.length === 0) {
-                // Fallback: search for response and use manual write
-                const responses = document.querySelectorAll('.model-response-text, .message-content, .prose, [data-message-author-role="assistant"]');
-                if (responses.length > 0) {
-                    const lastRes = responses[responses.length - 1];
-                    const text = lastRes.innerText || lastRes.textContent;
-                    await navigator.clipboard.writeText(text.trim());
-                    chrome.runtime.sendMessage({ type: "ANIMTUBE_STATUS", text: "⌨️ Кнопка не найдена. Робот скопировал текст через буфер прямо." });
-                } else {
-                    chrome.runtime.sendMessage({ type: "ANIMTUBE_STATUS", text: "❌ Контент не найден." });
-                }
-                return;
+            // 3. Get the text itself just in case (fallback and relay)
+            const responses = document.querySelectorAll('.model-response-text, .message-content, .prose, [data-message-author-role="assistant"]');
+            let capturedText = "";
+            if (responses.length > 0) {
+                const lastRes = responses[responses.length - 1];
+                capturedText = lastRes.innerText || lastRes.textContent;
             }
 
-            // 3. Click THE LAST copy button (most recent response)
-            const targetedBtn = copyBtns[copyBtns.length - 1];
-            targetedBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            await sleep(1000);
-            targetedBtn.click();
-            chrome.runtime.sendMessage({ type: "ANIMTUBE_STATUS", text: "✅ Кнопка Gemini нажата (Bulletproof). Подождите..." });
-            
-            // Wait 1 second to ensure clipboard update
-            await sleep(1000);
+            if (copyBtns.length > 0) {
+                const targetedBtn = copyBtns[copyBtns.length - 1];
+                targetedBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                await sleep(1000);
+                targetedBtn.click();
+                chrome.runtime.sendMessage({ type: "ANIMTUBE_STATUS", text: "✅ Кнопка Gemini нажата. Сценарий в буфере." });
+                await sleep(1000);
+            } else if (capturedText) {
+                await navigator.clipboard.writeText(capturedText.trim());
+                chrome.runtime.sendMessage({ type: "ANIMTUBE_STATUS", text: "⌨️ Текст скопирован напрямую." });
+            }
+
+            return capturedText.trim();
         }
     });
 
-    await sleep(2000);
+    const fullScriptText = scriptCapture[0].result;
+
+    await sleep(1500);
     focusStudio();
-    report("✅ РОБОТ ГОТОВ. Нажмите синюю кнопку 'Вставить (Gemini)' в нужном слоте.");
+    await sleep(800);
+
+    // 4. AUTO-CLICK PASTE IN STUDIO (v1.0.1)
+    if (fullScriptText) {
+        const studioTabs = await chrome.tabs.query({});
+        const targetStudio = studioTabs.find(t => t.url && (t.url.includes("localhost") || t.url.includes("127.0.0.1") || t.title.includes("AnimTube")));
+        
+        if (targetStudio) {
+            report("🤖 РОБОТ: Автоматическая вставка сценария...");
+            await chrome.scripting.executeScript({
+                target: { tabId: targetStudio.id },
+                func: (text) => {
+                    // Try to find the pending script card and its paste button
+                    const pendingCard = document.querySelector('.script-card.pending');
+                    if (pendingCard) {
+                        const pasteBtn = pendingCard.querySelector('.script-btn-paste');
+                        if (pasteBtn) {
+                            // Focus it for visual effect
+                            pasteBtn.classList.add('flash-active');
+                            setTimeout(() => pasteBtn.classList.remove('flash-active'), 1000);
+                        }
+                    }
+                    // Relay the script through the web page message bus
+                    window.postMessage({ type: "FROM_GEMINI_SCRIPT", text: text }, "*");
+                },
+                args: [fullScriptText]
+            });
+            report("✅ ЦИКЛ ЗАВЕРШЕН. Сценарий вставлен!");
+        } else {
+            report("⚠️ Вкладка Студии потеряна. Нажмите 'Вставить' вручную.");
+        }
+    } else {
+        report("❌ Ошибка: Сценарий не захвачен.");
+    }
 }
 
 async function executeLiteralCycle(promptText, assets, assetIds) {
