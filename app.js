@@ -22,7 +22,8 @@ let state = {
         lastSentPrompt: "",
         pendingImage: null,
         scriptQueue: 0
-    }
+    },
+    isAutoMode: JSON.parse(localStorage.getItem('animtube_auto_mode') || 'false')
 };
 
 const DEFAULT_PREFIX = "Create an image that closely resembles the style of the Peppa Pig cartoon, using the settings and art style of the Peppa Pig animated series: No text and a 1920×1080 frame. ";
@@ -33,8 +34,9 @@ window.onload = async () => {
     loadKeysData();
     renderProjects();
     setupGlobalListeners();
-    console.log("🚀 AnimTube v1.1 loaded.");
-    logStatus("✨ AnimTube v1.1 Ready.", "success");
+    updateAutoModeUI();
+    console.log("🚀 AnimTube v1.2 loaded.");
+    logStatus("✨ AnimTube v1.2 Ready.", "success");
 };
 
 function setupGlobalListeners() {
@@ -143,6 +145,11 @@ function setupGlobalListeners() {
             const scriptStatus = document.getElementById('script-receiving-text');
             if (scriptStatus) scriptStatus.innerText = event.data.text.toUpperCase();
         }
+
+        // 7. PROMPTS ARRIVAL (v1.2)
+        if (event.data.type === "FROM_GEMINI_PROMPTS") {
+            handleIncomingPrompts(event.data.text);
+        }
     });
 }
 
@@ -225,6 +232,63 @@ function handleIncomingScript(text) {
     }
 }
 
+// --- PROMPT SPLITTING (v1.2) ---
+function startScriptSplitting(text) {
+    if (!text || text.length < 10) return alert("Текст слишком короткий для разделения!");
+    
+    const project = getCurrentProject();
+    if (!project) return;
+
+    logStatus("✂️ Отправка сценария на разделение в Gemini...", "info");
+    
+    // Switch to frames tab to show results will land there
+    switchProjectTab('frames');
+    
+    window.postMessage({ 
+        type: "ANIMTUBE_CMD_SPLIT", 
+        script: text 
+    }, "*");
+}
+
+function handleIncomingPrompts(rawText) {
+    const project = getCurrentProject();
+    if (!project) return;
+
+    // Logic to parse prompts
+    const lines = rawText.split('\n')
+        .map(l => l.trim())
+        .filter(l => l.length > 5)
+        .map(l => l.replace(/^(Prompt|Промт|Кадр)\s*\d*:\s*/i, '').trim());
+
+    if (lines.length === 0) {
+        logStatus("⚠️ Не удалось распознать промпты в ответе Gemini.", "error");
+        return;
+    }
+
+    if (!project.promptsList) project.promptsList = [];
+    project.promptsList = [...project.promptsList, ...lines];
+    
+    saveState();
+    renderProjectPrompts();
+    logStatus(`✅ Разделено на ${lines.length} промптов!`, "success");
+}
+
+function toggleAutoMode() {
+    state.isAutoMode = !state.isAutoMode;
+    localStorage.setItem('animtube_auto_mode', state.isAutoMode);
+    updateAutoModeUI();
+    logStatus(state.isAutoMode ? "✨ Режим автоматизации ВКЛ" : "🌑 Режим автоматизации ВЫКЛ", "info");
+}
+
+function updateAutoModeUI() {
+    const btn = document.getElementById('btn-automation-toggle');
+    if (btn) {
+        if (state.isAutoMode) btn.classList.add('active');
+        else btn.classList.remove('active');
+    }
+}
+
+
 async function pasteScriptFromClipboard(id) {
     try {
         const text = await navigator.clipboard.readText();
@@ -286,6 +350,9 @@ function renderProjectScripts() {
                 <div class="script-actions" style="margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
                     <button class="script-btn script-btn-paste" onclick="pasteScriptFromClipboard('${s.id}')" style="background: var(--accent-gemini); color: white; border: none; flex: 1.5; font-weight: 800;">
                         📥 ВСТАВИТЬ (GEMINI)
+                    </button>
+                    <button class="script-btn script-btn-split" onclick="startScriptSplitting(document.getElementById('script-textarea-${s.id}').value)" style="flex: 1.5; font-weight: 800;">
+                        ✂️ РАЗДЕЛИТЬ
                     </button>
                     <button class="script-btn script-btn-copy" onclick="copyScriptToClipboard('${s.id}')" style="flex: 1;">📋 Копировать</button>
                     <button class="script-btn script-btn-download" onclick="downloadScript('${s.id}')" style="flex: 1;">📥 .txt</button>

@@ -10,9 +10,11 @@
 <body>
     <!-- Sidebar Navigation -->
     <nav class="sidebar">
-        <div class="brand">
-            <span style="font-size: 24px;">📺</span>
-            <h1>ANIMTUBE<br><small style="font-size: 10px; color: var(--accent-primary); letter-spacing: 2px;">V1.1 STUDIO</small></h1>
+            <h1>ANIMTUBE<br><small style="font-size: 10px; color: var(--accent-primary); letter-spacing: 2px;">V1.2 STUDIO</small></h1>
+        </div>
+        <div id="btn-automation-toggle" class="nav-item-auto" onclick="toggleAutoMode()" title="Режим автоматизации">
+            <span class="auto-icon">✨</span>
+            <span class="auto-label">АВТОМАТИЗАЦИЯ</span>
         </div>
         
         <div class="nav-group">
@@ -79,7 +81,7 @@
                     <span class="tab-icon">🎙️</span> Создание озвучки <span class="lock-icon">🔒</span>
                 </div>
                 <div class="tab-item" id="tab-frames" onclick="switchProjectTab('frames')">
-                    <span class="tab-icon">🖼️</span> Создание кадров
+                    <span class="tab-icon">✂️</span> Разделение / Кадры
                 </div>
                 <div class="tab-item locked" id="tab-animation" onclick="switchProjectTab('animation')">
                     <span class="tab-icon">🎬</span> Создание анимации <span class="lock-icon">🔒</span>
@@ -114,6 +116,18 @@
                     <div style="display: grid; grid-template-columns: 1fr 400px; gap: 32px;">
                         <!-- Left Column: Generator & Library -->
                         <div style="display: flex; flex-direction: column; gap: 24px;">
+                            <!-- RAW SCRIPT SPLITTER (New) -->
+                            <div class="glass-panel" style="border-color: var(--accent-gemini); border-bottom-width: 3px;">
+                                <h3 style="margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
+                                    ✂️ БЫСТРОЕ РАЗДЕЛЕНИЕ ТЕКСТА
+                                </h3>
+                                <textarea id="raw-script-input" placeholder="Вставьте сценарий сюда, чтобы разбить его на промпты..." 
+                                          style="width: 100%; height: 100px; background: rgba(0,0,0,0.3); border: 1px solid var(--border-glass); border-radius: 12px; color: white; padding: 12px; font-family: 'Inter'; resize: none; margin-bottom: 12px; outline: none;"></textarea>
+                                <button class="btn btn-gemini" onclick="startScriptSplitting(document.getElementById('raw-script-input').value)" style="width: 100%;">
+                                    🚀 Разбить на промпты через Gemini
+                                </button>
+                            </div>
+
                             <!-- Generator -->
                             <div class="glass-panel">
                                 <h3 style="margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">

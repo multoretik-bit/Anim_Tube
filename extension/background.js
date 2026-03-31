@@ -4,6 +4,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         executeLiteralCycle(request.prompt, request.assets, request.assetIds);
     } else if (request.type === "ANIMTUBE_CMD_SCRIPT") {
         executeScriptCycle(request.prefix);
+    } else if (request.type === "ANIMTUBE_CMD_SPLIT") {
+        executeSplitCycle(request.script);
     } else if (request.type === "ANIMTUBE_STATUS") {
         relayToStudio(request);
     } else if (request.type === "FROM_GEMINI") {
@@ -15,6 +17,84 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
     return true;
 });
+
+async function executeSplitCycle(scriptText) {
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+    const report = (text) => chrome.runtime.sendMessage({ type: "ANIMTUBE_STATUS", text: text });
+
+    report("🚀 РОБОТ: Запуск разделения сценария на промпты...");
+
+    // 1. Find Gemini Tab
+    const tabs = await chrome.tabs.query({});
+    const geminiTab = tabs.find(t => t.url && t.url.includes("gemini.google.com"));
+
+    if (!geminiTab) {
+        report("❌ Gemini не открыт. Откройте его и попробуйте снова.");
+        return;
+    }
+
+    chrome.tabs.update(geminiTab.id, { active: true });
+    await sleep(1500);
+
+    // 2. Input the Split Instruction
+    report("⌨️ Ввод сценария и инструкции по разделению...");
+    await chrome.scripting.executeScript({
+        target: { tabId: geminiTab.id },
+        func: (text) => {
+            const editor = document.querySelector(".ql-editor") || document.querySelector("input") || document.querySelector("textarea");
+            if (editor) {
+                const prompt = "Please split this script into a chronological list of detailed image prompts for an animation. Format each line as 'Prompt N: [Description]'. \n\n" + text;
+                if (editor.tagName === "DIV") editor.innerHTML = "<p>" + prompt + "</p>";
+                else editor.value = prompt;
+                
+                setTimeout(() => {
+                    const sendBtn = document.querySelector('button[aria-label*="Send"], .send-button, [data-test-id="send-button"]');
+                    if (sendBtn) sendBtn.click();
+                }, 500);
+            }
+        },
+        args: [scriptText]
+    });
+
+    // 3. Wait for Gemini (90 seconds for long scripts)
+    const waitTime = 90;
+    for (let i = waitTime; i >= 0; i--) {
+        report(`⌛ Gemini думает над разделением... (${i}с)`);
+        await sleep(1000);
+    }
+
+    // 4. Capture the Result
+    report("📋 Захват разделенных промптов...");
+    const captureResult = await chrome.scripting.executeScript({
+        target: { tabId: geminiTab.id },
+        func: async () => {
+            const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+            for (let i = 0; i < 3; i++) {
+                window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+                await sleep(500);
+            }
+            
+            const responses = document.querySelectorAll('.model-response-text, .message-content, .prose, [data-message-author-role="assistant"]');
+            if (responses.length > 0) {
+                const lastRes = responses[responses.length - 1];
+                return lastRes.innerText || lastRes.textContent;
+            }
+            return "";
+        }
+    });
+
+    const parsedText = captureResult[0].result;
+
+    if (parsedText) {
+        report("✅ Промпты получены! Возвращаюсь в Студию...");
+        await sleep(1500);
+        focusStudio();
+        await sleep(1000);
+        relayToStudio({ type: "FROM_GEMINI_PROMPTS", text: parsedText });
+    } else {
+        report("❌ Не удалось захватить промпты.");
+    }
+}
 
 async function executeScriptCycle(prefix) {
     const sleep = (ms) => new Promise(r => setTimeout(r, ms));
