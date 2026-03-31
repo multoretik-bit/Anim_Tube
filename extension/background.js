@@ -67,50 +67,57 @@ async function executeScriptCycle(prefix) {
         }
     }
 
-    // 3. Native Copy Button Click (v1.0)
-    report("📋 Скроллинг и поиск кнопки копирования Gemini...");
+    // 3. Native Copy Button Click (v1.0 - Bulletproof Edition)
+    report("📋 Скроллинг и глубокий поиск кнопки копирования...");
     await chrome.scripting.executeScript({
         target: { tabId: geminiTab.id },
         func: async () => {
             const sleep = (ms) => new Promise(r => setTimeout(r, ms));
             
-            // 1. Scroll to the bottom first
-            window.scrollTo({ top: document.body.scrollHeight, behavior: 'auto' });
-            await sleep(2000); // Give it 2 seconds to settle after scroll
+            // 1. Force multiple scrolls to the bottom
+            for (let i = 0; i < 3; i++) {
+                window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+                await sleep(1000);
+            }
+            
+            // 2. Scan ALL buttons for a "Copy" label (Smart Hunt)
+            const allBtns = Array.from(document.querySelectorAll('button'));
+            const copyBtns = allBtns.filter(b => {
+                const label = (b.getAttribute('aria-label') || "").toLowerCase();
+                const title = (b.getAttribute('title') || "").toLowerCase();
+                return label.includes("copy") || label.includes("копировать") || 
+                       title.includes("copy") || title.includes("копировать");
+            });
 
-            // 2. Find all responses
-            const responses = document.querySelectorAll('.model-response-text, .message-content, .prose, [data-message-author-role="assistant"]');
-            if (responses.length === 0) {
-                chrome.runtime.sendMessage({ type: "ANIMTUBE_STATUS", text: "❌ Контент не найден. Не могу найти кнопку копирования." });
+            if (copyBtns.length === 0) {
+                // Fallback: search for response and use manual write
+                const responses = document.querySelectorAll('.model-response-text, .message-content, .prose, [data-message-author-role="assistant"]');
+                if (responses.length > 0) {
+                    const lastRes = responses[responses.length - 1];
+                    const text = lastRes.innerText || lastRes.textContent;
+                    await navigator.clipboard.writeText(text.trim());
+                    chrome.runtime.sendMessage({ type: "ANIMTUBE_STATUS", text: "⌨️ Кнопка не найдена. Робот скопировал текст через буфер прямо." });
+                } else {
+                    chrome.runtime.sendMessage({ type: "ANIMTUBE_STATUS", text: "❌ Контент не найден." });
+                }
                 return;
             }
 
-            // 3. Focused on last response
-            const lastResponse = responses[responses.length - 1];
+            // 3. Click THE LAST copy button (most recent response)
+            const targetedBtn = copyBtns[copyBtns.length - 1];
+            targetedBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            await sleep(1000);
+            targetedBtn.click();
+            chrome.runtime.sendMessage({ type: "ANIMTUBE_STATUS", text: "✅ Кнопка Gemini нажата (Bulletproof). Подождите..." });
             
-            // 4. Find the "Copy response" button inside or near the last response
-            // Gemini uses aria-label="Copy response" (English) or "Копировать ответ" (Russian)
-            const copyBtn = lastResponse.parentElement.querySelector('button[aria-label*="Copy"], button[aria-label*="Копировать"]') || 
-                            document.querySelector('button[aria-label*="Copy response"]');
-            
-            if (copyBtn) {
-                copyBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                await sleep(1000); // Small pause before click
-                copyBtn.click();
-                chrome.runtime.sendMessage({ type: "ANIMTUBE_STATUS", text: "✅ Кнопка Gemini нажата. Сценарий в буфере обмена!" });
-            } else {
-                chrome.runtime.sendMessage({ type: "ANIMTUBE_STATUS", text: "⚠️ Кнопка копирования не найдена. Скрейпинг..." });
-                
-                // Fallback: Scrape manually
-                const rawText = lastResponse.innerText || lastResponse.textContent;
-                chrome.runtime.sendMessage({ type: "FROM_GEMINI_SCRIPT", text: rawText.trim() });
-            }
+            // Wait 1 second to ensure clipboard update
+            await sleep(1000);
         }
     });
 
     await sleep(2000);
     focusStudio();
-    report("✅ РОБОТ ЗАВЕРШИЛ ЗАДАЧУ (v1.0). Нажмите 'Вставить' в слоте.");
+    report("✅ РОБОТ ГОТОВ. Нажмите синюю кнопку 'Вставить (Gemini)' в нужном слоте.");
 }
 
 async function executeLiteralCycle(promptText, assets, assetIds) {
