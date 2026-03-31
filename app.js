@@ -274,32 +274,22 @@ function processSuperAutoSplitting() {
     const idx = state.assembly.superAuto.splittingIdx;
 
     if (idx >= scripts.length) {
-        logStatus("🤖 [СУПЕР-АВТО]: Разделение завершено! Прямой запуск сборки...", "success");
+        logStatus("🤖 [СУПЕР-АВТО]: Разделение завершено! Перехожу к финальной сборке...", "success");
         state.assembly.superAuto.phase = 'assembly';
         
         setTimeout(() => {
             switchProjectTab('frames');
             setTimeout(() => {
-                const project = getCurrentProject();
-                if (!project || !project.promptsList || project.promptsList.length === 0) {
-                    logStatus("⚠️ [СУПЕР-АВТО]: Ошибка! Список промптов пуст.", "error");
-                    stopSuperAutomation();
-                    return;
+                const btnStart = document.getElementById('btn-start-assembly');
+                if (btnStart) {
+                    logStatus("🖱️ [СУПЕР-АВТО]: ТРИГГЕР КНОПКИ 'НАЧАТЬ СБОРКУ'...", "success");
+                    btnStart.click(); 
+                } else {
+                    // Fallback if button is missing
+                    logStatus("⚠️ [СУПЕР-АВТО]: Кнопка пуска не найдена, пробую прямой запуск...", "info");
+                    startRollAssembly();
                 }
-                
-                // DIRECT ASSEMBLY START (Bypassing startRollAssembly button logic)
-                state.assembly.queue = [...project.promptsList];
-                state.assembly.currentIdx = 0;
-                state.assembly.isRunning = true;
-                state.assembly.lockedProjectId = state.activeProjectId;
-                
-                document.getElementById('btn-start-assembly').style.display = 'none';
-                document.getElementById('btn-stop-assembly').style.display = 'flex';
-                document.getElementById('receiving-slot-panel').style.display = 'block';
-                
-                logStatus("🚀 [СУПЕР-АВТО]: ПРЯМОЙ ЗАПУСК ГЕНЕРАЦИИ КАДРОВ...", "success");
-                processNextItem();
-            }, 1000);
+            }, 1500);
         }, 1500);
         return;
     }
@@ -1124,12 +1114,21 @@ function saveState() {
 }
 
 // --- BATCH GENERATION ---
-function startRollAssembly() {
+async function startRollAssembly() {
     const project = getCurrentProject();
     if (!project || !project.promptsList || project.promptsList.length === 0) {
         return alert("Добавьте хотя бы один промт!");
     }
     
+    // EXPLICIT COPY OF FIRST PROMPT (v1.3.2)
+    const firstRaw = project.promptsList[0];
+    const folder = getFolderForProject(project.id);
+    const prefix = (folder && folder.prefix) ? folder.prefix : DEFAULT_PREFIX;
+    const firstFull = firstRaw.includes(prefix) ? firstRaw : (prefix.trim() + "\n\n" + firstRaw.trim()).trim();
+    
+    await copyTextToClipboard(firstFull);
+    logStatus("📋 [Промт 1]: Текст скопирован (Robotic Mode).", "success");
+
     state.assembly.queue = [...project.promptsList];
     state.assembly.currentIdx = 0;
     state.assembly.isRunning = true;
@@ -1139,7 +1138,7 @@ function startRollAssembly() {
     document.getElementById('btn-stop-assembly').style.display = 'flex';
     document.getElementById('receiving-slot-panel').style.display = 'block';
     
-    logStatus("🎬 Сборка запущена. Переключаемся в ChatGPT...", "info");
+    logStatus("🎬 Сборка запущена. Переключаемся в Gemini...", "info");
     processNextItem();
 }
 
@@ -1363,12 +1362,8 @@ async function processNextItem() {
     const fullPrompt = rawPrompt.includes(prefix) ? rawPrompt : (prefix.trim() + "\n\n" + rawPrompt.trim()).trim();
     
     // EXPLICIT CLIPBOARD COPY (v1.3.2 - Zero-Click Fix)
-    try {
-        await navigator.clipboard.writeText(fullPrompt);
-        logStatus(`📋 [Промт ${state.assembly.currentIdx + 1}]: Текст скопирован в буфер.`, "success");
-    } catch (err) {
-        logStatus("⚠️ Ошибка автоматического копирования. Нажмите Ctrl+C сами?", "error");
-    }
+    await copyTextToClipboard(fullPrompt);
+    logStatus(`📋 [Промт ${state.assembly.currentIdx + 1}]: Текст в буфере.`, "success");
     
     state.assembly.isWaitingForImage = true;
     
@@ -1873,4 +1868,34 @@ function stopSuperAutomation() {
     state.assembly.superAuto.phase = 'idle';
     document.getElementById('btn-super-auto').classList.remove('active');
     logStatus("🎊 Супер-автоматизация успешно завершена!", "success");
+}
+
+async function copyTextToClipboard(text) {
+    // 1. Try Modern API
+    try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(text);
+            return true;
+        }
+    } catch (err) {
+        console.warn("Clipboard API failed, using fallback.");
+    }
+
+    // 2. Fallback: Hidden Textarea
+    try {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-9999px";
+        textArea.style.top = "0";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        const success = document.execCommand('copy');
+        document.body.removeChild(textArea);
+        return success;
+    } catch (err) {
+        console.error("Fallback copy failed:", err);
+        return false;
+    }
 }
