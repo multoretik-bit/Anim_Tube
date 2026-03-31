@@ -18,6 +18,14 @@ window.addEventListener("message", (event) => {
             prefix: event.data.prefix || ""
         });
     }
+
+    // NEW: Forward Script Splitting commands (v1.2)
+    if (event.data && event.data.type === "ANIMTUBE_CMD_SPLIT") {
+        chrome.runtime.sendMessage({
+            type: "ANIMTUBE_CMD_SPLIT",
+            script: event.data.script || ""
+        });
+    }
 });
 
 // 2. Background -> Studio (Image Arrival & Auto-Paste Signals)
