@@ -254,6 +254,9 @@ function renderProjectScenariosForSplitting() {
                     <div class="scenario-split-preview">${preview}</div>
                 </div>
                 <div class="scenario-split-actions" style="display: flex; gap: 8px;">
+                    <button class="btn btn-secondary" onclick="toggleScenarioFrames('${s.id}')" title="Раскрыть список из 20 кадров">
+                        📂 Промпты (${(s.frames || []).filter(f => f).length}/20)
+                    </button>
                     <button id="copy-btn-split-${s.id}" class="btn btn-secondary" onclick="copyScriptToClipboard('${s.id}')" title="Копировать текст">
                         📋
                     </button>
@@ -262,6 +265,19 @@ function renderProjectScenariosForSplitting() {
                     </button>
                     <button class="btn btn-danger" onclick="deleteScript('${s.id}')" style="padding: 10px;">🗑️</button>
                 </div>
+            </div>
+            
+            <div id="frames-grid-${s.id}" class="scenario-frames-grid" style="display: ${s.isFramesExpanded ? 'grid' : 'none'};">
+                ${(s.frames || Array(20).fill("")).map((f, i) => `
+                    <div class="frame-slot">
+                        <div class="frame-label">FRAME ${i + 1}</div>
+                        <textarea 
+                            class="frame-input" 
+                            placeholder="Ожидание промпта от Gemini..." 
+                            oninput="updateScenarioFrame('${s.id}', ${i}, this.value)"
+                        >${f}</textarea>
+                    </div>
+                `).join('')}
             </div>
         `;
     }).join("");
@@ -284,7 +300,9 @@ function handleScenarioUpload(event) {
             id: Date.now(),
             text: text,
             created: new Date().toLocaleTimeString(),
-            scriptNum: project.scripts.length + 1
+            scriptNum: project.scripts.length + 1,
+            frames: Array(20).fill(""),
+            isFramesExpanded: false
         });
 
         saveState();
@@ -306,12 +324,34 @@ function addManualScenario() {
         id: Date.now(),
         text: text,
         created: new Date().toLocaleTimeString(),
-        scriptNum: project.scripts.length + 1
+        scriptNum: project.scripts.length + 1,
+        frames: Array(20).fill(""),
+        isFramesExpanded: false
     });
 
     saveState();
     renderProjectScenariosForSplitting();
     logStatus("✅ Сценарий успешно добавлен вручную!", "success");
+}
+
+function toggleScenarioFrames(id) {
+    const project = getCurrentProject();
+    if (!project || !project.scripts) return;
+    const script = project.scripts.find(s => s.id == id);
+    if (script) {
+        script.isFramesExpanded = !script.isFramesExpanded;
+        renderProjectScenariosForSplitting();
+    }
+}
+
+function updateScenarioFrame(scriptId, frameIdx, value) {
+    const project = getCurrentProject();
+    if (!project || !project.scripts) return;
+    const script = project.scripts.find(s => s.id == scriptId);
+    if (script && script.frames) {
+        script.frames[frameIdx] = value;
+        saveState();
+    }
 }
 
 function startScriptSplitting(scriptId) {
