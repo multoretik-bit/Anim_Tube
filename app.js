@@ -274,7 +274,7 @@ function processSuperAutoSplitting() {
     const idx = state.assembly.superAuto.splittingIdx;
 
     if (idx >= scripts.length) {
-        logStatus("🤖 [СУПЕР-АВТО]: Разделение завершено! Перехожу к финальной сборке...", "success");
+        logStatus("🤖 [СУПЕР-АВТО]: Разделение всех сценариев завершено! Перехожу к генерации...", "success");
         state.assembly.superAuto.phase = 'assembly';
         
         setTimeout(() => {
@@ -282,15 +282,19 @@ function processSuperAutoSplitting() {
             setTimeout(() => {
                 const btnStart = document.getElementById('btn-start-assembly');
                 if (btnStart) {
-                    logStatus("🖱️ [СУПЕР-АВТО]: ТРИГГЕР КНОПКИ 'НАЧАТЬ СБОРКУ'...", "success");
-                    btnStart.click(); 
+                    // USER REQUEST: Scroll to see the button
+                    btnStart.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    logStatus("🖱️ [СУПЕР-АВТО]: ТРИГГЕР КНОПКИ 'НАЧАТЬ СБОРКУ' (прокрутка)...", "success");
+                    
+                    setTimeout(() => {
+                        btnStart.click(); 
+                    }, 800);
                 } else {
-                    // Fallback if button is missing
-                    logStatus("⚠️ [СУПЕР-АВТО]: Кнопка пуска не найдена, пробую прямой запуск...", "info");
+                    logStatus("⚠️ [СУПЕР-АВТО]: Кнопка не найдена, пробую прямой запуск...", "info");
                     startRollAssembly();
                 }
             }, 1500);
-        }, 1500);
+        }, 1200);
         return;
     }
 
@@ -438,9 +442,14 @@ function distributePromptsToGenerator(scriptId, rawText) {
     
     logStatus(`✅ Добавлено ${lines.length} промптов в генератор!`, "success");
     
-    // Auto-switch to Generator Tab
-    switchProjectTab('frames');
-    renderProjectPrompts();
+    // Auto-switch to Generator Tab (v1.3.2: ONLY if not in super-auto splitting loop)
+    const isSuperAutoSplitting = state.assembly.superAuto.active && state.assembly.superAuto.phase === 'splitting';
+    if (!isSuperAutoSplitting) {
+        switchProjectTab('frames');
+        renderProjectPrompts();
+    } else {
+        logStatus(`🤖 [СУПЕР-АВТО]: Сценарий #${state.assembly.superAuto.splittingIdx + 1} распределен. Продолжаю...`, "info");
+    }
 }
 
 function autoResizeTextarea(el) {
