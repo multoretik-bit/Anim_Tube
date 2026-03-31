@@ -1063,17 +1063,66 @@ function renderProjectPrompts() {
 
     if (!project.promptsList) project.promptsList = [];
 
-    container.innerHTML = project.promptsList.map((p, index) => `
-        <div class="prompt-item">
-            <div class="prompt-counter">${index + 1}</div>
-            <input type="text" class="prompt-input" value="${p}" 
-                   onchange="updatePromptValue(${index}, this.value)" 
-                   placeholder="Описание кадра...">
-            <div class="prompt-actions">
-                <button class="prompt-btn-del" onclick="deletePromptFromProject(${index})">🗑️</button>
+    container.innerHTML = project.promptsList.map((p, index) => {
+        const isProcessing = state.assembly.isRunning && 
+                             state.assembly.queue.length === 1 && 
+                             state.assembly.queue[0] === p;
+                             
+        return `
+            <div class="prompt-item ${isProcessing ? 'processing' : ''}" id="prompt-item-${index}">
+                <div class="prompt-header">
+                    <div class="prompt-counter">${index + 1}</div>
+                    <div style="font-size: 10px; color: var(--text-dim); text-transform: uppercase; font-weight: 800; letter-spacing: 1px;">
+                        ${isProcessing ? '⚡ ОБРАБОТКА' : 'КАДР'}
+                    </div>
+                </div>
+                <textarea class="prompt-textarea" 
+                          onchange="updatePromptValue(${index}, this.value)" 
+                          placeholder="Опишите, что происходит в этом кадре...">${p}</textarea>
+                <div class="prompt-actions">
+                    <button class="prompt-btn prompt-btn-recreate" onclick="recreateSinglePrompt(${index})">
+                        <span>🔄</span> Пересоздать
+                    </button>
+                    <button class="prompt-btn prompt-btn-del" onclick="deletePromptFromProject(${index})">
+                        <span>🗑️</span>
+                    </button>
+                </div>
             </div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
+}
+
+function recreateSinglePrompt(index) {
+    const project = getCurrentProject();
+    if (!project || !project.promptsList || project.promptsList[index] === undefined) return;
+    
+    // Safety: don't start if already running something else
+    if (state.assembly.isRunning) {
+        if (!confirm("Сейчас идет сборка. Остановить и пересоздать этот кадр?")) return;
+        stopRollAssembly(false);
+    }
+    
+    const prompt = project.promptsList[index];
+    if (!prompt || prompt.trim().length < 2) return alert("Промт слишком короткий!");
+
+    // Setup mini-assembly
+    state.assembly.queue = [prompt];
+    state.assembly.currentIdx = 0;
+    state.assembly.isRunning = true;
+    state.assembly.lockedProjectId = state.activeProjectId;
+    
+    // UI state
+    document.getElementById('btn-start-assembly').style.display = 'none';
+    document.getElementById('btn-stop-assembly').style.display = 'flex';
+    document.getElementById('receiving-slot-panel').style.display = 'block';
+    
+    logStatus(`🔄 Пересоздание кадра #${index + 1}...`, "info");
+    
+    // Refresh UI to show "Processing" state
+    renderProjectPrompts();
+    
+    // Start
+    processNextItem();
 }
 
 function addPromptToProject() {
