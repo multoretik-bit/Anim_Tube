@@ -274,27 +274,38 @@ function processSuperAutoSplitting() {
     const idx = state.assembly.superAuto.splittingIdx;
 
     if (idx >= scripts.length) {
-        logStatus("🤖 [СУПЕР-АВТО]: Разделение всех сценариев завершено! Перехожу к генерации...", "success");
+        logStatus("🤖 [СУПЕР-АВТО]: Все сценарии разделены. Перехожу к финальной сборке (Фаза 4)...", "success");
         state.assembly.superAuto.phase = 'assembly';
         
         setTimeout(() => {
+            // 1. Switch Tab
             switchProjectTab('frames');
+            
             setTimeout(() => {
-                const btnStart = document.getElementById('btn-start-assembly');
-                if (btnStart) {
-                    // USER REQUEST: Scroll to see the button
-                    btnStart.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    logStatus("🖱️ [СУПЕР-АВТО]: ТРИГГЕР КНОПКИ 'НАЧАТЬ СБОРКУ' (прокрутка)...", "success");
-                    
-                    setTimeout(() => {
-                        btnStart.click(); 
-                    }, 800);
-                } else {
-                    logStatus("⚠️ [СУПЕР-АВТО]: Кнопка не найдена, пробую прямой запуск...", "info");
-                    startRollAssembly();
-                }
-            }, 1500);
-        }, 1200);
+                // 2. USER REQUEST: Explicit Scroll Down to find the button
+                logStatus("🖱️ [СУПЕР-АВТО]: Прокрутка вниз к кнопке пуска...", "info");
+                window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+                
+                setTimeout(() => {
+                    const btnStart = document.getElementById('btn-start-assembly');
+                    if (btnStart) {
+                        // 3. Highlight and Final Scroll Adjustment
+                        btnStart.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        btnStart.classList.add('flash-active');
+                        logStatus("🖱️ [СУПЕР-АВТО]: Кнопка найдена. Нажимаю...", "success");
+                        
+                        setTimeout(() => {
+                            btnStart.classList.remove('flash-active');
+                            // 4. THE VITAL CLICK
+                            btnStart.click(); 
+                        }, 1200);
+                    } else {
+                        logStatus("⚠️ [СУПЕР-АВТО]: Кнопка пуска не найдена через 3с! Пробую прямой запуск...", "error");
+                        startRollAssembly();
+                    }
+                }, 2000); // Wait for scroll to finish
+            }, 1500); // Wait for tab switch/render
+        }, 1000);
         return;
     }
 
