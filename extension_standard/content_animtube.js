@@ -4,6 +4,15 @@ window.addEventListener("message", (event) => {
     if (!event.data) return;
     
     // Only handle standard commands
+    if (event.data.type === "TO_GEMINI") {
+        chrome.runtime.sendMessage({
+            type: "TO_GEMINI",
+            prompt: event.data.prompt || "",
+            assets: event.data.assets || [],
+            assetIds: event.data.assetIds || []
+        });
+    }
+
     if (event.data.type === "TO_CHATGPT") {
         chrome.runtime.sendMessage({
             type: "TO_CHATGPT",

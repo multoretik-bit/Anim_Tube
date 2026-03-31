@@ -4,9 +4,27 @@ window.addEventListener("message", (event) => {
     if (!event.data) return;
     
     // Only handle AUTO commands
-    if (event.data.type === "ANIMTUBE_AUTO_CMD") {
+    if (event.data.type === "TO_GEMINI") {
+        chrome.runtime.sendMessage({
+            type: "TO_GEMINI",
+            prompt: event.data.prompt || "",
+            assets: event.data.assets || [],
+            assetIds: event.data.assetIds || []
+        });
+    }
+
+    if (event.data.type === "TO_CHATGPT") {
         chrome.runtime.sendMessage({
             type: "TO_CHATGPT",
+            prompt: event.data.prompt || "",
+            assets: event.data.assets || [],
+            assetIds: event.data.assetIds || []
+        });
+    }
+
+    if (event.data.type === "ANIMTUBE_AUTO_CMD") {
+        chrome.runtime.sendMessage({
+            type: "TO_GEMINI", // Super Auto primarily uses Gemini for frames now
             prompt: event.data.prompt || "",
             assets: event.data.assets || [],
             assetIds: event.data.assetIds || []

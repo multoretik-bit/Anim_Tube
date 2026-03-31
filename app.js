@@ -167,7 +167,7 @@ function setupGlobalListeners() {
         }
 
         // 7. PROMPTS ARRIVAL (v1.2)
-        if (event.data.type === "FROM_CHATGPT_PROMPTS") {
+        if (event.data.type === "FROM_CHATGPT_PROMPTS" || event.data.type === "FROM_GEMINI_PROMPTS") {
             handleIncomingPrompts(event.data.text);
         }
     });
@@ -490,7 +490,7 @@ function startScriptSplitting(scriptId) {
 
     // STEP 2 & 3: Switch & Send to ChatGPT
     setTimeout(() => {
-        logStatus("🚀 Шаг 2: Переход в ChatGPT. Шаг 3: Вставка сценария...", "success");
+        logStatus("🚀 Шаг 2: Переход в Gemini. Шаг 3: Вставка сценария...", "success");
         
         // v1.2.3: Use Folder-level split instruction
         const folder = getFolderForProject(state.activeProjectId);
@@ -558,7 +558,7 @@ function handleIncomingPrompts(rawText) {
         .map(l => l.replace(/^(Prompt|Промт|Кадр)\s*\d*[:\s]*/i, '').trim());
 
     if (lines.length === 0) {
-        logStatus("⚠️ Не удалось распознать промпты в ответе ChatGPT.", "error");
+        logStatus("⚠️ Не удалось распознать промпты в ответе Gemini.", "error");
         return;
     }
 
@@ -1346,7 +1346,7 @@ async function processNextItem() {
         slotBox.innerHTML = `
             <div class="transfer-status">
                 <span class="loading-icon" style="font-size: 40px; display: block; margin-bottom: 15px;">⏳</span>
-                <p id="receiving-text">ОЖИДАНИЕ ПЕРЕДАЧИ ИЗ CHATGPT...</p>
+                <p id="receiving-text">ОЖИДАНИЕ ПЕРЕДАЧИ ИЗ GEMINI...</p>
                 <button id="btn-auto-paste" class="btn-auto-paste">
                     <span class="btn-icon">⚡</span> ВСТАВИТЬ КАДР (АВТО)
                 </button>
@@ -1447,7 +1447,7 @@ async function processNextItem() {
 
     state.assembly.lastSentPrompt = fullPrompt;
     sendToBridge({ 
-        type: "TO_CHATGPT", 
+        type: "TO_GEMINI", 
         prompt: fullPrompt,
         assets: matchingAssets,
         assetIds: matchedIds // v11.16
@@ -1603,7 +1603,7 @@ function logStatus(msg, type) {
     const terminal = document.getElementById('studio-terminal');
     if (!terminal) return;
     const entry = document.createElement('div');
-    entry.style.color = type === 'success' ? '#10b981' : (type === 'error' ? '#ef4444' : '#10a37f');
+    entry.style.color = type === 'success' ? '#10b981' : (type === 'error' ? '#ef4444' : '#6366f1');
     entry.style.marginBottom = '4px';
     entry.innerHTML = `<span style="opacity:0.4">[${new Date().toLocaleTimeString()}]</span> ${msg}`;
     terminal.appendChild(entry);
@@ -1664,7 +1664,7 @@ function createCursor() {
 async function runVisualCopyAnimation(assetIds) {
     if (!assetIds || assetIds.length === 0) return;
     
-    logStatus("🎭 Робот возвращается для визуального копирования (ChatGPT)...", "info");
+    logStatus("🎭 Робот возвращается для визуального копирования (Gemini)...", "info");
     
     for (const id of assetIds) {
         const card = document.querySelector(`[data-asset-id="${id}"]`);
