@@ -198,23 +198,14 @@
                 </div>
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px;">
-                    <!-- Style & Script Prefixes -->
-                    <div class="setting-group" style="display: flex; flex-direction: column; gap: 20px;">
-                        <div>
-                            <label style="display: block; margin-bottom: 8px; font-size: 13px; font-weight: 700; color: var(--text-primary);">ПРЕФИКС СЦЕНАРИЯ (SCRIPT PROMPT)</label>
-                            <p style="font-size: 11px; color: var(--text-secondary); margin-bottom: 8px;">
-                                Что Gemini должен написать? (Напр. "Напиши сценарий для серии Peppa Pig про...")
-                            </p>
-                            <textarea id="project-script-prefix" style="height: 100px; font-size: 12px; border-color: rgba(99, 102, 241, 0.3);" onchange="window.updateProjectScriptPrefix(this.value)" placeholder="Напиши сценарий для серии..."></textarea>
-                        </div>
-                        <div>
-                            <label style="display: block; margin-bottom: 8px; font-size: 13px; font-weight: 700; color: var(--text-primary);">ПРЕФИКС СТИЛЯ КАДРОВ (IMAGE PREFIX)</label>
-                            <p style="font-size: 11px; color: var(--text-secondary); margin-bottom: 8px;">
-                                Стиль для каждого кадра (Напр. "Peppa Pig style, 2D...")
-                            </p>
-                            <textarea id="project-specific-prefix" style="height: 100px; font-size: 12px; border-color: rgba(99, 102, 241, 0.3);" onchange="window.updateProjectPrefix(this.value)" placeholder="Style: Peppa Pig..."></textarea>
-                        </div>
+                    <!-- Style & Script Prefixes (REMOVED: Moved to Folder Level) -->
+                    <div id="project-inherited-prefixes" style="margin-bottom: 24px; padding: 15px; border-radius: 12px; background: rgba(99, 102, 241, 0.05); border: 1px solid var(--border-glow);">
+                        <p style="font-size: 11px; color: var(--accent-gemini); font-weight: 700; text-transform: uppercase;">Фолдер-Конфигурация</p>
+                        <p style="font-size: 12px; color: var(--text-secondary); margin-top: 5px;">Настройки стиля и сценария наследуются из параметров папки. Измените их в общем списке проектов через ⚙️.</p>
                     </div>
+
+                    <!-- Project Assets -->
+                    <div class="setting-group" id="project-settings-assets">
 
                     <!-- Project Assets -->
                     <div class="setting-group" id="project-settings-assets">
@@ -303,6 +294,28 @@
             </div>
         </section>
     </main>
+
+    <!-- FOLDER SETTINGS MODAL -->
+    <div id="folder-settings-overlay" class="modal-overlay">
+        <div class="modal-content glass-panel" style="max-width: 600px; width: 90%;">
+            <h3 style="margin-bottom: 24px;">⚙️ НАСТРОЙКИ ПАПКИ</h3>
+            
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-size: 14px; font-weight: 700;">Префикс сценария (Gemini)</label>
+                <textarea id="modal-script-prefix" style="height: 120px; font-size: 13px;"></textarea>
+            </div>
+            
+            <div style="margin-bottom: 24px;">
+                <label style="display: block; margin-bottom: 8px; font-size: 14px; font-weight: 700;">Префикс стиля кадров (Image Gen)</label>
+                <textarea id="modal-style-prefix" style="height: 120px; font-size: 13px;"></textarea>
+            </div>
+            
+            <div style="display: flex; gap: 12px;">
+                <button class="btn btn-primary" style="flex: 1;" onclick="saveFolderSettings()">Сохранить изменения</button>
+                <button class="btn btn-secondary" onclick="closeFolderSettings()">Отмена</button>
+            </div>
+        </div>
+    </div>
 
     <script src="app.js"></script>
 </body>

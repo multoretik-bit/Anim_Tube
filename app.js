@@ -142,12 +142,15 @@ function setupGlobalListeners() {
 // --- SCRIPT MANAGEMENT ---
 function startScriptGeneration() {
     const project = getCurrentProject();
-    if (!project || !project.scriptPrefix) return alert("Введите префикс сценария в настройках!");
+    if (!project) return;
+
+    const folder = getFolderForProject(project.id);
+    const prefix = folder ? folder.scriptPrefix : "Напиши сценарий для серии...";
     
     logStatus("📝 Запуск генерации сценария в Gemini...", "info");
     window.postMessage({ 
         type: "ANIMTUBE_CMD_SCRIPT", 
-        prefix: project.scriptPrefix 
+        prefix: prefix 
     }, "*");
 }
 
@@ -305,13 +308,47 @@ window.updateProjectScriptPrefix = (prefix) => {
 };
 
 window.updateProjectPrefix = (prefix) => {
-    const project = getCurrentProject();
-    if (project) {
-        project.prefix = prefix;
-        saveState();
-        logStatus("✅ Префикс стиля обновлен для этого проекта.", "success");
-    }
+    // Legacy support or ignored. Prefixes are now folder-level.
 };
+
+function openFolderSettings(id, event) {
+    if (event) event.stopPropagation();
+    const folder = state.folders.find(f => f.id === id);
+    if (!folder) return;
+
+    state.editingFolderId = id;
+    
+    // Fill values
+    document.getElementById('modal-script-prefix').value = folder.scriptPrefix || "Напиши сценарий для серии...";
+    document.getElementById('modal-style-prefix').value = folder.prefix || DEFAULT_PREFIX;
+    
+    document.getElementById('folder-settings-overlay').classList.add('active');
+}
+
+function closeFolderSettings() {
+    document.getElementById('folder-settings-overlay').classList.remove('active');
+    state.editingFolderId = null;
+}
+
+function saveFolderSettings() {
+    const id = state.editingFolderId;
+    const folder = state.folders.find(f => f.id === id);
+    if (!folder) return;
+
+    folder.scriptPrefix = document.getElementById('modal-script-prefix').value;
+    folder.prefix = document.getElementById('modal-style-prefix').value;
+    
+    saveState();
+    closeFolderSettings();
+    renderProjects();
+    logStatus(`✅ Настройки папки "${folder.name}" сохранены.`, "success");
+}
+
+function getFolderForProject(projectId) {
+    const project = state.projects.find(p => p.id === projectId);
+    if (!project || !project.folderId) return null;
+    return state.folders.find(f => f.id === project.folderId);
+}
 
 // --- FOLDER MANAGEMENT ---
 function createNewFolder() {
@@ -321,6 +358,8 @@ function createNewFolder() {
     const newFolder = {
         id: Date.now(),
         name: name,
+        prefix: DEFAULT_PREFIX,
+        scriptPrefix: "Напиши подробный сценарий для серии мультфильма про...",
         created: new Date().toLocaleDateString()
     };
 
@@ -402,7 +441,8 @@ function renderProjects() {
                 <div class="folder-icon">📂</div>
                 <div class="project-name">${f.name}</div>
                 <div class="project-meta">${projectCount} проектов • ${f.created}</div>
-                <button class="lib-del-btn" onclick="event.stopPropagation(); deleteFolder(${f.id})">×</button>
+                <button class="btn-folder-settings" onclick="openFolderSettings(${f.id}, event)" title="Настройки папки">⚙️</button>
+                <button class="lib-del-btn" onclick="event.stopPropagation(); deleteFolder(${f.id})" style="top: 20px;">×</button>
             `;
             container.appendChild(card);
         });
@@ -769,8 +809,12 @@ async function processNextItem() {
 
     const project = getCurrentProject();
     const rawPrompt = state.assembly.queue[state.assembly.currentIdx];
-    const prefix = (project && project.prefix) ? project.prefix : (state.keys.prefix || DEFAULT_PREFIX);
-    const fullPrompt = rawPrompt.includes(prefix) ? rawPrompt : prefix + rawPrompt;
+    
+    // FETCH PREFIX FROM FOLDER (v12.0)
+    const folder = getFolderForProject(project.id);
+    const prefix = (folder && folder.prefix) ? folder.prefix : DEFAULT_PREFIX;
+    
+    const fullPrompt = rawPrompt.includes(prefix) ? rawPrompt : (prefix.trim() + "\n\n" + rawPrompt.trim()).trim();
     
     state.assembly.isWaitingForImage = true;
     
