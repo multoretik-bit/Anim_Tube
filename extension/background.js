@@ -59,24 +59,38 @@ async function executeSplitCycle(scriptText, customPrefix) {
         args: [scriptText, customPrefix]
     });
 
-    // 3. Wait for Gemini (90 seconds for long scripts)
-    const waitTime = 90;
+    // 3. Wait for Gemini (60 seconds as requested)
+    const waitTime = 60;
     for (let i = waitTime; i >= 0; i--) {
-        report(`⌛ Gemini думает над разделением... (${i}с)`);
+        report(`⌛ Gemini создает 20 кадров... (${i}с)`);
         await sleep(1000);
     }
 
-    // 4. Capture the Result
-    report("📋 Захват разделенных промптов...");
-    const captureResult = await chrome.scripting.executeScript({
+    // 4. Capture the Result (Try to click Copy Button + innerText fallback)
+    report("📋 Копирование промптов из Gemini...");
+    await chrome.scripting.executeScript({
         target: { tabId: geminiTab.id },
         func: async () => {
             const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-            for (let i = 0; i < 3; i++) {
-                window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-                await sleep(500);
-            }
+            // Scroll to bottom
+            window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+            await sleep(1000);
             
+            // Try to find and click the "Copy" button of the LAST message
+            const copyButtons = document.querySelectorAll('button[aria-label*="Copy"], button[title*="Copy"], .copy-button');
+            if (copyButtons.length > 0) {
+                const lastCopyBtn = copyButtons[copyButtons.length - 1];
+                lastCopyBtn.click();
+                return "CLICKED";
+            }
+            return "NOT_FOUND";
+        }
+    });
+
+    // Capture the text as well for the Studio relay (fallback/parsed)
+    const captureResult = await chrome.scripting.executeScript({
+        target: { tabId: geminiTab.id },
+        func: async () => {
             const responses = document.querySelectorAll('.model-response-text, .message-content, .prose, [data-message-author-role="assistant"]');
             if (responses.length > 0) {
                 const lastRes = responses[responses.length - 1];
@@ -89,10 +103,11 @@ async function executeSplitCycle(scriptText, customPrefix) {
     const parsedText = captureResult[0].result;
 
     if (parsedText) {
-        report("✅ Промпты получены! Возвращаюсь в Студию...");
+        report("✅ Данные захвачены! Возвращаюсь в Студию...");
         await sleep(1500);
         focusStudio();
         await sleep(1000);
+        // Relay to Studio so the "Bulk Paste" can be auto-triggered or manually pasted
         relayToStudio({ type: "FROM_GEMINI_PROMPTS", text: parsedText });
     } else {
         report("❌ Не удалось захватить промпты.");

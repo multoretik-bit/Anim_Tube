@@ -21,7 +21,8 @@ let state = {
         isWaitingForImage: false,
         lastSentPrompt: "",
         pendingImage: null,
-        scriptQueue: 0
+        scriptQueue: 0,
+        activeSplittingScriptId: null
     },
     isAutoMode: JSON.parse(localStorage.getItem('animtube_auto_mode') || 'false')
 };
@@ -268,6 +269,12 @@ function renderProjectScenariosForSplitting() {
             </div>
             
             <div id="frames-grid-${s.id}" class="scenario-frames-grid" style="display: ${s.isFramesExpanded ? 'grid' : 'none'};">
+                <div class="bulk-paste-area">
+                    <div class="frame-label" style="margin-bottom: 8px; color: var(--accent-gemini);">📥 ВСТАВИТЬ ОТВЕТ GEMINI (ВСЕ КAДРЫ СРАЗУ)</div>
+                    <textarea class="bulk-textarea" 
+                              placeholder="Вставьте сюда текст из Gemini. Система сама найдет блоки 'Frame N' и разложит их по ячейкам..." 
+                              oninput="parseBulkFrames('${s.id}', this.value)"></textarea>
+                </div>
                 ${(s.frames || Array(20).fill("")).map((f, i) => `
                     <div class="frame-slot">
                         <div class="frame-label">FRAME ${i + 1}</div>
@@ -354,6 +361,32 @@ function updateScenarioFrame(scriptId, frameIdx, value) {
     }
 }
 
+function parseBulkFrames(scriptId, rawText) {
+    const project = getCurrentProject();
+    if (!project || !project.scripts) return;
+    const script = project.scripts.find(s => s.id == scriptId);
+    if (!script || !script.frames) return;
+
+    // Split by the word "Frame" (case-insensitive)
+    // We look for "Frame" followed by optional space and digits
+    const parts = rawText.split(/Frame\s*\d*[:\s]*/i);
+    
+    // The first part is usually empty or noise before the first "Frame"
+    // We take the next 20 parts and put them into slots
+    let frameIdx = 0;
+    for (let i = 1; i < parts.length && frameIdx < 20; i++) {
+        let content = parts[i].trim();
+        if (content.length > 5) {
+            script.frames[frameIdx] = content;
+            frameIdx++;
+        }
+    }
+
+    saveState();
+    renderProjectScenariosForSplitting();
+    logStatus(`✅ Распознано ${frameIdx} кадров из текста!`, "success");
+}
+
 function startScriptSplitting(scriptId) {
     const project = getCurrentProject();
     if (!project) return;
@@ -366,6 +399,7 @@ function startScriptSplitting(scriptId) {
     
     // STEP 1: UI Robotic Effect
     document.body.classList.add('robotic-moving');
+    state.assembly.activeSplittingScriptId = scriptId;
     
     const copyBtn = document.getElementById(`copy-btn-split-${scriptId}`);
     if (copyBtn) copyBtn.classList.add('triggering');
@@ -401,14 +435,21 @@ function startScriptSplitting(scriptId) {
 }
 
 function handleIncomingPrompts(rawText) {
+    // v1.2.5: Automated Splitting Bridge
+    if (state.assembly.activeSplittingScriptId) {
+        logStatus("🤖 РОБОТ: Данные получены. Начинаю распределение по кадрам...", "success");
+        parseBulkFrames(state.assembly.activeSplittingScriptId, rawText);
+        state.assembly.activeSplittingScriptId = null;
+        return;
+    }
+
     const project = getCurrentProject();
     if (!project) return;
 
-    // Logic to parse prompts
     const lines = rawText.split('\n')
         .map(l => l.trim())
         .filter(l => l.length > 5)
-        .map(l => l.replace(/^(Prompt|Промт|Кадр)\s*\d*:\s*/i, '').trim());
+        .map(l => l.replace(/^(Prompt|Промт|Кадр)\s*\d*[:\s]*/i, '').trim());
 
     if (lines.length === 0) {
         logStatus("⚠️ Не удалось распознать промпты в ответе Gemini.", "error");
