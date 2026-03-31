@@ -294,10 +294,18 @@ async function executeLiteralCycle(promptText, assets, assetIds) {
         chrome.windows.update(studioTab.windowId, { focused: true });
         chrome.tabs.update(studioTab.id, { active: true });
         
-        report(`🔄 Возвращаюсь в Студию для копирования ассетов...`);
+        report(`🔄 Возвращаюсь в Студию для копирования промта...`);
         relayToStudio({ type: "ANIMTUBE_CMD_VISUAL_COPY", assetIds: assetIds || [] }); 
         
-        await sleep(4000); // Visual Copy duration
+        // ⏳ 3 секунды: Studio должна успеть скопировать промт в буфер
+        report("⏳ Ожидание 3 сек — Studio копирует промт... (3)");
+        await sleep(1000);
+        report("⏳ Ожидание 3 сек — Studio копирует промт... (2)");
+        await sleep(1000);
+        report("⏳ Ожидание 3 сек — Studio копирует промт... (1)");
+        await sleep(1000);
+        report("✅ Промт скопирован. Перехожу в Gemini для вставки...");
+        await sleep(500);
     }
 
     // --- STEP 3: RETURN TO GEMINI FOR ASSETS ---
