@@ -254,7 +254,7 @@ function renderProjectScenariosForSplitting() {
                     <div class="scenario-split-preview">${preview}</div>
                 </div>
                 <div class="scenario-split-actions" style="display: flex; gap: 8px;">
-                    <button class="btn btn-secondary" onclick="copyScriptToClipboard('${s.id}')" title="Копировать текст">
+                    <button id="copy-btn-split-${s.id}" class="btn btn-secondary" onclick="copyScriptToClipboard('${s.id}')" title="Копировать текст">
                         📋
                     </button>
                     <button class="btn btn-secondary" onclick="startScriptSplitting('${s.id}')">
@@ -324,18 +324,34 @@ function startScriptSplitting(scriptId) {
     const text = script.text;
     if (!text || text.length < 10) return alert("Текст слишком короткий для разделения!");
     
-    // STEP 1: Copy to clipboard (using existing function for visual feedback)
-    copyScriptToClipboard(scriptId);
-    logStatus("✂️ Шаг 1: Сценарий скопирован. Подготовка к переходу в Gemini...", "info");
+    // STEP 1: UI Robotic Effect
+    document.body.classList.add('robotic-moving');
     
-    // STEP 2 & 3: Wait a bit and then trigger extension (Switch & Send)
+    const copyBtn = document.getElementById(`copy-btn-split-${scriptId}`);
+    if (copyBtn) copyBtn.classList.add('triggering');
+
+    logStatus("🤖 РОБОТ: Активация... Шаг 1: Копирование сценария.", "info");
+
+    // Copy to clipboard
     setTimeout(() => {
-        logStatus("🚀 Шаг 2: Переход в Gemini. Запуск разделения...", "success");
-        window.postMessage({ 
-            type: "ANIMTUBE_CMD_SPLIT", 
-            script: text 
-        }, "*");
-    }, 1000); // 1s delay for visual/robotic clarity
+        copyScriptToClipboard(scriptId);
+        
+        if (copyBtn) copyBtn.classList.remove('triggering');
+
+        // STEP 2 & 3: Switch & Send to Gemini
+        setTimeout(() => {
+            logStatus("🚀 Шаг 2: Переход в Gemini. Шаг 3: Вставка сценария...", "success");
+            window.postMessage({ 
+                type: "ANIMTUBE_CMD_SPLIT", 
+                script: text 
+            }, "*");
+            
+            // Cleanup UI shift after start
+            setTimeout(() => {
+                document.body.classList.remove('robotic-moving');
+            }, 2000);
+        }, 800);
+    }, 400);
 }
 
 function handleIncomingPrompts(rawText) {
