@@ -10,6 +10,14 @@ window.addEventListener("message", (event) => {
             assetIds: event.data.assetIds || [] // For visual copy phase (v11.15+)
         });
     }
+    
+    // NEW: Forward Script Creation commands (v12.0)
+    if (event.data && event.data.type === "ANIMTUBE_CMD_SCRIPT") {
+        chrome.runtime.sendMessage({
+            type: "ANIMTUBE_CMD_SCRIPT",
+            prefix: event.data.prefix || ""
+        });
+    }
 });
 
 // 2. Background -> Studio (Image Arrival & Auto-Paste Signals)
