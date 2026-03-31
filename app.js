@@ -213,8 +213,8 @@ function renderProjectScripts() {
         return;
     }
 
-    container.innerHTML = sorted.map((s, idx) => {
-        const scriptNum = s.scriptNum || (sorted.length - idx);
+    container.innerHTML = project.scripts.map((s, idx) => {
+        const scriptNum = s.scriptNum || (project.scripts.length - idx);
         const isCollapsed = s.isCollapsed ?? false; // Default expanded for single scenario
         const isPending = s.isPending;
         
@@ -250,11 +250,11 @@ function renderProjectScripts() {
 
 function updateScriptText(id, newText) {
     const project = getCurrentProject();
-    const script = project.scripts.find(s => s.id == id);
+    if (!project || !project.scripts) return;
+    const script = project.scripts.find(s => s.id == id || s.id === id);
     if (script) {
         script.text = newText;
-        // Don't saveState on every char, maybe debounced, but let's keep it simple for now
-        localStorage.setItem('animtube_state', JSON.stringify(appState));
+        saveState();
     }
 }
 
@@ -600,32 +600,30 @@ function moveProjectToFolder(projectId, folderId) {
     }
 }
 
+
+
 function openProject(id) {
     const project = state.projects.find(p => p.id === id);
     if (!project) return;
 
     state.activeProjectId = id;
-    document.getElementById('current-project-name').innerText = project.name;
+    const nameEl = document.getElementById('current-project-name');
+    if (nameEl) nameEl.innerText = project.name;
     
-    // Initialize project prefixes in UI
-    const prefixInput = document.getElementById('project-specific-prefix');
-    if (prefixInput) prefixInput.value = project.prefix || DEFAULT_PREFIX;
-
-    const scriptPrefixInput = document.getElementById('project-script-prefix');
-    if (scriptPrefixInput) scriptPrefixInput.value = project.scriptPrefix || "";
-
     // Migration: ensure project has script fields if it's old
     if (!project.scripts) project.scripts = [];
-    if (!project.scriptPrefix) project.scriptPrefix = "Напиши сценарий для серии...";
 
-    // Default to "Script" tab on open
-    switchProjectTab('script');
-
-    renderProjectScripts();
-    renderProjectLibrary();
-    renderProjectAssets();
-    renderProjectPrompts();
-    renderQueue();
+    // Default to "Script" tab on open (v12.0)
+    // We wait a tiny bit to ensure DOM is ready for tab switching
+    setTimeout(() => {
+        switchProjectTab('script');
+        renderProjectScripts();
+        renderProjectLibrary();
+        renderProjectAssets();
+        renderProjectPrompts();
+        renderQueue();
+    }, 10);
+    
     showPage('workspace');
 }
 

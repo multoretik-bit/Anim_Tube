@@ -46,26 +46,53 @@ async function executeScriptCycle(prefix) {
                 document.execCommand('delete', false, null);
                 document.execCommand('insertText', false, text);
                 
-                await new Promise(r => setTimeout(r, 500));
+                await new Promise(r => setTimeout(r, 800));
                 
-                const sendBtn = document.querySelector('button[aria-label*="Send"]') || document.querySelector('button[aria-label*="Отправить"]');
+                const sendBtn = document.querySelector('button[aria-label*="Send"]') || 
+                                document.querySelector('button[aria-label*="Отправить"]') ||
+                                document.querySelector('.send-button');
                 if (sendBtn) sendBtn.click();
             }
         },
         args: [prefix]
     });
 
-    report("⏳ Ожидание генерации сценария (1.5 мин)...");
-    await sleep(90000);
+    // 2. WAIT WITH COUNTDOWN (90 seconds)
+    for (let i = 90; i > 0; i--) {
+        report(`⏳ Ожидание сценария: ${i} сек...`);
+        await sleep(1000);
+        if (i % 30 === 0) {
+            // Re-focus Gemini occasionally just in case
+            chrome.tabs.update(geminiTab.id, { active: true });
+        }
+    }
 
-    // 2. Capture Text
+    // 3. Capture Text (v12.1 - Enhanced Capture)
     report("📋 Копирование сценария...");
     await chrome.scripting.executeScript({
         target: { tabId: geminiTab.id },
         func: async () => {
-            const containers = document.querySelectorAll('.model-response-text, .message-content, .prose');
+            const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+            // Try multiple selectors for Gemini's response
+            const selectors = [
+                '.model-response-text', 
+                '.message-content', 
+                '.prose',
+                'div[data-message-author-role="assistant"]',
+                '.markdown'
+            ];
+            
+            let containers = [];
+            for (const sel of selectors) {
+                const found = document.querySelectorAll(sel);
+                if (found.length > 0) {
+                    containers = found;
+                    break;
+                }
+            }
+
             if (containers.length === 0) {
-               chrome.runtime.sendMessage({ type: "ANIMTUBE_STATUS", text: "❌ Контент не найден." });
+               chrome.runtime.sendMessage({ type: "ANIMTUBE_STATUS", text: "❌ Контент не найден. Попробуйте еще раз." });
                return;
             }
             
@@ -74,23 +101,23 @@ async function executeScriptCycle(prefix) {
             
             // 2. Clone and clean it
             const clone = lastContainer.cloneNode(true);
-            const trash = clone.querySelectorAll('button, .action-row, [role="tooltip"], .google-docs-logo');
+            const trash = clone.querySelectorAll('button, .action-row, [role="tooltip"], .google-docs-logo, .chip-container');
             trash.forEach(el => el.remove());
             
             const rawText = clone.innerText || clone.textContent;
             const fullText = rawText.trim();
             
-            if (fullText.length > 10) {
+            if (fullText.length > 5) {
                  chrome.runtime.sendMessage({ type: "FROM_GEMINI_SCRIPT", text: fullText });
             } else {
-                 chrome.runtime.sendMessage({ type: "ANIMTUBE_STATUS", text: "⚠️ Получен пустой сценарий." });
+                 chrome.runtime.sendMessage({ type: "ANIMTUBE_STATUS", text: "⚠️ Получен слишком короткий сценарий." });
             }
         }
     });
 
-    await sleep(3000);
+    await sleep(2000);
     focusStudio();
-    report("✅ СЦЕНАРИЙ СКОПИРОВАН (v12.0)");
+    report("✅ СЦЕНАРИЙ УСПЕШНО ДОСТАВЛЕН! (v12.1)");
 }
 
 async function executeLiteralCycle(promptText, assets, assetIds) {
