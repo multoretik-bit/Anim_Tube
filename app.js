@@ -436,6 +436,9 @@ function renderProjectScripts() {
                 >${s.text}</textarea>
                 
                 <div class="script-actions" style="margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button class="script-btn script-btn-paste" onclick="pasteScriptFromClipboard('${s.id}')" style="background: var(--accent-gemini); color: white; border: none; flex: 1.5; font-weight: 800;">
+                        📥 ВСТАВИТЬ (GEMINI)
+                    </button>
                     <button class="script-btn script-btn-copy" onclick="copyScriptToClipboard('${s.id}')" style="flex: 1;">📋 Копировать</button>
                     <button class="script-btn script-btn-download" onclick="downloadScript('${s.id}')" style="flex: 1;">📥 .txt</button>
                     <button class="script-btn script-btn-del" onclick="deleteScript('${s.id}')" style="flex: 0.5;">🗑️</button>
