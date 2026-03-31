@@ -253,8 +253,11 @@ function renderProjectScenariosForSplitting() {
                     <div class="scenario-split-name">СЦЕНАРИЙ #${scriptNum}</div>
                     <div class="scenario-split-preview">${preview}</div>
                 </div>
-                <div class="scenario-split-actions">
-                    <button class="btn btn-secondary" onclick="startScriptSplitting('${s.text.replace(/'/g, "\\'")}')">
+                <div class="scenario-split-actions" style="display: flex; gap: 8px;">
+                    <button class="btn btn-secondary" onclick="copyScriptToClipboard('${s.id}')" title="Копировать текст">
+                        📋
+                    </button>
+                    <button class="btn btn-secondary" onclick="startScriptSplitting('${s.id}')">
                         ✂️ Разделить на промпты
                     </button>
                     <button class="btn btn-danger" onclick="deleteScript('${s.id}')" style="padding: 10px;">🗑️</button>
@@ -311,15 +314,24 @@ function addManualScenario() {
     logStatus("✅ Сценарий успешно добавлен вручную!", "success");
 }
 
-function startScriptSplitting(text) {
-    if (!text || text.length < 10) return alert("Текст слишком короткий для разделения!");
-    
+function startScriptSplitting(scriptId) {
     const project = getCurrentProject();
     if (!project) return;
-
-    logStatus("✂️ Отправка сценария на разделение в Gemini...", "info");
     
-    // Switch to frames tab to show results will land there (v1.2.1: Results land in Tab 4)
+    const script = project.scripts.find(s => s.id == scriptId);
+    if (!script) return;
+    
+    const text = script.text;
+    if (!text || text.length < 10) return alert("Текст слишком короткий для разделения!");
+    
+    logStatus("✂️ Копирование и отправка на разделение в Gemini...", "info");
+    
+    // Copy to clipboard as requested (v1.2.1)
+    navigator.clipboard.writeText(text).then(() => {
+        logStatus("📋 Сценарий скопирован. Запуск робота...", "success");
+    });
+    
+    // Switch to frames tab to show results will land there
     switchProjectTab('frames');
     
     window.postMessage({ 
@@ -426,12 +438,6 @@ function renderProjectScripts() {
                 >${s.text}</textarea>
                 
                 <div class="script-actions" style="margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
-                    <button class="script-btn script-btn-paste" onclick="pasteScriptFromClipboard('${s.id}')" style="background: var(--accent-gemini); color: white; border: none; flex: 1.5; font-weight: 800;">
-                        📥 ВСТАВИТЬ (GEMINI)
-                    </button>
-                    <button class="script-btn script-btn-split" onclick="startScriptSplitting(document.getElementById('script-textarea-${s.id}').value)" style="flex: 1.5; font-weight: 800;">
-                        ✂️ РАЗДЕЛИТЬ
-                    </button>
                     <button class="script-btn script-btn-copy" onclick="copyScriptToClipboard('${s.id}')" style="flex: 1;">📋 Копировать</button>
                     <button class="script-btn script-btn-download" onclick="downloadScript('${s.id}')" style="flex: 1;">📥 .txt</button>
                     <button class="script-btn script-btn-del" onclick="deleteScript('${s.id}')" style="flex: 0.5;">🗑️</button>
