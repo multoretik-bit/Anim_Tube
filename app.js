@@ -1383,7 +1383,7 @@ async function processNextItem() {
         await new Promise(r => setTimeout(r, 1200));
     }
 
-    state.assembly.lastSentPrompt = rawPrompt;
+    state.assembly.lastSentPrompt = fullPrompt;
     window.postMessage({ 
         type: "ANIMTUBE_CMD", 
         prompt: fullPrompt,

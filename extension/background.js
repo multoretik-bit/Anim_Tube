@@ -269,32 +269,56 @@ async function executeLiteralCycle(promptText, assets, assetIds) {
     if (studioTab) {
         chrome.windows.update(studioTab.windowId, { focused: true });
         chrome.tabs.update(studioTab.id, { active: true });
-        report("📋 Студия: копирую промт... (3)");
+        
+        // Включаем реальное копирование текста на странице Студии
+        report("📋 Студия: Готовлю текст к копированию...");
+        relayToStudio({ type: "ANIMTUBE_CMD_VISUAL_COPY", assetIds: assetIds || [] });
+        
+        report("⏳ Ожидание 3 сек — Studio копирует промт... (3)");
         await sleep(1000);
-        report("📋 Студия: копирую промт... (2)");
+        report("⏳ Ожидание 3 сек — Studio копирует промт... (2)");
         await sleep(1000);
-        report("📋 Студия: копирую промт... (1)");
+        report("⏳ Ожидание 3 сек — Studio копирует промт... (1)");
         await sleep(1000);
-        report("✅ Промт скопирован! Перехожу в Gemini...");
+        report("✅ Промт в буфере! Перехожу в Gemini...");
         await sleep(300);
     }
 
-    // --- STEP 1: FOCUS GEMINI & PASTE TEXT (v11.17) ---
+    // --- STEP 1: FOCUS GEMINI & PASTE TEXT ---
     chrome.windows.update(geminiTab.windowId, { focused: true });
     chrome.tabs.update(geminiTab.id, { active: true });
-    await sleep(800); 
+    await sleep(1500); 
     
-    report("✏️ Вставляю текст промта...");
+    report("✏️ Вставляю текст промта в Gemini...");
     await chrome.scripting.executeScript({
         target: { tabId: geminiTab.id },
         func: (text) => {
-            const editor = document.querySelector('div[contenteditable="true"]') || document.querySelector('.ql-editor');
+            const editor = document.querySelector('div[contenteditable="true"]') || document.querySelector('.ql-editor') || document.querySelector('textarea');
             if (editor) {
                 editor.focus();
+                // Очистка
                 document.execCommand('selectAll', false, null);
                 document.execCommand('delete', false, null);
-                document.execCommand('insertText', false, text);
-                ['input', 'change', 'blur'].forEach(t => editor.dispatchEvent(new Event(t, { bubbles: true })));
+                
+                // Вставка через clipboard API если возможно, иначе через insertText
+                // Но так как мы в executeScript, у нас есть доступ к 'text' (аргумент)
+                
+                // Для надежности вставки многострочного текста в Gemini:
+                if (editor.tagName === "DIV") {
+                    editor.innerText = text;
+                } else {
+                    editor.value = text;
+                }
+                
+                // Триггерим события, чтобы Gemini "увидел" текст
+                ['input', 'change', 'keydown', 'keyup', 'blur'].forEach(t => {
+                    editor.dispatchEvent(new Event(t, { bubbles: true }));
+                });
+                
+                // Маленький хак для Gemini: если innerText не сработал на 100%, пробуем еще и execCommand
+                if (editor.innerText.length < 5) {
+                    document.execCommand('insertText', false, text);
+                }
             }
         },
         args: [promptText]
