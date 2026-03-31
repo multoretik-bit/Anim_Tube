@@ -1,6 +1,6 @@
 /**
  * AnimTube v1.1 - BULK & DELETE Support
- * Sequence: Text First -> Website Return -> Visual Copy -> Gemini Send
+ * Sequence: Text First -> Website Return -> Visual Copy -> ChatGPT Send
  */
 
 let db = null;
@@ -1603,7 +1603,7 @@ function logStatus(msg, type) {
     const terminal = document.getElementById('studio-terminal');
     if (!terminal) return;
     const entry = document.createElement('div');
-    entry.style.color = type === 'success' ? '#10b981' : (type === 'error' ? '#ef4444' : '#5eb5f7');
+    entry.style.color = type === 'success' ? '#10b981' : (type === 'error' ? '#ef4444' : '#10a37f');
     entry.style.marginBottom = '4px';
     entry.innerHTML = `<span style="opacity:0.4">[${new Date().toLocaleTimeString()}]</span> ${msg}`;
     terminal.appendChild(entry);
@@ -1664,7 +1664,7 @@ function createCursor() {
 async function runVisualCopyAnimation(assetIds) {
     if (!assetIds || assetIds.length === 0) return;
     
-    logStatus("🎭 Робот возвращается для визуального копирования...", "info");
+    logStatus("🎭 Робот возвращается для визуального копирования (ChatGPT)...", "info");
     
     for (const id of assetIds) {
         const card = document.querySelector(`[data-asset-id="${id}"]`);

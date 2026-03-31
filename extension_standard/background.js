@@ -48,7 +48,9 @@ async function executeSplitCycle(scriptText, customPrefix) {
                 const prompt = finalInstruction + "\n\n" + text;
                 
                 editor.focus();
-                editor.value = prompt;
+                // Clear and insert
+                editor.value = ""; 
+                document.execCommand('insertText', false, prompt);
                 
                 // Trigger input event for ChatGPT to enable send button
                 editor.dispatchEvent(new Event('input', { bubbles: true }));
@@ -110,7 +112,7 @@ async function executeSplitCycle(scriptText, customPrefix) {
         focusStudio();
         await sleep(1000);
         // Relay to Studio so the "Bulk Paste" can be auto-triggered or manually pasted
-        relayToStudio({ type: "FROM_GEMINI_PROMPTS", text: parsedText });
+        relayToStudio({ type: "FROM_CHATGPT_PROMPTS", text: parsedText });
     } else {
         report("❌ Не удалось захватить промпты.");
     }
@@ -142,7 +144,8 @@ async function executeScriptCycle(prefix) {
             const editor = document.querySelector('#prompt-textarea');
             if (editor) {
                 editor.focus();
-                editor.value = text;
+                editor.value = "";
+                document.execCommand('insertText', false, text);
                 
                 // Trigger input event
                 editor.dispatchEvent(new Event('input', { bubbles: true }));
@@ -291,7 +294,8 @@ async function executeLiteralCycle(promptText, assets, assetIds) {
             const editor = document.querySelector("#prompt-textarea");
             if (editor) {
                 editor.focus();
-                editor.value = text;
+                editor.value = "";
+                document.execCommand('insertText', false, text);
                 
                 // Trigger input event
                 editor.dispatchEvent(new Event('input', { bubbles: true }));
@@ -318,7 +322,7 @@ async function executeLiteralCycle(promptText, assets, assetIds) {
         await sleep(1000);
         report("⏳ Ожидание 3 сек — Studio копирует промт... (1)");
         await sleep(1000);
-        report("✅ Промт скопирован. Перехожу в Gemini для вставки...");
+        report("✅ Промт скопирован. Перехожу в ChatGPT для вставки...");
         await sleep(500);
     }
 
@@ -332,7 +336,7 @@ async function executeLiteralCycle(promptText, assets, assetIds) {
     if (assets && assets.length > 0) {
         report(`📦 Инъекция ${assets.length} ассетов...`);
         await chrome.scripting.executeScript({
-            target: { tabId: geminiTab.id },
+            target: { tabId: aiTab.id },
             func: async (imageAssets) => {
                 const report = (msg) => chrome.runtime.sendMessage({ type: "ANIMTUBE_STATUS", text: msg });
                 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
