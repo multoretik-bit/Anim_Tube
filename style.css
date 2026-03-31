@@ -1126,3 +1126,119 @@ textarea:focus {
     color: white;
     transform: rotate(45deg);
 }
+
+/* --- SCRIPT CARDS (v12.2) --- */
+.script-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-glass);
+    border-radius: 20px;
+    margin-bottom: 20px;
+    overflow: hidden;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.script-card.expanded {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: var(--accent-primary);
+    box-shadow: 0 10px 40px rgba(10, 10, 10, 0.5);
+}
+
+.script-card.pending {
+    border-color: var(--accent-gemini);
+    border-style: dashed;
+    animation: scriptGlow 2s infinite;
+}
+
+@keyframes scriptGlow {
+    0% { box-shadow: 0 0 0 0 rgba(94, 181, 247, 0.2); }
+    70% { box-shadow: 0 0 0 15px rgba(94, 181, 247, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(94, 181, 247, 0); }
+}
+
+.script-header {
+    padding: 20px 24px;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    background: rgba(0,0,0,0.2);
+    user-select: none;
+}
+
+.script-body {
+    padding: 10px 24px 24px;
+    max-height: 2000px; /* Default expanded state since we don't have collapse toggle logic fully implemented for simple mode */
+    overflow: hidden;
+}
+
+.script-card.collapsed .script-body {
+    max-height: 0;
+    padding: 0;
+}
+
+.script-textarea {
+    width: 100%;
+    min-height: 350px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--border-glass);
+    border-radius: 12px;
+    padding: 20px;
+    color: #f8fafc;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    resize: vertical;
+    outline: none;
+    transition: border-color 0.3s;
+}
+
+.script-textarea:focus {
+    border-color: var(--accent-gemini);
+}
+
+.script-btn {
+    padding: 10px 16px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.3s;
+    border: 1px solid var(--border-glass);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.script-btn-paste {
+    background: linear-gradient(135deg, var(--accent-gemini), #2563eb);
+    color: white;
+    border: none;
+    box-shadow: 0 5px 15px rgba(37, 99, 235, 0.3);
+}
+
+.script-btn-paste:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(37, 99, 235, 0.5);
+    filter: brightness(1.1);
+}
+
+.script-btn-copy {
+    background: var(--bg-glass);
+    color: white;
+}
+
+.script-btn-copy:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.script-btn-del {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+}
+
+.script-btn-del:hover {
+    background: #ef4444;
+    color: white;
+}

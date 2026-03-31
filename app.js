@@ -203,6 +203,30 @@ function handleIncomingScript(text) {
     logStatus("✅ Сценарий успешно вставлен в слот!", "success");
 }
 
+async function pasteScriptFromClipboard(id) {
+    try {
+        const text = await navigator.clipboard.readText();
+        if (!text || text.length < 5) {
+            logStatus("⚠️ Буфер обмена пуст или содержит слишком короткий текст.", "error");
+            return;
+        }
+
+        const project = getCurrentProject();
+        const script = project.scripts.find(s => s.id == id || s.id === id);
+        
+        if (script) {
+            script.text = text;
+            script.isPending = false;
+            saveState();
+            renderProjectScripts();
+            logStatus("✅ Сценарий успешно вставлен из буфера обмена!", "success");
+        }
+    } catch (err) {
+        logStatus("❌ Ошибка доступа к буферу. Разрешите доступ в браузере.", "error");
+        console.error("Clipboard error:", err);
+    }
+}
+
 function renderProjectScripts() {
     const project = getCurrentProject();
     const container = document.getElementById('project-scripts-container');
@@ -224,7 +248,7 @@ function renderProjectScripts() {
                 <span style="font-weight: 800; color: var(--accent-gemini);">СЦЕНАРИЙ #${scriptNum}</span>
                 <span style="opacity: 0.5; font-size: 11px; margin-left: 10px;">${s.created}</span>
                 <span id="script-status-${s.id}" style="margin-left: auto; font-size: 11px; font-weight: 800;">
-                    ${isPending ? '⌛ ГЕНЕРАЦИЯ...' : '✅ ВСТАВЛЕН'}
+                    ${isPending ? '⌛ ОЖИДАНИЕ РОБОТА...' : '✅ ГОТОВО'}
                 </span>
                 <span class="script-toggle-icon" style="margin-left: 15px;">${isCollapsed ? '▼' : '▲'}</span>
             </div>
@@ -237,10 +261,13 @@ function renderProjectScripts() {
                     oninput="updateScriptText('${s.id}', this.value)"
                 >${s.text}</textarea>
                 
-                <div class="script-actions" style="margin-top: 15px;">
-                    <button class="script-btn script-btn-copy" onclick="copyScriptToClipboard('${s.id}')">📋 Копировать</button>
-                    <button class="script-btn script-btn-download" onclick="downloadScript('${s.id}')">📥 Скачать .txt</button>
-                    <button class="script-btn script-btn-del" onclick="deleteScript('${s.id}')">🗑️ Удалить</button>
+                <div class="script-actions" style="margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button class="script-btn script-btn-paste" onclick="pasteScriptFromClipboard('${s.id}')" style="background: var(--accent-gemini); color: white; border: none; flex: 1.5; font-weight: 800;">
+                        📥 ВСТАВИТЬ (GEMINI)
+                    </button>
+                    <button class="script-btn script-btn-copy" onclick="copyScriptToClipboard('${s.id}')" style="flex: 1;">📋 Копировать</button>
+                    <button class="script-btn script-btn-download" onclick="downloadScript('${s.id}')" style="flex: 1;">📥 .txt</button>
+                    <button class="script-btn script-btn-del" onclick="deleteScript('${s.id}')" style="flex: 0.5;">🗑️</button>
                 </div>
             </div>
         </div>

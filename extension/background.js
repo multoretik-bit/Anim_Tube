@@ -67,57 +67,46 @@ async function executeScriptCycle(prefix) {
         }
     }
 
-    // 3. Capture Text (v12.1 - Enhanced Capture)
-    report("📋 Копирование сценария...");
+    // 3. Native Copy Button Click (v12.2)
+    report("📋 Нажимаю на родную кнопку копирования Gemini...");
     await chrome.scripting.executeScript({
         target: { tabId: geminiTab.id },
         func: async () => {
             const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-            // Try multiple selectors for Gemini's response
-            const selectors = [
-                '.model-response-text', 
-                '.message-content', 
-                '.prose',
-                'div[data-message-author-role="assistant"]',
-                '.markdown'
-            ];
             
-            let containers = [];
-            for (const sel of selectors) {
-                const found = document.querySelectorAll(sel);
-                if (found.length > 0) {
-                    containers = found;
-                    break;
-                }
+            // 1. Find all responses
+            const responses = document.querySelectorAll('.model-response-text, .message-content, .prose, [data-message-author-role="assistant"]');
+            if (responses.length === 0) {
+                chrome.runtime.sendMessage({ type: "ANIMTUBE_STATUS", text: "❌ Контент не найден. Не могу найти кнопку копирования." });
+                return;
             }
 
-            if (containers.length === 0) {
-               chrome.runtime.sendMessage({ type: "ANIMTUBE_STATUS", text: "❌ Контент не найден. Попробуйте еще раз." });
-               return;
-            }
+            // 2. Focused on last response
+            const lastResponse = responses[responses.length - 1];
             
-            // 1. Get the very last response block
-            const lastContainer = containers[containers.length - 1];
+            // 3. Find the "Copy response" button inside or near the last response
+            // Gemini uses aria-label="Copy response" (English) or "Копировать ответ" (Russian)
+            const copyBtn = lastResponse.parentElement.querySelector('button[aria-label*="Copy"], button[aria-label*="Копировать"]') || 
+                            document.querySelector('button[aria-label*="Copy response"]');
             
-            // 2. Clone and clean it
-            const clone = lastContainer.cloneNode(true);
-            const trash = clone.querySelectorAll('button, .action-row, [role="tooltip"], .google-docs-logo, .chip-container');
-            trash.forEach(el => el.remove());
-            
-            const rawText = clone.innerText || clone.textContent;
-            const fullText = rawText.trim();
-            
-            if (fullText.length > 5) {
-                 chrome.runtime.sendMessage({ type: "FROM_GEMINI_SCRIPT", text: fullText });
+            if (copyBtn) {
+                copyBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                await sleep(500);
+                copyBtn.click();
+                chrome.runtime.sendMessage({ type: "ANIMTUBE_STATUS", text: "✅ Кнопка Gemini нажата. Сценарий в буфере обмена!" });
             } else {
-                 chrome.runtime.sendMessage({ type: "ANIMTUBE_STATUS", text: "⚠️ Получен слишком короткий сценарий." });
+                chrome.runtime.sendMessage({ type: "ANIMTUBE_STATUS", text: "⚠️ Кнопка копирования не найдена. Работаю по старой схеме (скрейпинг)..." });
+                
+                // Fallback: Scrape manually
+                const rawText = lastResponse.innerText || lastResponse.textContent;
+                chrome.runtime.sendMessage({ type: "FROM_GEMINI_SCRIPT", text: rawText.trim() });
             }
         }
     });
 
     await sleep(2000);
     focusStudio();
-    report("✅ СЦЕНАРИЙ УСПЕШНО ДОСТАВЛЕН! (v12.1)");
+    report("✅ РОБОТ ЗАВЕРШИЛ ЗАДАЧУ. Нажмите 'Вставить' в слоте сценария.");
 }
 
 async function executeLiteralCycle(promptText, assets, assetIds) {
