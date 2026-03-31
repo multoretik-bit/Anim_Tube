@@ -267,14 +267,14 @@ function handleIncomingScript(text) {
 
 // --- NEW: ROBOTIC ASSEMBLY TRIGGER (v1.3.2) ---
 function triggerVisualAssemblyStart() {
-    logStatus("🤖 [СУПЕР-АВТО]: Перехожу к финальной сборке (Фаза 4)...", "success");
+    logStatus("🤖 [РОБОТ]: Перехожу к финальной сборке (Фаза 4)...", "success");
     
-    // 1. Switch Tab
+    // 1. Switch Tab to Frames
     switchProjectTab('frames');
     
     setTimeout(() => {
         // 2. USER REQUEST: Explicit Scroll Down to find the button
-        logStatus("🖱️ [СУПЕР-АВТО]: Прокрутка вниз к кнопке пуска...", "info");
+        logStatus("🖱️ [РОБОТ]: Прокрутка вниз к кнопке пуска...", "info");
         window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
         
         setTimeout(() => {
@@ -283,22 +283,19 @@ function triggerVisualAssemblyStart() {
                 // 3. Highlight and Final Scroll Adjustment
                 btnStart.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 btnStart.classList.add('flash-active');
-                logStatus("🖱️ [СУПЕР-АВТО]: Кнопка найдена. Нажимаю...", "success");
+                logStatus("🖱️ [РОБОТ]: Кнопка пуска найдена. Нажимаю...", "success");
                 
                 setTimeout(() => {
                     btnStart.classList.remove('flash-active');
-                    // 4. THE VITAL CLICK
+                    // 4. THE VITAL CLICK (Zero-Click Production Start)
                     btnStart.click(); 
-                    
-                    // ONCE ASSEMBLY STARTS: STAY HERE. No more returning to splitting tab.
-                    logStatus("🏁 [СУПЕР-АВТО]: Сборка активна. Остаюсь во вкладке кадров.", "success");
+                    logStatus("🏁 [РОБОТ]: Сборка запущена. Приятного просмотра!", "success");
                 }, 1200);
             } else {
-                // If button is hidden, assembly is likely already running
-                logStatus("ℹ️ [СУПЕР-АВТО]: Сборка уже в процессе. Остаюсь здесь.", "success");
+                logStatus("ℹ️ [РОБОТ]: Сборка уже активна.", "success");
             }
-        }, 2000); // Wait for scroll to finish
-    }, 1200); // Wait for tab switch
+        }, 1500); // Wait for scroll to finish
+    }, 1000); // Wait for tab switch/render
 }
 
 // --- NEW: SUPER AUTOMATION SPLITTING LOOP ---
@@ -458,16 +455,8 @@ function distributePromptsToGenerator(scriptId, rawText) {
     
     logStatus(`✅ Добавлено ${lines.length} промптов в генератор!`, "success");
     
-    // 🚀 NEW: LITERAL TRANSITION (only after ALL target scripts are split)
-    const isSuperAutoSplitting = state.assembly.superAuto.active && state.assembly.superAuto.phase === 'splitting';
-    const scripts = project.scripts || [];
-    const isFinalSplit = state.assembly.superAuto.splittingIdx >= scripts.length;
-
-    if (!isSuperAutoSplitting || isFinalSplit) {
-        triggerVisualAssemblyStart();
-    } else {
-        logStatus(`🤖 [СУПЕР-АВТО]: Сценарий #${state.assembly.superAuto.splittingIdx} распределен. Продолжаю разделение...`, "info");
-    }
+    // 🚀 THE LITERAL HANDSHAKE: Always transition to assembly after distribution
+    triggerVisualAssemblyStart();
 }
 
 function autoResizeTextarea(el) {
@@ -577,11 +566,9 @@ function handleIncomingPrompts(rawText) {
                 state.assembly.activeSplittingScriptId = null;
                 state.assembly.pendingPrompts = null;
                 
-                if (state.assembly.superAuto.active && state.assembly.superAuto.phase === 'splitting') {
-                    state.assembly.superAuto.splittingIdx++;
-                    // Super Auto Resume:
-                    setTimeout(processSuperAutoSplitting, 2000);
-                }
+                // End any automated splitting chains to avoid tab-jumping
+                state.assembly.superAuto.active = false;
+                state.assembly.superAuto.phase = 'idle';
             }, 1000);
         }, 500);
         return;
