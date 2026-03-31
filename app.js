@@ -378,29 +378,47 @@ function parseBulkFrames(scriptId, rawText) {
     const script = project.scripts.find(s => s.id == scriptId);
     if (!script || !script.frames) return;
 
-    // v1.2.7: Trigger-based Splitting (Frame as marker)
-    // We split by the word "Frame" (case-insensitive)
-    const parts = rawText.split(/Frame\b/i);
+    // v1.2.8: Precision Marker-based Splitting
+    const markers = [];
+    // Regex to find "Frame" followed by optional space and digits
+    // We look for Frame, optionally surrounded by stars (markdown)
+    const regex = /\**Frame\s*(\d+)\**/gi;
+    let match;
     
-    // First part (parts[0]) is everything BEFORE the first "Frame"
-    // The user says "as soon as it reaches the word Frame, it copies what was BEFORE it"
-    // but usually Frame 1 is the first block. 
-    // Let's handle it strictly: every non-empty segment becomes a slot.
+    // 1. Find all marker positions
+    while ((match = regex.exec(rawText)) !== null) {
+        markers.push({ 
+            index: match.index, 
+            length: match[0].length,
+            num: parseInt(match[1]) 
+        });
+    }
+
+    if (markers.length === 0) {
+        logStatus("⚠️ В тексте не найдено слово 'Frame'. Распределение не выполнено.", "error");
+        return;
+    }
+
+    // 2. Extract content between markers
     let frameIdx = 0;
-    parts.forEach((part, i) => {
-        let clean = part.trim();
-        // Remove leading numbers/punctuation often following the "Frame" word (e.g. " 1:", " 2**")
-        clean = clean.replace(/^[\s\d:*.-]+/, '').trim();
+    for (let i = 0; i < markers.length && frameIdx < 20; i++) {
+        const start = markers[i].index + markers[i].length;
+        const end = (i + 1 < markers.length) ? markers[i+1].index : rawText.length;
         
-        if (clean.length > 2 && frameIdx < 20) {
-            script.frames[frameIdx] = clean;
+        let content = rawText.substring(start, end).trim();
+        
+        // Clean up markdown/symbols (colons, stars, dashes at the start)
+        content = content.replace(/^[:\s\-*]+/, '').trim();
+        
+        if (content.length > 0) {
+            script.frames[frameIdx] = content;
             frameIdx++;
         }
-    });
+    }
 
     saveState();
     renderProjectScenariosForSplitting();
-    logStatus(`✅ Успешно распределено ${frameIdx} кадров по ячейкам!`, "success");
+    logStatus(`✅ Алгоритм "От кадра до кадра" распределил ${frameIdx} промптов!`, "success");
 }
 
 async function pasteFromGeminiToScenario(scriptId) {
