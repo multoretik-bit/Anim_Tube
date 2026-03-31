@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AnimTube Studio v7.4 | Visual Sync Mode</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Sidebar Navigation -->
+    <nav class="sidebar">
+        <div class="brand">
+            <span style="font-size: 24px;">📺</span>
+            <h1>ANIMTUBE<br><small style="font-size: 10px; color: var(--accent-primary); letter-spacing: 2px;">V2.0-FIX STUDIO</small></h1>
+        </div>
+        
+        <div class="nav-group">
+            <div class="nav-item active" id="nav-videos" onclick="showPage('videos')">
+                <span class="nav-icon">📁</span> Мои Проекты
+            </div>
+            <div class="nav-item" id="nav-assets" onclick="showPage('assets')">
+                <span class="nav-icon">📦</span> Библиотека Ассетов
+            </div>
+            <div class="nav-item" id="nav-settings" onclick="showPage('settings')">
+                <span class="nav-icon">⚙️</span> Настройки
+            </div>
+        </div>
+
+        </div>
+    </nav>
+
+    <!-- Main Workspace -->
+    <main id="app">
+        <!-- 1. VIDEOS BROWSER (Project List) -->
+        <section id="page-videos" class="page active">
+            <div class="section-header" style="display: flex; justify-content: space-between; align-items: flex-end;">
+                <div>
+                    <h2>Мои Проекты</h2>
+                    <p>Управляйте своими анимационными проектами по папкам.</p>
+                </div>
+                <button class="btn btn-primary" onclick="createNewProject()">
+                    ➕ Создать проект
+                </button>
+            </div>
+
+            <div class="project-grid" id="project-list-container">
+                <!-- Projects injected via JS -->
+            </div>
+        </section>
+
+        <section id="page-workspace" class="page">
+            <div class="workspace-nav" style="margin-bottom: 24px;">
+                <div class="back-btn" onclick="showPage('videos')">←</div>
+                <div>
+                    <h2 id="current-project-name">Название проекта</h2>
+                    <p style="font-size: 13px; color: var(--text-secondary);">Production Workspace v12.0</p>
+                </div>
+                <div style="margin-left: auto; display: flex; gap: 12px;">
+                    <button class="btn btn-secondary" onclick="downloadProjectFiles()" style="padding: 10px 16px; font-size: 12px;">💾 Скачать проект</button>
+                    <button class="btn btn-danger" onclick="deleteCurrentProject()" style="padding: 10px 16px; font-size: 12px;">Удалить папку</button>
+                </div>
+            </div>
+
+            <!-- TAB NAVIGATION (v12) -->
+            <div class="project-tabs">
+                <div class="tab-item locked" id="tab-script" onclick="switchProjectTab('script')">
+                    <span class="tab-icon">📝</span> Создание сценария <span class="lock-icon">🔒</span>
+                </div>
+                <div class="tab-item locked" id="tab-prompts" onclick="switchProjectTab('prompts')">
+                    <span class="tab-icon">✂️</span> Разделение сценария <span class="lock-icon">🔒</span>
+                </div>
+                <div class="tab-item locked" id="tab-voice" onclick="switchProjectTab('voice')">
+                    <span class="tab-icon">🎙️</span> Создание озвучки <span class="lock-icon">🔒</span>
+                </div>
+                <div class="tab-item active" id="tab-frames" onclick="switchProjectTab('frames')">
+                    <span class="tab-icon">🖼️</span> Создание кадров
+                </div>
+                <div class="tab-item locked" id="tab-animation" onclick="switchProjectTab('animation')">
+                    <span class="tab-icon">🎬</span> Создание анимации <span class="lock-icon">🔒</span>
+                </div>
+            </div>
+
+            <!-- TAB CONTENTS -->
+            <div id="project-tab-contents" style="margin-top: 32px;">
+                <!-- Tab: Frames -->
+                <div id="tab-content-frames" class="tab-pane active">
+                    <div style="display: grid; grid-template-columns: 1fr 400px; gap: 32px;">
+                        <!-- Left Column: Generator & Library -->
+                        <div style="display: flex; flex-direction: column; gap: 24px;">
+                            <!-- Generator -->
+                            <div class="glass-panel">
+                                <h3 style="margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+                                    🚀 ГЕНЕРАТОР КАДРОВ
+                                </h3>
+                                <div id="prompt-list-builder" class="prompt-list-builder">
+                                    <!-- Prompt items injected via JS -->
+                                </div>
+                                
+                                <div style="margin-top: 24px; display: flex; gap: 12px; align-items: center;">
+                                    <button class="btn-add-prompt" onclick="addPromptToProject()" style="flex: 1;">
+                                        ➕ Добавить промт
+                                    </button>
+                                    <button class="btn btn-primary" id="btn-start-assembly" onclick="startRollAssembly()" style="flex: 1;">
+                                        🚀 Начать сборку
+                                    </button>
+                                    <button class="btn btn-danger" id="btn-stop-assembly" onclick="stopRollAssembly()" style="display: none; flex: 1;">
+                                        🛑 Остановить
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- RECEIVING SLOT -->
+                            <div class="glass-panel" id="receiving-slot-panel" style="display: none; border-color: var(--accent-gemini); border-width: 2px;">
+                                <div id="capture-slot" class="receiving-box" tabindex="0">
+                                    <div class="transfer-status">
+                                        <span style="font-size: 40px; display: block; margin-bottom: 15px;">📥</span>
+                                        <p id="receiving-text">ОЖИДАНИЕ ПЕРЕДАЧИ ИЗ GEMINI...</p>
+                                        <button id="btn-auto-paste" class="btn-auto-paste">
+                                            <span class="btn-icon">⚡</span> ВСТАВИТЬ КАДР (АВТО)
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Library -->
+                            <div class="glass-panel">
+                                <h3 style="margin-bottom: 16px;">Библиотека кадров проекта</h3>
+                                <div class="library-grid" id="project-library-container" style="grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));">
+                                    <!-- Image cards injected via JS -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Right Column: Status & Preview -->
+                        <div style="display: flex; flex-direction: column; gap: 24px;">
+                            <div class="glass-panel" style="padding: 16px;">
+                                <h3 style="margin-bottom: 12px; font-size: 14px; text-transform: uppercase;">Текущий результат</h3>
+                                <div id="main-canvas" style="position: relative; aspect-ratio: 16/9; background: #000; border-radius: 12px; overflow: hidden; border: 1px solid var(--border-glass);">
+                                    <img id="preview-frame" style="width: 100%; height: 100%; object-fit: contain; display: none;">
+                                    <div id="canvas-empty" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--text-dim);">
+                                        <span>No output</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="glass-panel">
+                                <h3 style="margin-bottom: 16px;">Очередь выполнения</h3>
+                                <div id="assembly-status-bar" style="height: 4px; background: var(--bg-glass); border-radius: 2px; overflow: hidden; margin-bottom: 12px;">
+                                    <div id="assembly-progress-fill" style="width: 0%; height: 100%; background: var(--accent-primary); transition: width 0.5s;"></div>
+                                </div>
+                                <div id="assembly-counter" style="font-size: 11px; color: var(--text-secondary); margin-bottom: 16px;">0 / 0 Сделано</div>
+                                <div class="queue-status" id="queue-display"></div>
+                            </div>
+
+                            <div class="terminal" id="studio-terminal">> Проект загружен...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab: Placeholder for Locked Tabs -->
+                <div id="tab-content-locked" class="tab-pane">
+                    <div class="glass-panel" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 400px; text-align: center;">
+                        <span style="font-size: 60px; margin-bottom: 24px;">🔒</span>
+                        <h2>Эта вкладка заблокирована</h2>
+                        <p style="color: var(--text-secondary); max-width: 400px; margin-top: 10px;">
+                            Мы плавно расширяем функционал AnimTube. Разделы сценария, озвучки и анимации будут доступны в следующих обновлениях.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PROJECT SETTINGS (BOTTOM PANEL) -->
+            <div class="project-footer-settings glass-panel" style="margin-top: 40px; border-top: 2px solid var(--accent-primary);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                    <h3 style="color: var(--text-primary);">⚙️ НАСТРОЙКИ ПРОЕКТА</h3>
+                    <p style="font-size: 11px; color: var(--accent-primary); font-weight: 700; letter-spacing: 1px;">PRO-CONFIGURATION</p>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px;">
+                    <!-- Style Prefix -->
+                    <div class="setting-group">
+                        <label style="display: block; margin-bottom: 12px; font-size: 14px; font-weight: 700; color: var(--text-primary);">ПРЕФИКС СТИЛЯ (PRE-PROMPT)</label>
+                        <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">
+                            Этот текст будет автоматически добавляться в начало каждого промта для поддержания единого стиля в этом проекте.
+                        </p>
+                        <textarea id="project-specific-prefix" style="height: 120px; font-size: 13px; border-color: rgba(99, 102, 241, 0.3);" onchange="window.updateProjectPrefix(this.value)" placeholder="Напр. Style: Peppa Pig, flat vector, 2D..."></textarea>
+                    </div>
+
+                    <!-- Project Assets -->
+                    <div class="setting-group">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                            <label style="font-size: 14px; font-weight: 700; color: var(--text-primary);">АССЕТЫ ПРОЕКТА</label>
+                            <button class="btn btn-secondary" onclick="openAssetSelectorModal()" style="padding: 6px 12px; font-size: 11px; border-radius: 8px;">🔍 ВЫБРАТЬ АССЕТЫ</button>
+                        </div>
+                        <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">
+                            Герои и локации, которые активны в этом проекте. Студия будет пытаться найти их в тексте промта.
+                        </p>
+                        
+                        <div id="detection-indicator" class="detection-bar-empty" style="margin-bottom: 15px; padding: 10px; border-radius: 8px; font-size: 11px; font-weight: 600; text-transform: uppercase; border: 1px solid var(--border-glass); background: rgba(255,255,255,0.03); text-align: center;">
+                            ЖДУ СТАРТА...
+                        </div>
+                        
+                        <div id="project-assets-selection" class="library-grid" style="grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 12px; min-height: 80px;">
+                            <!-- Assets injected via JS -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3. GLOBAL ASSET LIBRARY (v11.1) -->
+        <section id="page-assets" class="page">
+            <div class="section-header">
+                <h2>📦 ГЛОБАЛЬНАЯ БИБЛИОТЕКА АССЕТОВ</h2>
+                <p>Загрузите персонажей и локации один раз, чтобы использовать их в любых проектах.</p>
+            </div>
+
+            <div class="glass-panel" style="margin-bottom: 24px;">
+                <div class="asset-controls" style="display: flex; gap: 15px; align-items: center;">
+                    <input type="text" id="global-asset-name" placeholder="Имя (напр. Пеппа)" style="flex:1; background: var(--bg-glass); border: 1px solid var(--border-glass); border-radius: 12px; padding: 12px; color: white; outline: none;">
+                    <button class="btn btn-primary" onclick="window.triggerGlobalAssetUpload()">
+                        ➕ Добавить в библиотеку
+                    </button>
+                    <input type="file" id="global-asset-file" hidden accept="image/*" onchange="window.handleAddGlobalAsset(this)">
+                </div>
+            </div>
+
+            <div class="glass-panel">
+                <h3 style="margin-bottom: 20px;">Мои персонажи и фоны</h3>
+                <div id="global-assets-list" class="library-grid" style="grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));">
+                    <!-- Global images with remove buttons -->
+                </div>
+            </div>
+        </section>
+
+        <!-- 3. SETTINGS PAGE -->
+        <section id="page-settings" class="page">
+            <div class="section-header">
+                <h2>Настройки</h2>
+                <p>Конфигурация API и системные параметры.</p>
+            </div>
+
+            <div class="glass-panel" style="max-width: 600px;">
+                <div style="margin-bottom: 24px;">
+                    <label style="display: block; margin-bottom: 8px; font-size: 14px; font-weight: 600;">Google Gemini API Key</label>
+                    <input type="password" id="key-gemini" style="width: 100%;">
+                </div>
+                <div style="margin-bottom: 24px;">
+                    <label style="display: block; margin-bottom: 8px; font-size: 14px; font-weight: 600;">xAI Grok API Key</label>
+                    <input type="password" id="key-grok" style="width: 100%;">
+                </div>
+                <div style="margin-bottom: 32px;">
+                    <label style="display: block; margin-bottom: 8px; font-size: 14px; font-weight: 600;">Префикс стиля (добавляется спереди)</label>
+                    <textarea id="setting-prefix" style="width: 100%; height: 100px; font-size: 13px;"></textarea>
+                </div>
+                <button class="btn btn-primary" style="width: 100%;" onclick="saveKeys()">Сохранить ключи</button>
+
+                <!-- NEW: CLOUD DEPLOYMENT SECTION (v12.0) -->
+                <div style="margin-top: 40px; padding-top: 32px; border-top: 1px solid var(--border-glass);">
+                    <h3 style="margin-bottom: 12px; display: flex; align-items: center; gap: 10px;">
+                        🚀 ПУБЛИКАЦИЯ В ОБЛАКО
+                    </h3>
+                    <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 24px;">
+                        Отправьте ваш код на GitHub, чтобы получить рабочую ссылку (сайт) и сохранить изменения.
+                    </p>
+                    
+                    <div style="background: rgba(99, 102, 241, 0.05); border: 1px solid var(--border-glow); border-radius: 16px; padding: 20px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                            <span style="font-size: 12px; font-weight: 700; color: var(--accent-gemini);">GITHUB TARGET:</span>
+                            <span style="font-size: 11px; color: var(--text-dim);">Anim_Tube.git</span>
+                        </div>
+                        <button class="btn btn-primary" style="width: 100%; height: 50px;" onclick="triggerDeployment()">
+                            🚀 ДЕПЛОЙ НА GITHUB
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="app.js"></script>
+</body>
+</html>

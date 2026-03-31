@@ -1,0 +1,7 @@
+{
+  "name": "animtube-ai-studio",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "AI Creative Studio for Gemini and Grok",
+  "main": "index.html"
+}
