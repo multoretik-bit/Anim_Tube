@@ -1362,6 +1362,14 @@ async function processNextItem() {
     
     const fullPrompt = rawPrompt.includes(prefix) ? rawPrompt : (prefix.trim() + "\n\n" + rawPrompt.trim()).trim();
     
+    // EXPLICIT CLIPBOARD COPY (v1.3.2 - Zero-Click Fix)
+    try {
+        await navigator.clipboard.writeText(fullPrompt);
+        logStatus(`📋 [Промт ${state.assembly.currentIdx + 1}]: Текст скопирован в буфер.`, "success");
+    } catch (err) {
+        logStatus("⚠️ Ошибка автоматического копирования. Нажмите Ctrl+C сами?", "error");
+    }
+    
     state.assembly.isWaitingForImage = true;
     
     const slotBox = document.getElementById('capture-slot');
