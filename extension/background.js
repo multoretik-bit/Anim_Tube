@@ -420,8 +420,8 @@ async function executeLiteralCycle(promptText, assets, assetIds) {
             }
             report("🚀 ЦИКЛ ЗАВЕРШЕН (v11.17)!");
             
-            // Wait for generation
-            await sleep(81000);
+            // Wait for generation (User quested increase from 70/80s to 120s)
+            await sleep(120000);
 
             // CAPTURE
             const allImgs = Array.from(document.querySelectorAll('img'));

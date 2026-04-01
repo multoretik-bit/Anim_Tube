@@ -282,7 +282,7 @@ async function executeLiteralCycle(promptText, assets, assetIds) {
             const sleep = (ms) => new Promise(r => setTimeout(r, ms));
             const sendBtn = document.querySelector('button[aria-label*="Send"]') || document.querySelector('button[aria-label*="Отправить"]');
             if (sendBtn) sendBtn.click();
-            await sleep(81000);
+            await sleep(120000); // Wait for generation (User requested increase to 120s)
             const allImgs = Array.from(document.querySelectorAll('img'));
             const frames = allImgs.filter(img => (img.naturalWidth || img.clientWidth) > 200);
             if (frames.length > 0) {
