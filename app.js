@@ -2056,6 +2056,25 @@ async function processNextAnimation() {
     
     const base64 = await getImageFromDB(item.resultId);
     
+    // Connection watchdog
+    let bridgeResponded = false;
+    const watchdog = setTimeout(() => {
+        if (!bridgeResponded) {
+            logStatus("⚠️ Ошибка: Расширение не ответило! Проверьте, обновлена ли эта страница (F5) и включено ли расширение.", "error");
+            stopAnimationAssembly(true);
+        }
+    }, 3000);
+
+    // One-time listener to disable watchdog
+    const listener = (event) => {
+        if (event.data?.type === "ANIMTUBE_STATUS") {
+            bridgeResponded = true;
+            clearTimeout(watchdog);
+            window.removeEventListener("message", listener);
+        }
+    };
+    window.addEventListener("message", listener);
+
     sendToBridge({
         type: "TO_GROK", // Custom command for extension
         prompt: item.prompt,
