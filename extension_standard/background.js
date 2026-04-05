@@ -541,63 +541,71 @@ async function executeGrokCycle(promptText, assets, assetIds) {
         }
     }
 
-    report("📥 Поиск готовой анимации (Скачивание)...");
-    await chrome.scripting.executeScript({
+    report("📥 Поиск готовой анимации (ОБЯЗАТЕЛЬНОЕ СКАЧИВАНИЕ)...");
+    
+    const downloadResult = await chrome.scripting.executeScript({
         target: { tabId: grokTab.id },
         func: async () => {
             const report = (msg) => chrome.runtime.sendMessage({ type: "ANIMTUBE_STATUS", text: msg });
+            const sleep = (ms) => new Promise(r => setTimeout(r, ms));
             
-            // Universal Resource Detector (Wait for video then find download)
-            report("🔍 СКАНЕР: Поиск кнопки скачивания (АГРЕССИВНЫЙ РЕЖИМ)...");
+            report("🔍 СКАНЕР: Начинаю цикл поиска кнопки Скачать (до 5 попыток)...");
             
-            const findDownloadOnPage = () => {
-                // Method 1: Target by known SVG patterns and ARIA labels (Global scan)
-                const buttons = Array.from(document.querySelectorAll('button, a, div[role="button"]'));
+            const findDownload = () => {
+                const buttons = Array.from(document.querySelectorAll('button, a, [role="button"]'));
+                const rightEdge = window.innerWidth * 0.55;
                 
-                // Grok download button usually has an aria-label like "Download" 
-                // or contains an SVG path with specific download data.
-                const dlBtn = buttons.reverse().find(b => {
+                // 1. Specific SVG Path for Download (Grok/X often uses these)
+                const dlIcon = document.querySelector('svg path[d*="M19 9h-4V3H9v6H5l7 7 7-7z"], svg path[d*="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 11h3l-4 4-4-4h3V9h2v4z"]');
+                if (dlIcon) {
+                    const btn = dlIcon.closest('button') || dlIcon.closest('a') || dlIcon.closest('[role="button"]');
+                    if (btn) return btn;
+                }
+
+                // 2. Search by label/title on the right side
+                const candidates = buttons.filter(b => {
                     const label = (b.getAttribute('aria-label') || b.title || b.innerText || "").toLowerCase();
-                    const hasDownloadKeyword = /download|скачать|save/i.test(label);
-                    const hasIcon = !!b.querySelector('svg');
-                    
-                    // Position hint: Grok video/image buttons are often in the top-right overlay
+                    const isDownload = label.includes('download') || label.includes('скачать') || label.includes('save');
                     const rect = b.getBoundingClientRect();
-                    const isSideButton = rect.right > (window.innerWidth * 0.6); // Look on the right half
-
-                    return hasDownloadKeyword || (hasIcon && isSideButton);
+                    return isDownload && rect.width > 0 && rect.right > rightEdge;
                 });
-
-                if (dlBtn) return dlBtn;
-
-                // Method 2: Direct SVG Path matching (common download icons)
-                const dlIcons = Array.from(document.querySelectorAll('svg path[d*="M19 9h-4V3H9v6H5l7 7 7-7z"], path[d*="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 11h3l-4 4-4-4h3V9h2v4z"]'));
-                if (dlIcons.length > 0) return dlIcons[0].closest('button') || dlIcons[0].closest('a');
                 
-                return null;
+                return candidates.length > 0 ? candidates[candidates.length - 1] : null;
             };
 
-            const targetBtn = findDownloadOnPage();
-            if (targetBtn) {
-                targetBtn.click();
-                report("✅ Кнопка Скачивания успешно нажата!");
-            } else {
-                report("⚠️ СКАНЕР: Кнопка скачивания не найдена. Проверьте окно Grok.");
+            for (let i = 1; i <= 5; i++) {
+                const btn = findDownload();
+                if (btn) {
+                    btn.click();
+                    report(`✅ ПОПЫТКА ${i}: Кнопка Скачать НАЙДЕНА И НАЖАТА!`);
+                    return true;
+                }
+                report(`⏳ ПОПЫТКА ${i}: Кнопка пока не появилась, жду 2 сек...`);
+                await sleep(2000);
+                window.scrollTo(0, document.body.scrollHeight / 2); // Subtle scroll to wake up UI
             }
             
-            await new Promise(r => setTimeout(r, 4000)); // Wait for file to initiate
+            return false;
         }
     });
+
+    const downloadClicked = downloadResult[0].result;
+
+    if (!downloadClicked) {
+        report("❌ КРИТИЧЕСКАЯ ОШИБКА: Кнопка скачивания не найдена после 5 попыток. ВЫХОД ЗАБЛОКИРОВАН.");
+        isRunningGrokCycle = false;
+        return; // STOP HERE as requested: "ONLY after that he can click back"
+    }
     
-    // --- NATIVE BACK ACTION (Equivalent to Alt + Left Arrow) ---
-    report("⌛ Жду 3 сек после скачивания перед выходом...");
-    await sleep(3000);
+    // --- NATIVE BACK ACTION (ONLY AFTER SUCCESSFUL DOWNLOAD) ---
+    report("⌛ Скачивание запущено. Жду 4 сек перед выходом...");
+    await sleep(4000);
     
     try {
         await chrome.tabs.goBack(grokTab.id);
         report("✅ Нажата системная команда 'Назад'!");
     } catch (e) {
-        report("⚠️ Ошибка выхода. Попробуйте нажать кнопку Назад вручную.");
+        report("⚠️ Ошибка выхода. Попробуйте нажать Назад вручную.");
     }
 
     report("⌛ Жду 5 сек для очистки Grok...");
