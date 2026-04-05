@@ -1104,25 +1104,65 @@ function deleteCurrentProject() {
     showPage('videos');
 }
 
+async function base64ToBlob(base64) {
+    const res = await fetch(base64);
+    return await res.blob();
+}
+
 async function downloadProjectFiles() {
     const project = getCurrentProject();
-    if (!project || project.results.length === 0) return alert("Нет кадров для скачивания!");
-    
-    logStatus("💾 Подготовка файлов к скачиванию...", "info");
-    
-    for (let i = 0; i < project.results.length; i++) {
-        const res = project.results[project.results.length - 1 - i]; 
-        const base64 = await getImageFromDB(res.id);
-        if (base64) {
-            const link = document.createElement('a');
-            link.href = base64;
-            link.download = `frame_${project.id}_${i+1}.png`;
-            link.click();
-            await new Promise(r => setTimeout(r, 200));
+    if (!project) return alert("Проект не найден!");
+    if ((!project.results || project.results.length === 0) && (!project.scripts || project.scripts.length === 0)) {
+        return alert("Нет файлов (кадров или сценариев) для скачивания!");
+    }
+
+    try {
+        // 1. Request directory
+        const dirHandle = await window.showDirectoryPicker();
+        logStatus("📁 Папка выбрана. Начинаю сохранение...", "info");
+
+        // 2. Save Frames
+        if (project.results && project.results.length > 0) {
+            logStatus(`🖼️ Сохраняю кадры (${project.results.length})...`, "info");
+            for (let i = 0; i < project.results.length; i++) {
+                const res = project.results[project.results.length - 1 - i]; 
+                const base64 = await getImageFromDB(res.id);
+                if (base64) {
+                    const blob = await base64ToBlob(base64);
+                    const fileName = `frame_${project.id}_${i+1}.png`;
+                    const fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
+                    const writable = await fileHandle.createWritable();
+                    await writable.write(blob);
+                    await writable.close();
+                }
+            }
+        }
+
+        // 3. Save Scripts/Scenarios
+        if (project.scripts && project.scripts.length > 0) {
+            logStatus(`📝 Сохраняю сценарии (${project.scripts.length})...`, "info");
+            for (let i = 0; i < project.scripts.length; i++) {
+                const s = project.scripts[i];
+                const fileName = `Scenario_${project.name}_${s.scriptNum || (project.scripts.length - i)}.txt`;
+                const fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
+                const writable = await fileHandle.createWritable();
+                await writable.write(s.text);
+                await writable.close();
+            }
+        }
+
+        logStatus("✅ Все файлы успешно сохранены в выбранную папку!", "success");
+    } catch (err) {
+        if (err.name === 'AbortError') {
+            logStatus("⚠️ Сохранение отменено пользователем.", "info");
+        } else {
+            console.error("Download error:", err);
+            logStatus("❌ Ошибка при сохранении файлов: " + err.message, "error");
+            alert("Не удалось сохранить файлы. Убедитесь, что браузер поддерживает File System Access API.");
         }
     }
-    logStatus("✅ Все файлы скачаны!", "success");
 }
+
 
 function saveState() {
     localStorage.setItem('animtube_projects', JSON.stringify(state.projects));
