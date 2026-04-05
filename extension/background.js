@@ -452,14 +452,20 @@ async function executeGrokCycle(promptText, assets, assetIds) {
     const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     const report = (msg) => relayToStudio({ type: "ANIMTUBE_STATUS", text: msg });
 
+    report("🚀 Extension: Получена команда TO_GROK. Ищу вкладки...");
+
     const tabs = await chrome.tabs.query({});
+    report(`🔍 Всего найдено вкладок: ${tabs.length}`);
+    
     const grokTab = tabs.find(t => t.url && t.url.includes("grok.com"));
     const studioTab = tabs.find(t => t.url && (t.url.includes("localhost") || t.url.includes("127.0.0.1") || t.title.includes("AnimTube")));
 
     if (!grokTab) {
-        report("❌ Ошибка: Вкладка Grok (grok.com) не найдена!");
+        report(`❌ Ошибка: Вкладка Grok (grok.com) не найдена среди ${tabs.length} вкладок!`);
         return;
     }
+
+    report(`✅ Найдена вкладка Grok! ID: ${grokTab.id}`);
 
     if (studioTab) {
         chrome.windows.update(studioTab.windowId, { focused: true });
