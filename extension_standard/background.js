@@ -351,17 +351,33 @@ async function executeGrokCycle(promptText, assets, assetIds) {
     await chrome.scripting.executeScript({
         target: { tabId: grokTab.id },
         func: async (text) => {
-            const editor = document.querySelector('textarea') || document.querySelector('div[contenteditable="true"]');
+            const editor = document.querySelector('textarea, div[contenteditable="true"]');
             if (editor) {
                 editor.focus();
+                
+                // 1. Clear natively
                 document.execCommand('selectAll', false, null);
                 document.execCommand('delete', false, null);
-                if (editor.tagName === "TEXTAREA") {
-                    editor.value = text;
-                } else {
-                    editor.innerText = text;
+                
+                // 2. Insert text natively (Triggers all framework listeners naturally)
+                let success = document.execCommand('insertText', false, text);
+                
+                // 3. Bruteforce fallback
+                if (!success || (editor.value === "" && editor.innerText === "")) {
+                    if (editor.tagName === "TEXTAREA") {
+                        editor.value = text;
+                        // React 16+ Hack
+                        const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value")?.set;
+                        if (setter) setter.call(editor, text);
+                    } else {
+                        editor.innerText = text;
+                    }
                 }
-                ['input', 'change', 'keydown'].forEach(t => editor.dispatchEvent(new Event(t, { bubbles: true })));
+                
+                // 4. Fire standard synthetic events to wake up React
+                ['input', 'change', 'keydown', 'keyup'].forEach(e => {
+                    editor.dispatchEvent(new Event(e, { bubbles: true }));
+                });
             }
         },
         args: [promptText]
