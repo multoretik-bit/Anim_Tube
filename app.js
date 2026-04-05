@@ -821,6 +821,10 @@ function switchProjectTab(tabId) {
         document.getElementById('tab-content-frames').classList.add('active');
         if (document.getElementById('project-settings-assets')) document.getElementById('project-settings-assets').style.display = 'block';
         renderProjectPrompts();
+    } else if (tabId === 'animation') {
+        document.getElementById('tab-content-animation').classList.add('active');
+        if (document.getElementById('project-settings-assets')) document.getElementById('project-settings-assets').style.display = 'none';
+        renderProjectAnimation();
     } else {
         // All other tabs show the "Locked" placeholder
         document.getElementById('tab-content-locked').classList.add('active');
@@ -1618,6 +1622,9 @@ async function handleIncomingImage(base64) {
     saveState();
     
     renderProjectLibrary();
+    if (document.getElementById('tab-content-animation').classList.contains('active')) {
+        renderProjectAnimation();
+    }
     logStatus("✅ Кадр добавлен в библиотеку проекта.", "success");
 
     if (state.assembly.isRunning && state.assembly.isWaitingForImage) {
@@ -1826,6 +1833,64 @@ function renderProjectPrompts() {
             </div>
         `;
     }).join('');
+}
+
+// --- ANIMATION RENDERER (v1.3.1) ---
+async function renderProjectAnimation() {
+    const project = getCurrentProject();
+    const container = document.getElementById('animation-list-container');
+    if (!project || !container) return;
+
+    if (!project.promptsList || project.promptsList.length === 0) {
+        container.innerHTML = `<div class="glass-panel" style="text-align: center; color: var(--text-dim); padding: 60px;">
+            <span style="font-size: 40px; display: block; margin-bottom: 20px;">🎬</span>
+            Очередь анимации пуста. Сначала добавьте промты во вкладке «Кадры».
+        </div>`;
+        return;
+    }
+
+    const folder = getFolderForProject(project.id);
+    const prefix = (folder && folder.prefix) ? folder.prefix : DEFAULT_PREFIX;
+
+    let html = "";
+    
+    for (let i = 0; i < project.promptsList.length; i++) {
+        const rawPrompt = project.promptsList[i];
+        if (!rawPrompt || rawPrompt.trim().length < 2) continue;
+
+        const fullPrompt = rawPrompt.includes(prefix) ? rawPrompt : (prefix.trim() + "\n\n" + rawPrompt.trim()).trim();
+        
+        // Find the LATEST result matching this prompt
+        // Search in reverse to get the newest frame
+        const matchingResult = [...project.results].find(r => r.promptSnippet === fullPrompt);
+        let imgTag = "";
+        
+        if (matchingResult) {
+            const base64 = await getImageFromDB(matchingResult.id);
+            imgTag = `<img src="${base64}">`;
+        } else {
+            imgTag = `
+                <div class="anim-empty-frame">
+                    <span>🖼️</span> ОЖИДАНИЕ КАДРА
+                </div>
+            `;
+        }
+
+        html += `
+            <div class="animation-row">
+                <div class="anim-index">${i + 1}</div>
+                <div class="anim-prompt-text">${rawPrompt}</div>
+                <div class="anim-frame-container" onclick="recreateSinglePrompt(${i})">
+                    ${imgTag}
+                    <div class="anim-actions">
+                        <button class="btn btn-primary" style="padding: 8px 16px; font-size: 11px;">🔄 Пересоздать</button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    container.innerHTML = html || `<p style="text-align: center; color: var(--text-dim);">Нет активных промтов.</p>`;
 }
 
 function recreateSinglePrompt(index) {

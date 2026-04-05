@@ -83,8 +83,8 @@
                 <div class="tab-item" id="tab-frames" onclick="switchProjectTab('frames')">
                     <span class="tab-icon">🖼️</span> Кадры
                 </div>
-                <div class="tab-item locked" id="tab-animation" onclick="switchProjectTab('animation')">
-                    <span class="tab-icon">🎬</span> Анимация <span class="lock-icon">🔒</span>
+                <div class="tab-item" id="tab-animation" onclick="switchProjectTab('animation')">
+                    <span class="tab-icon">🎬</span> Анимация
                 </div>
                 <div class="tab-item-auto" id="btn-automation-toggle" onclick="toggleAutoMode()" title="Режим автоматизации">
                     <span class="auto-icon">✨</span>
@@ -122,6 +122,20 @@
 
                     <div id="scenarios-splitting-container" class="scenarios-list">
                         <!-- Scenario cards for splitting injected via JS -->
+                    </div>
+                </div>
+
+                <!-- Tab: Animation (NEW v1.3.1) -->
+                <div id="tab-content-animation" class="tab-pane">
+                    <div class="glass-panel" style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center;">
+                        <h3 style="margin: 0;">🎬 МОНТАЖ И АНИМАЦИЯ (ПРЕВЬЮ)</h3>
+                        <div style="display: flex; gap: 12px;">
+                            <button class="btn btn-secondary" onclick="renderProjectAnimation()" style="padding: 10px 16px; font-size: 12px;">🔄 Обновить связи</button>
+                        </div>
+                    </div>
+                    
+                    <div id="animation-list-container" class="animation-list">
+                        <!-- Animation cards injected via JS -->
                     </div>
                 </div>
 

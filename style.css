@@ -1525,3 +1525,95 @@ body.robotic-moving {
 .bulk-textarea:focus {
     border-color: var(--accent-gemini);
 }
+
+/* --- ANIMATION TAB (NEW v1.3.1) --- */
+.animation-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.animation-row {
+    display: grid;
+    grid-template-columns: 80px 1fr 320px;
+    gap: 24px;
+    align-items: center;
+    background: var(--bg-card);
+    border: 1px solid var(--border-glass);
+    border-radius: 20px;
+    padding: 20px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.animation-row:hover {
+    border-color: var(--accent-primary);
+    background: rgba(99, 102, 241, 0.05);
+    transform: translateX(8px);
+}
+
+.anim-index {
+    font-size: 24px;
+    font-weight: 800;
+    color: var(--accent-primary);
+    text-align: center;
+    opacity: 0.5;
+}
+
+.anim-prompt-text {
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--text-primary);
+    max-height: 120px;
+    overflow-y: auto;
+    padding-right: 10px;
+}
+
+.anim-frame-container {
+    width: 320px;
+    aspect-ratio: 16/9;
+    background: #000;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--border-glass);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+.anim-frame-container img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.anim-empty-frame {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-dim);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.anim-empty-frame span {
+    font-size: 24px;
+}
+
+.anim-actions {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.anim-frame-container:hover .anim-actions {
+    opacity: 1;
+}
