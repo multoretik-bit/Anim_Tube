@@ -468,32 +468,58 @@ async function executeGrokCycle(promptText, assets, assetIds) {
                                 fileInput.dispatchEvent(new Event('change', { bubbles: true }));
                             }
 
-                            report("✅ Команды вставки запущены! Жду 5 сек перед отправкой...");
+                            report("✅ Кадр скопирован! Жду 5 сек перед отправкой...");
                             await sleep(5000); 
                         }
                     } catch (e) { report("⚠️ Ошибка программной вставки кадра: " + e.message); }
                 }
                 
-                // Submit
-                const sendBtn = document.querySelector('button[aria-label="Grok something"], button[aria-label*="Send"], svg.fa-arrow-up')?.closest('button');
+                // Wake up React specifically by inserting a native space and firing events
+                editor.focus();
+                document.execCommand('insertText', false, ' ');
+                ['input', 'change', 'keydown', 'keyup'].forEach(e => editor.dispatchEvent(new Event(e, { bubbles: true })));
+                
+                await sleep(500);
+
+                // Try to press Enter first (Works on many chat UIs)
+                editor.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+
+                // Robustly find the Send button
+                const allButtons = Array.from(document.querySelectorAll('button'));
+                // Scan from bottom to top, looking for typical Send button signatures:
+                const sendBtn = allButtons.reverse().find(b => {
+                    const aria = (b.getAttribute('aria-label') || "").toLowerCase();
+                    const hasSvgIcon = b.querySelector('svg:not(.hidden)');
+                    const hasNoText = !b.innerText.trim();
+                    const isSubmitType = b.getAttribute('type') === 'submit';
+                    
+                    return aria.includes('grok') || 
+                           aria.includes('send') || 
+                           aria.includes('отправить') || 
+                           isSubmitType || 
+                           (hasSvgIcon && hasNoText && b.compareDocumentPosition(editor) & Node.DOCUMENT_POSITION_PRECEDING); // Button is AFTER the editor
+                });
+
                 if (sendBtn) {
+                    sendBtn.removeAttribute('disabled'); // Try brute-force enable if React locked it
                     sendBtn.click();
+                    report("✅ Нажата кнопка отправки (стрелочка)!");
                 } else {
-                    editor.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+                    report("⚠️ Кнопка Отправить не найдена!");
                 }
             }
         },
         args: [assets]
     });
 
-    report("⏳ Ожидание генерации анимации (120 сек)...");
+    report("⏳ Ожидание генерации анимации (125 сек)...");
     
     // Wait for generation (Animation takes longer)
-    const waitTime = 120;
-    for (let i = waitTime; i >= 0; i-=10) {
+    const waitTime = 125;
+    for (let i = waitTime; i >= 0; i-=5) {
         if (i > 0) {
             report(`⌛ Grok создает анимацию... (${i}с)`);
-            await sleep(10000);
+            await sleep(5000);
         }
     }
 
