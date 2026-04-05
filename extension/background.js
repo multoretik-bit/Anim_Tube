@@ -457,7 +457,12 @@ async function executeGrokCycle(promptText, assets, assetIds) {
     const tabs = await chrome.tabs.query({});
     report(`🔍 Всего найдено вкладок: ${tabs.length}`);
     
-    const grokTab = tabs.find(t => t.url && t.url.includes("grok.com"));
+    const grokTab = tabs.find(t => {
+        const hasGrokUrl = t.url && (t.url.includes("grok.com") || t.url.includes("x.com/i/grok"));
+        const hasGrokTitle = t.title && t.title.toLowerCase().includes("grok");
+        return hasGrokUrl || hasGrokTitle;
+    });
+    
     const studioTab = tabs.find(t => t.url && (t.url.includes("localhost") || t.url.includes("127.0.0.1") || t.title.includes("AnimTube")));
 
     if (!grokTab) {
