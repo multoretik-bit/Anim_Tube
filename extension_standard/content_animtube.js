@@ -36,6 +36,15 @@ window.addEventListener("message", (event) => {
             prefix: event.data.prefix || ""
         });
     }
+
+    if (event.data.type === "TO_GROK") {
+        chrome.runtime.sendMessage({
+            type: "TO_GROK",
+            prompt: event.data.prompt || "",
+            assets: event.data.assets || [],
+            assetIds: event.data.assetIds || []
+        });
+    }
 });
 
 chrome.runtime.onMessage.addListener((msg) => {
