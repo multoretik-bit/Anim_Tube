@@ -1,5 +1,6 @@
 // AnimTube Bridge v1.3.5 - Hybrid (ChatGPT + Gemini)
 let isRunningGrokCycle = false;
+let lastGrokExitTime = 0; // Guard for double back-navigation
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.type === "TO_CHATGPT") {
         executeScriptCycle(request.prefix);
@@ -552,25 +553,48 @@ async function executeGrokCycle(promptText, assets, assetIds) {
             report("🔍 СКАНЕР: Начинаю цикл поиска кнопки Скачать (до 5 попыток)...");
             
             const findDownload = () => {
-                const buttons = Array.from(document.querySelectorAll('button, a, [role="button"]'));
-                const rightEdge = window.innerWidth * 0.55;
+                // 1. Specific SVG Path for Download (Multiple variants)
+                const dAttributeGrok = [
+                    "M19 9h-4V3H9v6H5l7 7 7-7z", // Simple Down Arrow
+                    "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 11h3l-4 4-4-4h3V9h2v4z", // Circle Down Arrow
+                    "M4 16v2h16v-2h-16zm12-9l-1.41-1.41-3.59 3.59v-8.18h-2v8.18l-3.59-3.59-1.41 1.41 6 6 6-6z" // Down arrow with bar
+                ];
                 
-                // 1. Specific SVG Path for Download (Grok/X often uses these)
-                const dlIcon = document.querySelector('svg path[d*="M19 9h-4V3H9v6H5l7 7 7-7z"], svg path[d*="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 11h3l-4 4-4-4h3V9h2v4z"]');
-                if (dlIcon) {
-                    const btn = dlIcon.closest('button') || dlIcon.closest('a') || dlIcon.closest('[role="button"]');
-                    if (btn) return btn;
+                const allSVGs = Array.from(document.querySelectorAll('svg'));
+                for (const svg of allSVGs) {
+                    const paths = Array.from(svg.querySelectorAll('path'));
+                    if (paths.some(p => dAttributeGrok.some(d => (p.getAttribute('d') || "").includes(d)))) {
+                        const btn = svg.closest('button') || svg.closest('a') || svg.closest('[role="button"]');
+                        if (btn) return btn;
+                    }
                 }
 
-                // 2. Search by label/title on the right side
+                // 2. Search by label/title/text on the right side
+                const buttons = Array.from(document.querySelectorAll('button, a, [role="button"]'));
+                const rightEdge = window.innerWidth * 0.5;
+                
                 const candidates = buttons.filter(b => {
                     const label = (b.getAttribute('aria-label') || b.title || b.innerText || "").toLowerCase();
-                    const isDownload = label.includes('download') || label.includes('скачать') || label.includes('save');
+                    const isDownload = label.includes('download') || label.includes('скачать') || label.includes('save') || label.includes('сохранить');
                     const rect = b.getBoundingClientRect();
                     return isDownload && rect.width > 0 && rect.right > rightEdge;
                 });
                 
-                return candidates.length > 0 ? candidates[candidates.length - 1] : null;
+                if (candidates.length > 0) return candidates[candidates.length - 1];
+
+                // 3. Last resort: Find buttons next to the video/image
+                const media = document.querySelector('video, img[src*="media"]');
+                if (media) {
+                    let parent = media.parentElement;
+                    for(let i=0; i<8; i++) {
+                        if(!parent) break;
+                        const localBtn = parent.querySelector('button, [role="button"]');
+                        if(localBtn && (localBtn.innerText.length < 5 || /download|save/i.test(localBtn.innerText))) return localBtn;
+                        parent = parent.parentElement;
+                    }
+                }
+
+                return null;
             };
 
             for (let i = 1; i <= 5; i++) {
@@ -597,15 +621,59 @@ async function executeGrokCycle(promptText, assets, assetIds) {
         return; // STOP HERE as requested: "ONLY after that he can click back"
     }
     
-    // --- NATIVE BACK ACTION (ONLY AFTER SUCCESSFUL DOWNLOAD) ---
-    report("⌛ Скачивание запущено. Жду 4 сек перед выходом...");
-    await sleep(4000);
-    
-    try {
-        await chrome.tabs.goBack(grokTab.id);
-        report("✅ Нажата системная команда 'Назад'!");
-    } catch (e) {
-        report("⚠️ Ошибка выхода. Попробуйте нажать Назад вручную.");
+    // --- MANDATORY EXIT SEQUENCE (ONE ACTION ONLY) ---
+    // Guard: Prevent double-navigation within 8 seconds
+    if (Date.now() - lastGrokExitTime < 8000) {
+        report("⚠️ Пропускаю дублирующий выход (уже выполнено).");
+        isRunningGrokCycle = false;
+        return;
+    }
+
+    report("⌛ Скачивание завершено. Начинаю выход (кнопка сверху слева)...");
+    await sleep(3000); // 3 sec wait after download as requested
+
+    const exitResult = await chrome.scripting.executeScript({
+        target: { tabId: grokTab.id },
+        func: async () => {
+            const report = (msg) => chrome.runtime.sendMessage({ type: "ANIMTUBE_STATUS", text: msg });
+            
+            // 1. ATTEMPT DOM CLICK (Top-Left Arrow)
+            const findTopLeftBack = () => {
+                const buttons = Array.from(document.querySelectorAll('button, a, [role="button"], div[aria-label*="Back"], div[title*="Back"]'));
+                // Look in the top-left 150x150px zone
+                const backBtn = buttons.find(b => {
+                    const rect = b.getBoundingClientRect();
+                    const isTopLeft = rect.left < 150 && rect.top < 150 && rect.width > 0;
+                    const label = (b.getAttribute('aria-label') || b.title || b.innerText || "").toLowerCase();
+                    const hasBackIcon = b.querySelector('svg');
+                    const isBackText = label.includes('back') || label.includes('назад') || label.includes('close') || label.includes('выйти');
+                    
+                    return isTopLeft && (hasBackIcon || isBackText);
+                });
+                return backBtn;
+            };
+
+            const physicalBtn = findTopLeftBack();
+            if (physicalBtn) {
+                physicalBtn.click();
+                report("✅ Нажата физическая кнопка 'Назад' (сверху слева)!");
+                return "DOM_CLICKED";
+            }
+            return "NOT_FOUND";
+        }
+    });
+
+    const status = exitResult[0].result;
+    lastGrokExitTime = Date.now(); // Mark as triggered
+
+    if (status !== "DOM_CLICKED") {
+        report("⚠️ Кнопка в углу не найдена. Пробую системный 'Назад'...");
+        try {
+            await chrome.tabs.goBack(grokTab.id);
+            report("✅ Выполнена системная команда 'Назад'!");
+        } catch (e) {
+            report("❌ Ошибка навигации. Выйдите из кадра вручную.");
+        }
     }
 
     report("⌛ Жду 5 сек для очистки Grok...");

@@ -28,15 +28,7 @@ window.addEventListener("message", (event) => {
         });
     }
 
-    // GROK ANIMATION COMMAND (v1.3.1)
-    if (event.data && event.data.type === "TO_GROK") {
-        chrome.runtime.sendMessage({
-            type: "TO_GROK",
-            prompt: event.data.prompt || "",
-            assets: event.data.assets || [],
-            assetIds: event.data.assetIds || []
-        });
-    }
+    // LEGACY RELAY (DEPRECATED)
 });
 
 // 2. Background -> Studio (Image Arrival & Auto-Paste Signals)
