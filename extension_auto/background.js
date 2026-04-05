@@ -468,8 +468,8 @@ async function executeGrokCycle(promptText, assets, assetIds) {
                                 fileInput.dispatchEvent(new Event('change', { bubbles: true }));
                             }
 
-                            report("✅ Команды вставки запущены!");
-                            await sleep(2500); 
+                            report("✅ Команды вставки запущены! Жду 5 сек перед отправкой...");
+                            await sleep(5000); 
                         }
                     } catch (e) { report("⚠️ Ошибка программной вставки кадра: " + e.message); }
                 }
@@ -486,10 +486,10 @@ async function executeGrokCycle(promptText, assets, assetIds) {
         args: [assets]
     });
 
-    report("⏳ Ожидание генерации анимации (минимум 80 сек)...");
+    report("⏳ Ожидание генерации анимации (120 сек)...");
     
     // Wait for generation (Animation takes longer)
-    const waitTime = 100;
+    const waitTime = 120;
     for (let i = waitTime; i >= 0; i-=10) {
         if (i > 0) {
             report(`⌛ Grok создает анимацию... (${i}с)`);
@@ -497,43 +497,44 @@ async function executeGrokCycle(promptText, assets, assetIds) {
         }
     }
 
-    report("📥 Поиск готовой анимации...");
+    report("📥 Поиск готовой анимации (Скачивание)...");
     await chrome.scripting.executeScript({
         target: { tabId: grokTab.id },
         func: async () => {
             const report = (msg) => chrome.runtime.sendMessage({ type: "ANIMTUBE_STATUS", text: msg });
-            const sleep = (ms) => new Promise(r => setTimeout(r, ms));
             
             // Try to find video first, then image
             const allVideos = Array.from(document.querySelectorAll('video'));
             const allImgs = Array.from(document.querySelectorAll('img')).filter(img => (img.naturalWidth || img.clientWidth) > 200);
             
-            let mediaSrc = null;
-            let isVideo = false;
-            
+            let mediaElement = null;
             if (allVideos.length > 0) {
-                mediaSrc = allVideos[allVideos.length - 1].src;
-                isVideo = true;
+                mediaElement = allVideos[allVideos.length - 1];
             } else if (allImgs.length > 0) {
                 // Ignore avatars
                 const contentImgs = allImgs.filter(img => !img.src.includes('avatar') && !img.src.includes('profile'));
-                if (contentImgs.length > 0) {
-                    mediaSrc = contentImgs[contentImgs.length - 1].src;
-                }
+                if (contentImgs.length > 0) mediaElement = contentImgs[contentImgs.length - 1];
             }
 
-            if (mediaSrc) {
-                report("✅ Анимация найдена! Скачиваю и отправляю в Студию...");
-                try {
-                    const res = await fetch(mediaSrc);
-                    const blob = await res.blob();
-                    const reader = new FileReader();
-                    reader.onloadend = () => {
-                        chrome.runtime.sendMessage({ type: "FROM_GROK", base64: reader.result });
-                    };
-                    reader.readAsDataURL(blob);
-                } catch (err) {
-                    report("❌ Ошибка извлечения видео: " + err.message);
+            if (mediaElement) {
+                report("✅ Анимация найдена! Ищу кнопку скачивания...");
+                let p = mediaElement;
+                for (let i = 0; i < 8; i++) { if (p && p.parentElement) p = p.parentElement; }
+                const container = p || document;
+                const dlBtns = Array.from(container.querySelectorAll('button[aria-label*="Download"], button[aria-label*="download"], button[title*="Download"], a[download]'));
+                
+                if (dlBtns.length > 0) {
+                    dlBtns[dlBtns.length - 1].click();
+                    report("✅ Кнопка Скачать нажата!");
+                } else {
+                    // Fallback to global search
+                    const globalDlBtns = Array.from(document.querySelectorAll('button[aria-label*="Download"], button[aria-label*="download"], button[title*="Download"], a[download]'));
+                    if (globalDlBtns.length > 0) {
+                        globalDlBtns[globalDlBtns.length - 1].click();
+                        report("✅ Кнопка Скачать нажата!");
+                    } else {
+                        report("⚠️ Кнопка скачивания не найдена на странице!");
+                    }
                 }
             } else {
                 report("❌ Не удалось найти готовую анимацию на странице.");
@@ -541,8 +542,18 @@ async function executeGrokCycle(promptText, assets, assetIds) {
         }
     });
     
-    await sleep(2000);
-    focusStudio();
+    report("⏳ Жду 5 сек после попытки скачивания...");
+    await sleep(5000);
+    
+    if (studioTab) {
+        try {
+            await chrome.windows.update(studioTab.windowId, { focused: true });
+            await chrome.tabs.update(studioTab.id, { active: true });
+        } catch(e){}
+    }
+    
+    report("🔄 Отправляю сигнал готовности...");
+    relayToStudio({ type: "FROM_GROK_DONE" });
 }
 
 function relayToStudio(msg) {

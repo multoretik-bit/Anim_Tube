@@ -178,9 +178,14 @@ function setupGlobalListeners() {
             handleIncomingPrompts(event.data.text);
         }
 
-        // 8. GROK ANIMATION ARRIVAL
+        // 8. GROK ANIMATION ARRIVAL (Legacy Support)
         if (event.data.type === "FROM_GROK") {
             handleIncomingAnimation(event.data.base64);
+        }
+
+        // 9. GROK ANIMATION DOWNLOADED SIGNAL
+        if (event.data.type === "FROM_GROK_DONE") {
+            if (window.handleGrokDone) window.handleGrokDone();
         }
     });
 }
@@ -1894,7 +1899,7 @@ async function renderProjectAnimation() {
     const folder = getFolderForProject(project.id);
     const prefix = (folder && folder.prefix) ? folder.prefix : DEFAULT_PREFIX;
 
-    let html = "";
+        let html = "";
     
     for (let i = 0; i < project.promptsList.length; i++) {
         const rawPrompt = project.promptsList[i];
@@ -1902,25 +1907,13 @@ async function renderProjectAnimation() {
 
         const fullPrompt = rawPrompt.includes(prefix) ? rawPrompt : (prefix.trim() + "\n\n" + rawPrompt.trim()).trim();
         
-        // Find the LATEST result matching this prompt
-        // Search in reverse to get the newest frame
         const resultsArray = project.results || [];
         const matchingResult = [...resultsArray].find(r => r.promptSnippet === fullPrompt);
         let imgTag = "";
-        let animTag = `
-            <div class="anim-empty-frame">
-                <span>📹</span> ЖДЕТ АНИМАЦИЮ
-            </div>
-        `;
         
         if (matchingResult) {
             const base64 = await getImageFromDB(matchingResult.id);
             imgTag = `<img src="${base64}">`;
-            
-            if (matchingResult.animationId) {
-                const animBase64 = await getAnimationFromDB(matchingResult.animationId);
-                animTag = `<video src="${animBase64}" autoplay loop muted></video>`;
-            }
         } else {
             imgTag = `
                 <div class="anim-empty-frame">
@@ -1930,20 +1923,23 @@ async function renderProjectAnimation() {
         }
 
         const isProcessing = state.animAssembly.isRunning && state.animAssembly.currentIdx === i;
+        const isDone = matchingResult && matchingResult.isGrokDone;
 
         html += `
-            <div class="animation-row" id="anim-row-${i}" style="${isProcessing ? 'border-color: var(--accent-grok); background: rgba(236, 72, 153, 0.05);' : ''}">
+            <div class="animation-row" id="anim-row-${i}" style="${isProcessing ? 'border-color: var(--accent-grok); background: rgba(236, 72, 153, 0.05);' : (isDone ? 'opacity: 0.7; background: #1a2a22;' : '')}">
                 <div class="anim-index">${i + 1}</div>
                 <div class="anim-prompt-text">${rawPrompt}</div>
                 <div class="anim-frame-container" id="anim-frame-${i}">
                     ${imgTag}
                 </div>
-                <div class="anim-video-container">
-                    ${animTag}
-                    ${matchingResult && !matchingResult.animationId && !isProcessing ? `
-                    <div class="anim-actions">
-                        <button class="btn btn-primary" onclick="animateSingleFrame(${i})" style="padding: 8px 16px; font-size: 11px; background: var(--accent-grok);">🪄 Анимировать</button>
-                    </div>` : ''}
+                <div class="anim-status-container" style="display:flex; justify-content:center; align-items:center;">
+                    <label class="custom-checkbox-label" style="cursor:pointer; display:flex; align-items:center; gap:10px; font-weight:bold; color: ${isDone ? 'var(--accent-primary)' : 'var(--text-dim)'}">
+                        <input type="checkbox" style="width:20px; height:20px; cursor:pointer;" 
+                               ${isDone ? 'checked' : ''} 
+                               ${!matchingResult ? 'disabled' : ''}
+                               onchange="toggleAnimDone(${i}, this.checked)">
+                        ${isDone ? '✅ СКАЧАНО' : 'Ожидает'}
+                    </label>
                 </div>
             </div>
         `;
@@ -1951,6 +1947,26 @@ async function renderProjectAnimation() {
 
     container.innerHTML = html || `<p style="text-align: center; color: var(--text-dim);">Нет активных промтов.</p>`;
 }
+
+// --- NEW CHECKBOX TOGGLE LOGIC ---
+window.toggleAnimDone = (index, isDone) => {
+    const project = getCurrentProject();
+    if (!project) return;
+    
+    const folder = getFolderForProject(project.id);
+    const prefix = (folder && folder.prefix) ? folder.prefix : DEFAULT_PREFIX;
+    const rawPrompt = project.promptsList[index];
+    const fullPrompt = rawPrompt.includes(prefix) ? rawPrompt : (prefix.trim() + "\n\n" + rawPrompt.trim()).trim();
+    
+    const resultsArray = project.results || [];
+    const matchingResult = [...resultsArray].find(r => r.promptSnippet === fullPrompt);
+    
+    if (matchingResult) {
+        matchingResult.isGrokDone = isDone;
+        saveState();
+        renderProjectAnimation();
+    }
+};
 
 // --- GROK ANIMATION ORCHESTRATION ---
 async function startAnimationAssembly() {
@@ -1971,7 +1987,7 @@ async function startAnimationAssembly() {
         const resultsArray = project.results || [];
         const matchingResult = [...resultsArray].find(r => r.promptSnippet === fullPrompt);
         
-        if (matchingResult && !matchingResult.animationId) {
+        if (matchingResult && !matchingResult.isGrokDone) {
             state.animAssembly.queue.push({
                 index: i,
                 prompt: fullPrompt,
@@ -1981,7 +1997,7 @@ async function startAnimationAssembly() {
     }
     
     if (state.animAssembly.queue.length === 0) {
-        return alert("Нет кадров, требующих анимации. Сгенерируйте новые кадры или пересоздайте существующие!");
+        return alert("Нет новых кадров, требующих генерации, либо все уже отмечены галочками!");
     }
     
     state.animAssembly.currentIdx = 0;
@@ -2088,7 +2104,12 @@ function triggerAnimVisualCopy(cardId) {
     runVisualCopyAnimation([cardId]); 
 }
 
+// Replaced with simplified Grok Done handler
 async function handleIncomingAnimation(base64) {
+    console.log("Legacy handler called, ignored");
+}
+
+window.handleGrokDone = async () => {
     const targetId = state.animAssembly.isRunning ? state.animAssembly.lockedProjectId : state.activeProjectId;
     const project = state.projects.find(p => p.id === targetId);
     if (!project) return;
@@ -2096,28 +2117,22 @@ async function handleIncomingAnimation(base64) {
     const currentItem = state.animAssembly.queue[state.animAssembly.currentIdx];
     if (!currentItem) return;
     
-    // Save blob/base64
-    const animId = "anim_" + Date.now();
-    await saveAnimationToDB(animId, base64);
-    
-    // Link to the result frame
     const resultFrame = project.results.find(r => r.id === currentItem.resultId);
     if (resultFrame) {
-        resultFrame.animationId = animId;
+        resultFrame.isGrokDone = true;
     }
     
     saveState();
-    
-    logStatus(`🎉 Анимация #${currentItem.index + 1} успешно добавлена!`, "success");
+    logStatus(`🎉 Кадр #${currentItem.index + 1} успешно скачан и отмечен!`, "success");
     
     state.animAssembly.currentIdx++;
     renderProjectAnimation();
     
     if (state.animAssembly.isRunning) {
-        logStatus("⏳ Пауза 5 сек перед следующей анимацией...", "info");
+        logStatus("⏳ Пауза 5 сек перед следующим кадром...", "info");
         setTimeout(processNextAnimation, 5000);
     }
-}
+};
 
 
 function recreateSinglePrompt(index) {
