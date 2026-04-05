@@ -1,9 +1,11 @@
 console.log("🛰️ AnimTube Bridge (STANDARD) Ready.");
 
 window.addEventListener("message", (event) => {
-    if (!event.data) return;
+    if (!event.data || !event.data.type) return;
     
-    // Only handle standard commands
+    // Standard extension version ONLY handles non-AUTO commands
+    // This prevents double actions when both extensions are installed
+    if (event.data.type.includes("AUTO")) return;
     if (event.data.type === "TO_GEMINI") {
         chrome.runtime.sendMessage({
             type: "TO_GEMINI",

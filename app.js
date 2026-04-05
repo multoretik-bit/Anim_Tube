@@ -46,11 +46,16 @@ const DEFAULT_PREFIX = "Create an image that closely resembles the style of the 
 // --- EXTENSION ROUTING (v1.3.2) ---
 function sendToBridge(msg) {
     // If Super Automation is active, route to the "Auto" extension version
-    const isAuto = state.assembly.superAuto && state.assembly.superAuto.active;
-    if (isAuto) {
+    const isAutoAnimation = state.animAssembly && state.animAssembly.isRunning;
+    const isSuperAuto = state.assembly.superAuto && state.assembly.superAuto.active;
+    
+    if (isAutoAnimation || isSuperAuto) {
         if (msg.type === "ANIMTUBE_CMD") msg.type = "ANIMTUBE_AUTO_CMD";
         else if (msg.type === "ANIMTUBE_CMD_SCRIPT") msg.type = "ANIMTUBE_AUTO_CMD_SCRIPT";
         else if (msg.type === "ANIMTUBE_CMD_SPLIT") msg.type = "ANIMTUBE_AUTO_CMD_SPLIT";
+        else if (msg.type === "TO_GROK") msg.type = "AUTO_TO_GROK";
+        else if (msg.type === "TO_CHATGPT") msg.type = "AUTO_TO_CHATGPT";
+        else if (msg.type === "TO_GEMINI") msg.type = "AUTO_TO_GEMINI";
     }
     window.postMessage(msg, "*");
 }
@@ -184,7 +189,11 @@ function setupGlobalListeners() {
         }
 
         // 9. GROK ANIMATION DOWNLOADED SIGNAL
-        if (event.data.type === "FROM_GROK_DONE") {
+        if (event.data.type === "FROM_GROK_DONE" || event.data.type === "FROM_GROK_AUTO_DONE") {
+            // Guard against double processing if both extensions are active
+            if (state.animAssembly.lastProcessedIndex === state.animAssembly.currentIdx) return;
+            state.animAssembly.lastProcessedIndex = state.animAssembly.currentIdx;
+            
             if (window.handleGrokDone) window.handleGrokDone();
         }
     });

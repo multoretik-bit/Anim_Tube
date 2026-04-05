@@ -1,4 +1,5 @@
 // AnimTube Bridge v1.3.5 - Hybrid (ChatGPT + Gemini) - AUTO VERSION
+let isRunningGrokCycle = false;
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.type === "TO_CHATGPT") {
         executeScriptCycle(request.prefix);
@@ -307,14 +308,21 @@ async function executeLiteralCycle(promptText, assets, assetIds) {
 
 // --- GROK ANIMATION CYCLE (v1.3.1) ---
 async function executeGrokCycle(promptText, assets, assetIds) {
-    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-    const report = (msg) => relayToStudio({ type: "ANIMTUBE_STATUS", text: msg });
-
-    report("🚀 Extension: Получена команда TO_GROK. Ищу вкладки...");
-
-    const tabs = await chrome.tabs.query({});
+    if (isRunningGrokCycle) {
+        console.warn("⚠️ Grok Cycle is already running. Ignoring duplicate request.");
+        return;
+    }
+    isRunningGrokCycle = true;
     
-    const grokTab = tabs.find(t => {
+    try {
+        const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+        const report = (msg) => relayToStudio({ type: "ANIMTUBE_STATUS", text: msg });
+
+        report("🚀 Extension: Получена команда TO_GROK. Ищу вкладки...");
+
+        const tabs = await chrome.tabs.query({});
+        
+        const grokTab = tabs.find(t => {
         const hasGrokUrl = t.url && (t.url.includes("grok.com") || t.url.includes("x.com/i/grok"));
         const hasGrokTitle = t.title && t.title.toLowerCase().includes("grok");
         return hasGrokUrl || hasGrokTitle;
@@ -587,6 +595,9 @@ async function executeGrokCycle(promptText, assets, assetIds) {
     
     report("🔄 Отправляю сигнал готовности...");
     relayToStudio({ type: "FROM_GROK_DONE" });
+    } finally {
+        isRunningGrokCycle = false;
+    }
 }
 
 function relayToStudio(msg) {
