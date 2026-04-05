@@ -579,35 +579,25 @@ async function executeGrokCycle(promptText, assets, assetIds) {
                 report("⌛ Жду 3 сек после скачивания перед выходом...");
                 await sleep(3000);
 
-                const findBack = () => {
-                    // 1. Broad search for anything top-left with an arrow icon
-                    const candidates = Array.from(document.querySelectorAll('button, div[role="button"], a, [class*="back"]'));
-                    return candidates.find(b => {
-                        const rect = b.getBoundingClientRect();
-                        const isTopLeft = rect.top < 150 && rect.left < 150 && rect.width > 0;
-                        const hasIcon = b.querySelector('svg, img, i');
-                        const isBack = /back|назад|arrow|left/i.test(b.getAttribute('aria-label') || b.title || b.className || "");
-                        return isTopLeft && (hasIcon || isBack);
-                    });
-                };
-
-                const backBtn = findBack();
-                if (backBtn) {
-                    backBtn.click();
-                    report("✅ Нажата кнопка Назад!");
-                } else {
-                    window.history.back(); // Native fallback
-                    report("⚠️ Кнопка не найдена, использую системный переход Назад...");
-                }
-                
-                await sleep(5000); // WAIT 5 SECONDS AFTER BACK (As requested)
             } else {
                 report("❌ Не удалось найти готовую анимацию на странице.");
             }
         }
     });
     
-    // Handled inside the executeScript above
+    // --- NATIVE BACK ACTION (Equivalent to Alt + Left Arrow) ---
+    report("⌛ Жду 3 сек после скачивания перед выходом...");
+    await sleep(3000);
+    
+    try {
+        await chrome.tabs.goBack(grokTab.id);
+        report("✅ Нажата системная команда 'Назад'!");
+    } catch (e) {
+        report("⚠️ Ошибка системного 'Назад', пробую альтернативу...");
+    }
+
+    report("⌛ Жду 5 сек для очистки Grok...");
+    await sleep(5000); 
     
     if (studioTab) {
         try {
