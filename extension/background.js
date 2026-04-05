@@ -468,8 +468,12 @@ async function executeGrokCycle(promptText, assets, assetIds) {
     report(`✅ Найдена вкладка Grok! ID: ${grokTab.id}`);
 
     if (studioTab) {
-        chrome.windows.update(studioTab.windowId, { focused: true });
-        chrome.tabs.update(studioTab.id, { active: true });
+        try {
+            await chrome.windows.update(studioTab.windowId, { focused: true });
+            await chrome.tabs.update(studioTab.id, { active: true });
+        } catch (e) {
+            report("⚠️ Студия не может быть сфокусирована, но продолжаю...");
+        }
         
         report("📋 Студия: Готовлюсь к копированию кадра...");
         relayToStudio({ type: "ANIMTUBE_CMD_VISUAL_COPY", assetIds: assetIds || [] });
@@ -484,8 +488,13 @@ async function executeGrokCycle(promptText, assets, assetIds) {
         await sleep(300);
     }
 
-    chrome.windows.update(grokTab.windowId, { focused: true });
-    chrome.tabs.update(grokTab.id, { active: true });
+    try {
+        await chrome.windows.update(grokTab.windowId, { focused: true });
+        await chrome.tabs.update(grokTab.id, { active: true });
+    } catch (e) {
+        report("❌ Ошибка переключения на Grok: " + e.message);
+        return;
+    }
     await sleep(2000); 
     
     report("✏️ Вставляю промт и кадр в Grok...");
@@ -615,7 +624,11 @@ function relayToStudio(msg) {
     chrome.tabs.query({}, (tabs) => {
         tabs.forEach(tab => {
             const isStudio = tab.url && (tab.url.includes("localhost") || tab.url.includes("127.0.0.1") || (tab.title && tab.title.includes("AnimTube")));
-            if (isStudio) chrome.tabs.sendMessage(tab.id, msg).catch(() => {});
+            if (isStudio) {
+                try {
+                    chrome.tabs.sendMessage(tab.id, msg).catch(() => {});
+                } catch (e) {}
+            }
         });
     });
 }
@@ -623,9 +636,9 @@ function relayToStudio(msg) {
 function focusStudio() {
     chrome.tabs.query({}, (tabs) => {
         const t = tabs.find(t => t.url && (t.url.includes("localhost") || t.url.includes("127.0.0.1") || (t.title && t.title.includes("AnimTube"))));
-        if (t) { 
-            chrome.windows.update(t.windowId, { focused: true }); 
-            chrome.tabs.update(t.id, { active: true }); 
+        if (t && t.id) { 
+            try { chrome.windows.update(t.windowId, { focused: true }).catch(() => {}); } catch(e){}
+            try { chrome.tabs.update(t.id, { active: true }).catch(() => {}); } catch(e){}
         }
     });
 }

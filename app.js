@@ -1904,7 +1904,8 @@ async function renderProjectAnimation() {
         
         // Find the LATEST result matching this prompt
         // Search in reverse to get the newest frame
-        const matchingResult = [...project.results].find(r => r.promptSnippet === fullPrompt);
+        const resultsArray = project.results || [];
+        const matchingResult = [...resultsArray].find(r => r.promptSnippet === fullPrompt);
         let imgTag = "";
         let animTag = `
             <div class="anim-empty-frame">
@@ -1967,7 +1968,8 @@ async function startAnimationAssembly() {
     for (let i = 0; i < project.promptsList.length; i++) {
         const rawPrompt = project.promptsList[i];
         const fullPrompt = rawPrompt.includes(prefix) ? rawPrompt : (prefix.trim() + "\n\n" + rawPrompt.trim()).trim();
-        const matchingResult = [...project.results].find(r => r.promptSnippet === fullPrompt);
+        const resultsArray = project.results || [];
+        const matchingResult = [...resultsArray].find(r => r.promptSnippet === fullPrompt);
         
         if (matchingResult && !matchingResult.animationId) {
             state.animAssembly.queue.push({
@@ -2014,7 +2016,8 @@ async function animateSingleFrame(index) {
     
     const rawPrompt = project.promptsList[index];
     const fullPrompt = rawPrompt.includes(prefix) ? rawPrompt : (prefix.trim() + "\n\n" + rawPrompt.trim()).trim();
-    const matchingResult = [...project.results].find(r => r.promptSnippet === fullPrompt);
+    const resultsArray = project.results || [];
+    const matchingResult = [...resultsArray].find(r => r.promptSnippet === fullPrompt);
     
     if (!matchingResult) return alert("Сначала сгенерируйте статичный кадр!");
     
