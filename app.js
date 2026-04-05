@@ -31,6 +31,13 @@ let state = {
             splittingIdx: 0
         }
     },
+    animAssembly: {
+        isRunning: false,
+        timerId: null,
+        currentIdx: 0,
+        queue: [],
+        lockedProjectId: null
+    },
     isAutoMode: JSON.parse(localStorage.getItem('animtube_auto_mode') || 'false')
 };
 
@@ -169,6 +176,11 @@ function setupGlobalListeners() {
         // 7. PROMPTS ARRIVAL (v1.2)
         if (event.data.type === "FROM_CHATGPT_PROMPTS" || event.data.type === "FROM_GEMINI_PROMPTS") {
             handleIncomingPrompts(event.data.text);
+        }
+
+        // 8. GROK ANIMATION ARRIVAL
+        if (event.data.type === "FROM_GROK") {
+            handleIncomingAnimation(event.data.base64);
         }
     });
 }
@@ -740,7 +752,8 @@ function deleteScript(id) {
 
 async function initDB() {
     return new Promise((resolve, reject) => {
-        const request = indexedDB.open("AnimTubeDB", 1);
+        // v1.3.1: Upgrade DB version to 2 for animations
+        const request = indexedDB.open("AnimTubeDB", 2);
         request.onupgradeneeded = (e) => {
             const db = e.target.result;
             if (!db.objectStoreNames.contains("images")) {
@@ -748,6 +761,9 @@ async function initDB() {
             }
             if (!db.objectStoreNames.contains("assets")) {
                 db.createObjectStore("assets", { keyPath: "id" });
+            }
+            if (!db.objectStoreNames.contains("animations")) {
+                db.createObjectStore("animations", { keyPath: "id" });
             }
         };
         request.onsuccess = (e) => {
@@ -775,6 +791,26 @@ async function getImageFromDB(id) {
     return new Promise((resolve, reject) => {
         const transaction = db.transaction(["images"], "readonly");
         const store = transaction.objectStore("images");
+        const request = store.get(id);
+        request.onsuccess = () => resolve(request.result?.base64);
+        request.onerror = (e) => reject(e);
+    });
+}
+
+async function saveAnimationToDB(id, base64) {
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction(["animations"], "readwrite");
+        const store = transaction.objectStore("animations");
+        const request = store.put({ id, base64 });
+        request.onsuccess = () => resolve();
+        request.onerror = (e) => reject(e);
+    });
+}
+
+async function getAnimationFromDB(id) {
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction(["animations"], "readonly");
+        const store = transaction.objectStore("animations");
         const request = store.get(id);
         request.onsuccess = () => resolve(request.result?.base64);
         request.onerror = (e) => reject(e);
@@ -1755,10 +1791,16 @@ function createCursor() {
 async function runVisualCopyAnimation(assetIds) {
     if (!assetIds || assetIds.length === 0) return;
     
-    logStatus("🎭 Робот возвращается для визуального копирования (Gemini)...", "info");
+    logStatus("🎭 Робот возвращается для визуального копирования...", "info");
     
     for (const id of assetIds) {
-        const card = document.querySelector(`[data-asset-id="${id}"]`);
+        let card = document.querySelector(`[data-asset-id="${id}"]`);
+        
+        // v1.3.1 - Support for specific ID targeting (for Animation Tab)
+        if (!card && id.startsWith('anim-frame-')) {
+            card = document.getElementById(id);
+        }
+        
         if (!card) continue;
         
         // 1. Scroll & Mouse Move
@@ -1864,10 +1906,20 @@ async function renderProjectAnimation() {
         // Search in reverse to get the newest frame
         const matchingResult = [...project.results].find(r => r.promptSnippet === fullPrompt);
         let imgTag = "";
+        let animTag = `
+            <div class="anim-empty-frame">
+                <span>📹</span> ЖДЕТ АНИМАЦИЮ
+            </div>
+        `;
         
         if (matchingResult) {
             const base64 = await getImageFromDB(matchingResult.id);
             imgTag = `<img src="${base64}">`;
+            
+            if (matchingResult.animationId) {
+                const animBase64 = await getAnimationFromDB(matchingResult.animationId);
+                animTag = `<video src="${animBase64}" autoplay loop muted></video>`;
+            }
         } else {
             imgTag = `
                 <div class="anim-empty-frame">
@@ -1876,15 +1928,21 @@ async function renderProjectAnimation() {
             `;
         }
 
+        const isProcessing = state.animAssembly.isRunning && state.animAssembly.currentIdx === i;
+
         html += `
-            <div class="animation-row">
+            <div class="animation-row" id="anim-row-${i}" style="${isProcessing ? 'border-color: var(--accent-grok); background: rgba(236, 72, 153, 0.05);' : ''}">
                 <div class="anim-index">${i + 1}</div>
                 <div class="anim-prompt-text">${rawPrompt}</div>
-                <div class="anim-frame-container" onclick="recreateSinglePrompt(${i})">
+                <div class="anim-frame-container" id="anim-frame-${i}">
                     ${imgTag}
+                </div>
+                <div class="anim-video-container">
+                    ${animTag}
+                    ${matchingResult && !matchingResult.animationId && !isProcessing ? `
                     <div class="anim-actions">
-                        <button class="btn btn-primary" style="padding: 8px 16px; font-size: 11px;">🔄 Пересоздать</button>
-                    </div>
+                        <button class="btn btn-primary" onclick="animateSingleFrame(${i})" style="padding: 8px 16px; font-size: 11px; background: var(--accent-grok);">🪄 Анимировать</button>
+                    </div>` : ''}
                 </div>
             </div>
         `;
@@ -1892,6 +1950,153 @@ async function renderProjectAnimation() {
 
     container.innerHTML = html || `<p style="text-align: center; color: var(--text-dim);">Нет активных промтов.</p>`;
 }
+
+// --- GROK ANIMATION ORCHESTRATION ---
+async function startAnimationAssembly() {
+    const project = getCurrentProject();
+    if (!project || !project.promptsList || project.promptsList.length === 0) {
+        return alert("Добавьте хотя бы один промт!");
+    }
+    
+    // Build Queue: only include prompts that HAVE an associated generated frame but NO animation yet
+    const folder = getFolderForProject(project.id);
+    const prefix = (folder && folder.prefix) ? folder.prefix : DEFAULT_PREFIX;
+    
+    state.animAssembly.queue = [];
+    
+    for (let i = 0; i < project.promptsList.length; i++) {
+        const rawPrompt = project.promptsList[i];
+        const fullPrompt = rawPrompt.includes(prefix) ? rawPrompt : (prefix.trim() + "\n\n" + rawPrompt.trim()).trim();
+        const matchingResult = [...project.results].find(r => r.promptSnippet === fullPrompt);
+        
+        if (matchingResult && !matchingResult.animationId) {
+            state.animAssembly.queue.push({
+                index: i,
+                prompt: fullPrompt,
+                resultId: matchingResult.id
+            });
+        }
+    }
+    
+    if (state.animAssembly.queue.length === 0) {
+        return alert("Нет кадров, требующих анимации. Сгенерируйте новые кадры или пересоздайте существующие!");
+    }
+    
+    state.animAssembly.currentIdx = 0;
+    state.animAssembly.isRunning = true;
+    state.animAssembly.lockedProjectId = state.activeProjectId;
+    
+    document.getElementById('btn-start-anim').style.display = 'none';
+    document.getElementById('btn-stop-anim').style.display = 'block';
+    
+    logStatus(`🚀 Сборка анимации запущена (В очереди: ${state.animAssembly.queue.length}). Перекл. в Grok...`, "success");
+    processNextAnimation();
+}
+
+function stopAnimationAssembly(isManual = true) {
+    state.animAssembly.isRunning = false;
+    document.getElementById('btn-start-anim').style.display = 'block';
+    document.getElementById('btn-stop-anim').style.display = 'none';
+    
+    if (isManual) logStatus("🛑 Сборка анимации остановлена.", "error");
+    renderProjectAnimation();
+}
+
+async function animateSingleFrame(index) {
+    if (state.animAssembly.isRunning) {
+        if (!confirm("Сейчас идет общая сборка. Остановить и анимировать этот единственный кадр?")) return;
+        stopAnimationAssembly(false);
+    }
+    
+    const project = getCurrentProject();
+    const folder = getFolderForProject(project.id);
+    const prefix = (folder && folder.prefix) ? folder.prefix : DEFAULT_PREFIX;
+    
+    const rawPrompt = project.promptsList[index];
+    const fullPrompt = rawPrompt.includes(prefix) ? rawPrompt : (prefix.trim() + "\n\n" + rawPrompt.trim()).trim();
+    const matchingResult = [...project.results].find(r => r.promptSnippet === fullPrompt);
+    
+    if (!matchingResult) return alert("Сначала сгенерируйте статичный кадр!");
+    
+    state.animAssembly.queue = [{
+        index: index,
+        prompt: fullPrompt,
+        resultId: matchingResult.id
+    }];
+    state.animAssembly.currentIdx = 0;
+    state.animAssembly.isRunning = true;
+    state.animAssembly.lockedProjectId = state.activeProjectId;
+    
+    document.getElementById('btn-start-anim').style.display = 'none';
+    document.getElementById('btn-stop-anim').style.display = 'block';
+    
+    logStatus(`🚀 Одиночная анимация кадра #${index + 1} запущена.`, "info");
+    processNextAnimation();
+}
+
+async function processNextAnimation() {
+    if (!state.animAssembly.isRunning) return;
+
+    if (state.animAssembly.currentIdx >= state.animAssembly.queue.length) {
+        logStatus("✅ Пакетная анимация завершена!", "success");
+        stopAnimationAssembly(false);
+        return;
+    }
+    
+    renderProjectAnimation(); // Update UI highlight
+    
+    const item = state.animAssembly.queue[state.animAssembly.currentIdx];
+    logStatus(`🚀 [Анимация ${state.animAssembly.currentIdx + 1}/${state.animAssembly.queue.length}] Отправка в Grok...`, "info");
+    
+    // Explicit clipboard copy for prompt
+    await copyTextToClipboard(item.prompt);
+    
+    const base64 = await getImageFromDB(item.resultId);
+    
+    sendToBridge({
+        type: "TO_GROK", // Custom command for extension
+        prompt: item.prompt,
+        assets: [base64], // Send the actual base64 to be pasted
+        assetIds: [`anim-frame-${item.index}`] // ID for visual copy trigger
+    });
+}
+
+function triggerAnimVisualCopy(cardId) {
+    // This expects the extension to call ANIMTUBE_CMD_VISUAL_COPY but with targeted ID
+    runVisualCopyAnimation([cardId]); 
+}
+
+async function handleIncomingAnimation(base64) {
+    const targetId = state.animAssembly.isRunning ? state.animAssembly.lockedProjectId : state.activeProjectId;
+    const project = state.projects.find(p => p.id === targetId);
+    if (!project) return;
+    
+    const currentItem = state.animAssembly.queue[state.animAssembly.currentIdx];
+    if (!currentItem) return;
+    
+    // Save blob/base64
+    const animId = "anim_" + Date.now();
+    await saveAnimationToDB(animId, base64);
+    
+    // Link to the result frame
+    const resultFrame = project.results.find(r => r.id === currentItem.resultId);
+    if (resultFrame) {
+        resultFrame.animationId = animId;
+    }
+    
+    saveState();
+    
+    logStatus(`🎉 Анимация #${currentItem.index + 1} успешно добавлена!`, "success");
+    
+    state.animAssembly.currentIdx++;
+    renderProjectAnimation();
+    
+    if (state.animAssembly.isRunning) {
+        logStatus("⏳ Пауза 5 сек перед следующей анимацией...", "info");
+        setTimeout(processNextAnimation, 5000);
+    }
+}
+
 
 function recreateSinglePrompt(index) {
     const project = getCurrentProject();

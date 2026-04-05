@@ -8,6 +8,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         executeSplitCycle(request.script, request.prefix);
     } else if (request.type === "ANIMTUBE_STATUS") {
         relayToStudio(request);
+    } else if (request.type === "TO_GROK") {
+        executeGrokCycle(request.prompt, request.assets, request.assetIds);
     } else if (request.type === "FROM_GEMINI") {
         relayToStudio(request);
         setTimeout(() => {
@@ -443,6 +445,164 @@ async function executeLiteralCycle(promptText, assets, assetIds) {
             }
         }
     });
+}
+
+// --- GROK ANIMATION CYCLE (v1.3.1) ---
+async function executeGrokCycle(promptText, assets, assetIds) {
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+    const report = (msg) => relayToStudio({ type: "ANIMTUBE_STATUS", text: msg });
+
+    const tabs = await chrome.tabs.query({});
+    const grokTab = tabs.find(t => t.url && t.url.includes("grok.com"));
+    const studioTab = tabs.find(t => t.url && (t.url.includes("localhost") || t.url.includes("127.0.0.1") || t.title.includes("AnimTube")));
+
+    if (!grokTab) {
+        report("❌ Ошибка: Вкладка Grok (grok.com) не найдена!");
+        return;
+    }
+
+    if (studioTab) {
+        chrome.windows.update(studioTab.windowId, { focused: true });
+        chrome.tabs.update(studioTab.id, { active: true });
+        
+        report("📋 Студия: Готовлюсь к копированию кадра...");
+        relayToStudio({ type: "ANIMTUBE_CMD_VISUAL_COPY", assetIds: assetIds || [] });
+        
+        report("⏳ Ожидание 3 сек — Имитация копирования... (3)");
+        await sleep(1000);
+        report("⏳ Ожидание 3 сек — Имитация копирования... (2)");
+        await sleep(1000);
+        report("⏳ Ожидание 3 сек — Имитация копирования... (1)");
+        await sleep(1000);
+        report("✅ Кадр готов. Перехожу в Grok...");
+        await sleep(300);
+    }
+
+    chrome.windows.update(grokTab.windowId, { focused: true });
+    chrome.tabs.update(grokTab.id, { active: true });
+    await sleep(2000); 
+    
+    report("✏️ Вставляю промт и кадр в Grok...");
+    
+    await chrome.scripting.executeScript({
+        target: { tabId: grokTab.id },
+        func: async (text, imageAssets) => {
+            const report = (msg) => chrome.runtime.sendMessage({ type: "ANIMTUBE_STATUS", text: msg });
+            const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+            
+            // Grok specific query selectors
+            const editor = document.querySelector('textarea') || document.querySelector('div[contenteditable="true"]');
+            
+            if (editor) {
+                editor.focus();
+                
+                // Set text
+                if (editor.tagName === "TEXTAREA") {
+                    editor.value = text;
+                } else {
+                    editor.innerText = text;
+                }
+                
+                ['input', 'change', 'keydown'].forEach(t => editor.dispatchEvent(new Event(t, { bubbles: true })));
+                
+                await sleep(1000);
+                
+                // Paste Image
+                if (imageAssets && imageAssets.length > 0) {
+                    try {
+                        const base64 = imageAssets[0];
+                        const parts = base64.split(';base64,');
+                        if (parts.length >= 2) {
+                            const contentType = parts[0].split(':')[1];
+                            const byteCharacters = atob(parts[1]);
+                            const byteArrays = [];
+                            for (let offset = 0; offset < byteCharacters.length; offset += 512) {
+                                const slice = byteCharacters.slice(offset, offset + 512);
+                                const byteNumbers = new Array(slice.length);
+                                for (let i = 0; i < slice.length; i++) byteNumbers[i] = slice.charCodeAt(i);
+                                byteArrays.push(new Uint8Array(byteNumbers));
+                            }
+                            const blob = new Blob(byteArrays, { type: contentType });
+                            const file = new File([blob], "frame.png", { type: contentType });
+                            const dataTransfer = new DataTransfer();
+                            dataTransfer.items.add(file);
+                            
+                            editor.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dataTransfer, bubbles: true, cancelable: true }));
+                            report("✅ Кадр вставлен в Grok!");
+                            await sleep(2500); // give it time to upload/process
+                        }
+                    } catch (e) { report("⚠️ Ошибка вставки кадра: " + e.message); }
+                }
+                
+                // Submit
+                const sendBtn = document.querySelector('button[aria-label="Grok something"], button[aria-label*="Send"], svg.fa-arrow-up')?.closest('button');
+                if (sendBtn) {
+                    sendBtn.click();
+                } else {
+                    editor.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+                }
+            }
+        },
+        args: [promptText, assets]
+    });
+
+    report("⏳ Ожидание генерации анимации (минимум 80 сек)...");
+    
+    // Wait for generation (Animation takes longer)
+    const waitTime = 100;
+    for (let i = waitTime; i >= 0; i-=10) {
+        if (i > 0) {
+            report(`⌛ Grok создает анимацию... (${i}с)`);
+            await sleep(10000);
+        }
+    }
+
+    report("📥 Поиск готовой анимации...");
+    await chrome.scripting.executeScript({
+        target: { tabId: grokTab.id },
+        func: async () => {
+            const report = (msg) => chrome.runtime.sendMessage({ type: "ANIMTUBE_STATUS", text: msg });
+            const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+            
+            // Try to find video first, then image
+            const allVideos = Array.from(document.querySelectorAll('video'));
+            const allImgs = Array.from(document.querySelectorAll('img')).filter(img => (img.naturalWidth || img.clientWidth) > 200);
+            
+            let mediaSrc = null;
+            let isVideo = false;
+            
+            if (allVideos.length > 0) {
+                mediaSrc = allVideos[allVideos.length - 1].src;
+                isVideo = true;
+            } else if (allImgs.length > 0) {
+                // Ignore avatars
+                const contentImgs = allImgs.filter(img => !img.src.includes('avatar') && !img.src.includes('profile'));
+                if (contentImgs.length > 0) {
+                    mediaSrc = contentImgs[contentImgs.length - 1].src;
+                }
+            }
+
+            if (mediaSrc) {
+                report("✅ Анимация найдена! Скачиваю и отправляю в Студию...");
+                try {
+                    const res = await fetch(mediaSrc);
+                    const blob = await res.blob();
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                        chrome.runtime.sendMessage({ type: "FROM_GROK", base64: reader.result });
+                    };
+                    reader.readAsDataURL(blob);
+                } catch (err) {
+                    report("❌ Ошибка извлечения видео: " + err.message);
+                }
+            } else {
+                report("❌ Не удалось найти готовую анимацию на странице.");
+            }
+        }
+    });
+    
+    await sleep(2000);
+    focusStudio();
 }
 
 function relayToStudio(msg) {

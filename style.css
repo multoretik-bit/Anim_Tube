@@ -1535,7 +1535,7 @@ body.robotic-moving {
 
 .animation-row {
     display: grid;
-    grid-template-columns: 80px 1fr 320px;
+    grid-template-columns: 80px 1fr 320px 320px;
     gap: 24px;
     align-items: center;
     background: var(--bg-card);
@@ -1614,6 +1614,30 @@ body.robotic-moving {
     transition: opacity 0.3s;
 }
 
-.anim-frame-container:hover .anim-actions {
+.anim-frame-container:hover .anim-actions, .anim-video-container:hover .anim-actions {
     opacity: 1;
 }
+
+.anim-video-container {
+    width: 320px;
+    aspect-ratio: 16/9;
+    background: #000;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--border-glass);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+.anim-video-container video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.anim-video-container .anim-actions {
+    border-color: var(--accent-grok);
+}
+

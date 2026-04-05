@@ -131,6 +131,12 @@
                         <h3 style="margin: 0;">🎬 МОНТАЖ И АНИМАЦИЯ (ПРЕВЬЮ)</h3>
                         <div style="display: flex; gap: 12px;">
                             <button class="btn btn-secondary" onclick="renderProjectAnimation()" style="padding: 10px 16px; font-size: 12px;">🔄 Обновить связи</button>
+                            <button class="btn btn-primary" id="btn-start-anim" onclick="startAnimationAssembly()" style="padding: 10px 16px; font-size: 12px; background: linear-gradient(135deg, var(--accent-grok), #be185d);">
+                                🚀 Начать сборку анимации
+                            </button>
+                            <button class="btn btn-danger" id="btn-stop-anim" onclick="stopAnimationAssembly()" style="display: none; padding: 10px 16px; font-size: 12px;">
+                                🛑 Остановить
+                            </button>
                         </div>
                     </div>
                     
