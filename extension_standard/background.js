@@ -514,9 +514,12 @@ async function executeGrokCycle(promptText, assets, assetIds) {
                     sendBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     await sleep(1000);
                     
-                    // Trigger native click once
-                    sendBtn.click();
-                    report("✅ Нажата кнопка отправки (строго 1 раз)!");
+                    // Trigger native click TWICE (As requested)
+                    const doClick = () => sendBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+                    doClick();
+                    await sleep(600);
+                    doClick();
+                    report("✅ Нажата кнопка отправки (ровно 2 раза)!");
                 } else {
                     // Fallback: Enter key
                     editor.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
@@ -545,48 +548,52 @@ async function executeGrokCycle(promptText, assets, assetIds) {
             const report = (msg) => chrome.runtime.sendMessage({ type: "ANIMTUBE_STATUS", text: msg });
             
             // Try to find video first, then image
-            const allVideos = Array.from(document.querySelectorAll('video'));
-            const allImgs = Array.from(document.querySelectorAll('img')).filter(img => (img.naturalWidth || img.clientWidth) > 200);
+            // 1. Try to find the media element (video or large image)
+            const mediaElement = (() => {
+                const allVideos = Array.from(document.querySelectorAll('video'));
+                if (allVideos.length > 0) return allVideos[allVideos.length - 1];
+                const allImgs = Array.from(document.querySelectorAll('img')).filter(img => (img.naturalWidth || img.clientWidth) > 200 && !img.src.includes('avatar'));
+                return allImgs.length > 0 ? allImgs[allImgs.length - 1] : null;
+            })();
+
+            report("📥 Поиск кнопки скачивания (обязательный этап)...");
             
-            let mediaElement = null;
-            if (allVideos.length > 0) {
-                mediaElement = allVideos[allVideos.length - 1];
-            } else if (allImgs.length > 0) {
-                // Ignore avatars
-                const contentImgs = allImgs.filter(img => !img.src.includes('avatar') && !img.src.includes('profile'));
-                if (contentImgs.length > 0) mediaElement = contentImgs[contentImgs.length - 1];
-            }
-
-            if (mediaElement) {
-                report("✅ Анимация найдена! Ищу кнопку скачивания...");
-                let p = mediaElement;
-                for (let i = 0; i < 8; i++) { if (p && p.parentElement) p = p.parentElement; }
-                const container = p || document;
-                const dlBtns = Array.from(container.querySelectorAll('button[aria-label*="Download"], button[aria-label*="download"], button[title*="Download"], a[download]'));
-                
-                if (dlBtns.length > 0) {
-                    dlBtns[dlBtns.length - 1].click();
-                    report("✅ Кнопка Скачать нажата!");
-                } else {
-                    const globalDlBtns = Array.from(document.querySelectorAll('button[aria-label*="Download"], button[aria-label*="download"], button[title*="Download"], a[download]'));
-                    if (globalDlBtns.length > 0) {
-                        globalDlBtns[globalDlBtns.length - 1].click();
-                        report("✅ Кнопка Скачать нажата!");
-                    }
+            const findAndClickDownload = () => {
+                // Method A: Look near the media element
+                if (mediaElement) {
+                    let p = mediaElement;
+                    for (let i = 0; i < 10; i++) { if (p && p.parentElement) p = p.parentElement; }
+                    const container = p || document;
+                    const localBtn = container.querySelector('button[aria-label*="Download"], button[aria-label*="download"], button[title*="Download"], a[download]');
+                    if (localBtn) { localBtn.click(); return true; }
                 }
+                
+                // Method B: Global search by labels and icons
+                const allBtns = Array.from(document.querySelectorAll('button, a'));
+                const globalBtn = allBtns.reverse().find(b => {
+                    const aria = (b.getAttribute('aria-label') || b.title || "").toLowerCase();
+                    const text = (b.innerText || "").toLowerCase();
+                    const hasDlIcon = b.querySelector('svg[class*="download"], path[d*="M19 9h-4V3H9v6H5l7 7 7-7z"]');
+                    return aria.includes('download') || text.includes('download') || text.includes('скачать') || hasDlIcon;
+                });
+                
+                if (globalBtn) { globalBtn.click(); return true; }
+                return false;
+            };
 
-                // --- ROBUST EXIT: Back button or History Back ---
-                report("⌛ Жду 3 сек после скачивания перед выходом...");
-                await sleep(3000);
-
+            if (findAndClickDownload()) {
+                report("✅ Кнопка Скачать нажата!");
             } else {
-                report("❌ Не удалось найти готовую анимацию на странице.");
+                report("⚠️ Кнопка скачивания не найдена, но я продолжаю цикл...");
             }
+            
+            // Wait for download to start and UI to react
+            await sleep(3000);
         }
     });
     
     // --- NATIVE BACK ACTION (Equivalent to Alt + Left Arrow) ---
-    report("⌛ Жду 3 сек после скачивания перед выходом...");
+    report("⌛ Жду 3 сек перед выходом...");
     await sleep(3000);
     
     try {
