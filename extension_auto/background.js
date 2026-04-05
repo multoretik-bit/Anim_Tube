@@ -327,6 +327,13 @@ async function executeGrokCycle(promptText, assets, assetIds) {
         return;
     }
 
+    report("📋 Студия: Готовлю текст промта... (3 сек)");
+    await sleep(1000);
+    report("📋 Студия: Готовлю текст промта... (2 сек)");
+    await sleep(1000);
+    report("📋 Студия: Готовлю текст промта... (1 сек)");
+    await sleep(1000);
+
     report(`✅ Переключаюсь в Grok для вставки текста...`);
 
     // 1. Switch to Grok
@@ -337,7 +344,7 @@ async function executeGrokCycle(promptText, assets, assetIds) {
         report("❌ Ошибка переключения на Grok: " + e.message);
         return;
     }
-    await sleep(1500); 
+    await sleep(2000); 
     
     // 2. Paste text in Grok
     report("✏️ Вставляю промт в Grok...");
@@ -360,7 +367,8 @@ async function executeGrokCycle(promptText, assets, assetIds) {
         args: [promptText]
     });
 
-    await sleep(1000);
+    report("⏳ Жду обработки текста в Grok... (2 сек)");
+    await sleep(2000);
 
     // 3. Switch back to Studio
     if (studioTab) {
@@ -370,15 +378,20 @@ async function executeGrokCycle(promptText, assets, assetIds) {
             await chrome.tabs.update(studioTab.id, { active: true });
         } catch (e) {}
         
-        await sleep(500);
+        await sleep(1000);
         
         // 4. Copy image
         report("📋 Студия: Копирую кадр...");
         relayToStudio({ type: "ANIMTUBE_CMD_VISUAL_COPY", assetIds: assetIds || [] });
         
+        report("⏳ Ожидание для буфера обмена... (3)");
+        await sleep(1000);
+        report("⏳ Ожидание для буфера обмена... (2)");
+        await sleep(1000);
+        report("⏳ Ожидание для буфера обмена... (1)");
         await sleep(1000);
         report("✅ Кадр скопирован. Возвращаюсь в Grok...");
-        await sleep(2000); // 3 seconds total wait for visual copy
+        await sleep(500);
     }
 
     // 5. Switch back to Grok
@@ -386,7 +399,13 @@ async function executeGrokCycle(promptText, assets, assetIds) {
         await chrome.windows.update(grokTab.windowId, { focused: true });
         await chrome.tabs.update(grokTab.id, { active: true });
     } catch (e) {}
-    await sleep(1500); 
+    
+    report("⏳ Ожидание подготовки Grok... (3)");
+    await sleep(1000);
+    report("⏳ Ожидание подготовки Grok... (2)");
+    await sleep(1000);
+    report("⏳ Ожидание подготовки Grok... (1)");
+    await sleep(1000);
 
     // 6. Paste Image & Send
     report("🖼️ Вставляю кадр в Grok...");
@@ -420,8 +439,20 @@ async function executeGrokCycle(promptText, assets, assetIds) {
                             const dataTransfer = new DataTransfer();
                             dataTransfer.items.add(file);
                             
+                            // Method 1: Native paste if OS clipboard is populated
+                            document.execCommand('paste');
+                            
+                            // Method 2: Fallback programmatic paste event
                             editor.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dataTransfer, bubbles: true, cancelable: true }));
-                            report("✅ Кадр успешно вставлен в редактор!");
+
+                            // Method 3: Direct File Upload to input if accessible
+                            const fileInput = document.querySelector('input[type="file"]');
+                            if (fileInput) {
+                                fileInput.files = dataTransfer.files;
+                                fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+                            }
+
+                            report("✅ Команды вставки запущены!");
                             await sleep(2500); 
                         }
                     } catch (e) { report("⚠️ Ошибка программной вставки кадра: " + e.message); }
