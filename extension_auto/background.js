@@ -512,14 +512,14 @@ async function executeGrokCycle(promptText, assets, assetIds) {
                 if (sendBtn) {
                     sendBtn.removeAttribute('disabled');
                     sendBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    await sleep(1000);
+                    await sleep(1200);
                     
-                    // Trigger native click TWICE (As requested)
-                    const doClick = () => sendBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-                    doClick();
-                    await sleep(600);
-                    doClick();
-                    report("✅ Нажата кнопка отправки (ровно 2 раза)!");
+                    // --- DOUBLE CLICK ON SEND (Exactly 2 times) ---
+                    const clicker = () => sendBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+                    clicker();
+                    await sleep(800);
+                    clicker();
+                    report("✅ Промт отправлен! (нажато РОВНО 2 раза)");
                 } else {
                     // Fallback: Enter key
                     editor.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
@@ -547,60 +547,57 @@ async function executeGrokCycle(promptText, assets, assetIds) {
         func: async () => {
             const report = (msg) => chrome.runtime.sendMessage({ type: "ANIMTUBE_STATUS", text: msg });
             
-            // Try to find video first, then image
-            // 1. Try to find the media element (video or large image)
-            const mediaElement = (() => {
-                const allVideos = Array.from(document.querySelectorAll('video'));
-                if (allVideos.length > 0) return allVideos[allVideos.length - 1];
-                const allImgs = Array.from(document.querySelectorAll('img')).filter(img => (img.naturalWidth || img.clientWidth) > 200 && !img.src.includes('avatar'));
-                return allImgs.length > 0 ? allImgs[allImgs.length - 1] : null;
-            })();
-
-            report("📥 Поиск кнопки скачивания (обязательный этап)...");
+            // Universal Resource Detector (Wait for video then find download)
+            report("🔍 СКАНЕР: Поиск кнопки скачивания (АГРЕССИВНЫЙ РЕЖИМ)...");
             
-            const findAndClickDownload = () => {
-                // Method A: Look near the media element
-                if (mediaElement) {
-                    let p = mediaElement;
-                    for (let i = 0; i < 10; i++) { if (p && p.parentElement) p = p.parentElement; }
-                    const container = p || document;
-                    const localBtn = container.querySelector('button[aria-label*="Download"], button[aria-label*="download"], button[title*="Download"], a[download]');
-                    if (localBtn) { localBtn.click(); return true; }
-                }
+            const findDownloadOnPage = () => {
+                // Method 1: Target by known SVG patterns and ARIA labels (Global scan)
+                const buttons = Array.from(document.querySelectorAll('button, a, div[role="button"]'));
                 
-                // Method B: Global search by labels and icons
-                const allBtns = Array.from(document.querySelectorAll('button, a'));
-                const globalBtn = allBtns.reverse().find(b => {
-                    const aria = (b.getAttribute('aria-label') || b.title || "").toLowerCase();
-                    const text = (b.innerText || "").toLowerCase();
-                    const hasDlIcon = b.querySelector('svg[class*="download"], path[d*="M19 9h-4V3H9v6H5l7 7 7-7z"]');
-                    return aria.includes('download') || text.includes('download') || text.includes('скачать') || hasDlIcon;
+                // Grok download button usually has an aria-label like "Download" 
+                // or contains an SVG path with specific download data.
+                const dlBtn = buttons.reverse().find(b => {
+                    const label = (b.getAttribute('aria-label') || b.title || b.innerText || "").toLowerCase();
+                    const hasDownloadKeyword = /download|скачать|save/i.test(label);
+                    const hasIcon = !!b.querySelector('svg');
+                    
+                    // Position hint: Grok video/image buttons are often in the top-right overlay
+                    const rect = b.getBoundingClientRect();
+                    const isSideButton = rect.right > (window.innerWidth * 0.6); // Look on the right half
+
+                    return hasDownloadKeyword || (hasIcon && isSideButton);
                 });
+
+                if (dlBtn) return dlBtn;
+
+                // Method 2: Direct SVG Path matching (common download icons)
+                const dlIcons = Array.from(document.querySelectorAll('svg path[d*="M19 9h-4V3H9v6H5l7 7 7-7z"], path[d*="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 11h3l-4 4-4-4h3V9h2v4z"]'));
+                if (dlIcons.length > 0) return dlIcons[0].closest('button') || dlIcons[0].closest('a');
                 
-                if (globalBtn) { globalBtn.click(); return true; }
-                return false;
+                return null;
             };
 
-            if (findAndClickDownload()) {
-                report("✅ Кнопка Скачать нажата!");
+            const targetBtn = findDownloadOnPage();
+            if (targetBtn) {
+                targetBtn.click();
+                report("✅ Кнопка Скачивания успешно нажата!");
             } else {
-                report("⚠️ Кнопка скачивания не найдена, но я продолжаю цикл...");
+                report("⚠️ СКАНЕР: Кнопка скачивания не найдена. Проверьте окно Grok.");
             }
             
-            // Wait for download to start and UI to react
-            await sleep(3000);
+            await new Promise(r => setTimeout(r, 4000)); // Wait for file to initiate
         }
     });
     
     // --- NATIVE BACK ACTION (Equivalent to Alt + Left Arrow) ---
-    report("⌛ Жду 3 сек перед выходом...");
+    report("⌛ Жду 3 сек после скачивания перед выходом...");
     await sleep(3000);
     
     try {
         await chrome.tabs.goBack(grokTab.id);
         report("✅ Нажата системная команда 'Назад'!");
     } catch (e) {
-        report("⚠️ Ошибка системного 'Назад', пробую альтернативу...");
+        report("⚠️ Ошибка выхода. Попробуйте нажать кнопку Назад вручную.");
     }
 
     report("⌛ Жду 5 сек для очистки Grok...");
