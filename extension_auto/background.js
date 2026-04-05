@@ -568,23 +568,46 @@ async function executeGrokCycle(promptText, assets, assetIds) {
                     dlBtns[dlBtns.length - 1].click();
                     report("✅ Кнопка Скачать нажата!");
                 } else {
-                    // Fallback to global search
                     const globalDlBtns = Array.from(document.querySelectorAll('button[aria-label*="Download"], button[aria-label*="download"], button[title*="Download"], a[download]'));
                     if (globalDlBtns.length > 0) {
                         globalDlBtns[globalDlBtns.length - 1].click();
                         report("✅ Кнопка Скачать нажата!");
-                    } else {
-                        report("⚠️ Кнопка скачивания не найдена на странице!");
                     }
                 }
+
+                // --- ROBUST EXIT: Back button or History Back ---
+                report("⌛ Жду 3 сек после скачивания перед выходом...");
+                await sleep(3000);
+
+                const findBack = () => {
+                    // 1. Broad search for anything top-left with an arrow icon
+                    const candidates = Array.from(document.querySelectorAll('button, div[role="button"], a, [class*="back"]'));
+                    return candidates.find(b => {
+                        const rect = b.getBoundingClientRect();
+                        const isTopLeft = rect.top < 150 && rect.left < 150 && rect.width > 0;
+                        const hasIcon = b.querySelector('svg, img, i');
+                        const isBack = /back|назад|arrow|left/i.test(b.getAttribute('aria-label') || b.title || b.className || "");
+                        return isTopLeft && (hasIcon || isBack);
+                    });
+                };
+
+                const backBtn = findBack();
+                if (backBtn) {
+                    backBtn.click();
+                    report("✅ Нажата кнопка Назад!");
+                } else {
+                    window.history.back(); // Native fallback
+                    report("⚠️ Кнопка не найдена, использую системный переход Назад...");
+                }
+                
+                await sleep(5000); // WAIT 5 SECONDS AFTER BACK (As requested)
             } else {
                 report("❌ Не удалось найти готовую анимацию на странице.");
             }
         }
     });
     
-    report("⏳ Жду 5 сек после попытки скачивания...");
-    await sleep(5000);
+    // Handled inside the executeScript above
     
     if (studioTab) {
         try {
