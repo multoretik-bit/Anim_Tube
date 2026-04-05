@@ -468,25 +468,26 @@ async function executeGrokCycle(promptText, assets, assetIds) {
                                 fileInput.dispatchEvent(new Event('change', { bubbles: true }));
                             }
 
-                            report("✅ Кадр скопирован! Жду 5 сек перед отправкой...");
-                            await sleep(5000); 
+                            report("✅ Кадр скопирован! Жду 8 сек перед отправкой для имитации человека...");
+                            await sleep(8000); 
                         }
                     } catch (e) { report("⚠️ Ошибка программной вставки кадра: " + e.message); }
                 }
                 
-                // Wake up React specifically by inserting a native space and firing events
+                // 1. Human-like interaction: Focus and "type" something
                 editor.focus();
-                document.execCommand('insertText', false, ' ');
+                await sleep(500);
+                document.execCommand('insertText', false, ' '); // Insert space
+                await sleep(300);
+                document.execCommand('delete'); // Delete space to trigger dirty state
+                
+                // 2. Fire events to wake up React
                 ['input', 'change', 'keydown', 'keyup'].forEach(e => editor.dispatchEvent(new Event(e, { bubbles: true })));
                 
-                await sleep(500);
+                await sleep(1000);
 
-                // Try to press Enter first (Works on many chat UIs)
-                editor.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
-
-                // Robustly find the Send button
+                // 3. Robustly find the Send button
                 const allButtons = Array.from(document.querySelectorAll('button'));
-                // Scan from bottom to top, looking for typical Send button signatures:
                 const sendBtn = allButtons.reverse().find(b => {
                     const aria = (b.getAttribute('aria-label') || "").toLowerCase();
                     const hasSvgIcon = b.querySelector('svg:not(.hidden)');
@@ -497,15 +498,21 @@ async function executeGrokCycle(promptText, assets, assetIds) {
                            aria.includes('send') || 
                            aria.includes('отправить') || 
                            isSubmitType || 
-                           (hasSvgIcon && hasNoText && b.compareDocumentPosition(editor) & Node.DOCUMENT_POSITION_PRECEDING); // Button is AFTER the editor
+                           (hasSvgIcon && hasNoText);
                 });
 
                 if (sendBtn) {
-                    sendBtn.removeAttribute('disabled'); // Try brute-force enable if React locked it
+                    sendBtn.removeAttribute('disabled');
+                    sendBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    await sleep(1000);
+                    
+                    // Trigger native click once
                     sendBtn.click();
-                    report("✅ Нажата кнопка отправки (стрелочка)!");
+                    report("✅ Нажата кнопка отправки (строго 1 раз)!");
                 } else {
-                    report("⚠️ Кнопка Отправить не найдена!");
+                    // Fallback: Enter key
+                    editor.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+                    report("⚠️ Кнопка не найдена, пробую Enter...");
                 }
             }
         },
