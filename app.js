@@ -470,7 +470,14 @@ function distributePromptsToGenerator(scriptId, rawText) {
     lines.forEach(line => {
         // Clean up markdown/noise
         const clean = line.replace(/^[:\s\-*]+/, '').trim();
-        if (clean) project.promptsList.push(clean);
+        if (clean) {
+            project.promptsList.push({
+                text: clean,
+                isGeminiDone: false,
+                isGrokDone: false,
+                resultId: null
+            });
+        }
     });
 
     saveState();
@@ -1130,23 +1137,31 @@ function openProject(id) {
     if (!project.scripts) project.scripts = [];
     
     // 1-to-1 SYNC MIGRATION (v1.3.7)
-    if (project.promptsList && project.promptsList.length > 0 && typeof project.promptsList[0] === 'string') {
-        console.log("🛠️ Migrating Prompts List to 1-to-1 Sync objects...");
+    if (project.promptsList && project.promptsList.length > 0) {
+        let needsMigration = project.promptsList.some(p => typeof p === 'string');
         
-        const folder = getFolderForProject(id);
-        const prefix = (folder && folder.prefix) ? folder.prefix : DEFAULT_PREFIX;
-        
-        project.promptsList = project.promptsList.map(text => {
-            const fullPrompt = text.includes(prefix) ? text : (prefix.trim() + "\n\n" + text.trim()).trim();
-            const matchingResult = project.results ? project.results.find(r => r.promptSnippet === fullPrompt) : null;
+        if (needsMigration) {
+            console.log("🛠️ Migrating Prompts List to 1-to-1 Sync objects...");
             
-            return {
-                text: text,
-                isGeminiDone: !!matchingResult,
-                isGrokDone: matchingResult ? (matchingResult.isGrokDone || false) : false,
-                resultId: matchingResult ? matchingResult.id : null
-            };
-        });
+            const folder = getFolderForProject(id);
+            const prefix = (folder && folder.prefix) ? folder.prefix : DEFAULT_PREFIX;
+            
+            project.promptsList = project.promptsList.map(item => {
+                if (typeof item !== 'string') return item; // Already an object
+                
+                const text = item;
+                const fullPrompt = text.includes(prefix) ? text : (prefix.trim() + "\n\n" + text.trim()).trim();
+                const matchingResult = project.results ? project.results.find(r => r.promptSnippet === fullPrompt) : null;
+                
+                return {
+                    text: text,
+                    isGeminiDone: !!matchingResult,
+                    isGrokDone: matchingResult ? (matchingResult.isGrokDone || false) : false,
+                    resultId: matchingResult ? matchingResult.id : null
+                };
+            });
+            saveState();
+        }
     }
     
     // Cleanup obsolete field from previous attempt
