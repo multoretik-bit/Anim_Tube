@@ -547,10 +547,8 @@ async function executeGrokCycle(promptText, assets, assetIds) {
         args: [assets]
     });
 
-    report("⏳ Ожидание генерации анимации (125 сек)...");
-    
     // Wait for generation (Animation takes longer)
-    const waitTime = 125;
+    const waitTime = 120;
     for (let i = waitTime; i >= 0; i-=5) {
         if (i > 0) {
             report(`⌛ Grok создает анимацию... (${i}с)`);
@@ -645,8 +643,8 @@ async function executeGrokCycle(promptText, assets, assetIds) {
         return;
     }
 
-    report("⌛ Скачивание завершено. Начинаю выход (кнопка сверху слева)...");
-    await sleep(3000); // 3 sec wait after download as requested
+    report("⌛ Скачивание завершено. Ожидаю 5 сек (сохранение на диск)...");
+    await sleep(5000); 
 
     report("🔄 Возврат на страницу генерации (grok.com/imagine)...");
     try {

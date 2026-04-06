@@ -569,7 +569,7 @@ async function executeGrokCycle(promptText, assets, assetIds) {
     report("⏳ Ожидание генерации анимации (минимум 80 сек)...");
     
     // Wait for generation (Animation takes longer)
-    const waitTime = 100;
+    const waitTime = 120;
     for (let i = waitTime; i >= 0; i-=10) {
         if (i > 0) {
             report(`⌛ Grok создает анимацию... (${i}с)`);
@@ -621,7 +621,7 @@ async function executeGrokCycle(promptText, assets, assetIds) {
         }
     });
     
-    await sleep(2000);
+    await sleep(5000);
     report("🔄 Возврат на страницу генерации (grok.com/imagine)...");
     try {
         await chrome.tabs.update(grokTab.id, { url: "https://grok.com/imagine" });
