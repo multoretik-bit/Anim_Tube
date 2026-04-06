@@ -1126,6 +1126,24 @@ function openProject(id) {
     
     // Migration: ensure project has script fields if it's old
     if (!project.scripts) project.scripts = [];
+    
+    // DECAPPING: Initialize Animation Queue (v1.3.6)
+    if (!project.animationQueue) {
+        project.animationQueue = [];
+        // One-time migration: Import existing results into the queue
+        if (project.results && project.results.length > 0) {
+            console.log("🛠️ Migrating results to Animation Queue...");
+            project.results.forEach(res => {
+                project.animationQueue.push({
+                    id: "anim_" + res.id,
+                    prompt: res.promptSnippet || "Legacy Frame",
+                    resultId: res.id,
+                    isGrokDone: res.isGrokDone || false,
+                    time: res.time || new Date().toLocaleTimeString()
+                });
+            });
+        }
+    }
 
     // Default to "Script" tab on open (v12.0)
     // We wait a tiny bit to ensure DOM is ready for tab switching
@@ -1669,6 +1687,17 @@ async function handleIncomingImage(base64) {
         time: new Date().toLocaleTimeString()
     };
     project.results.unshift(result);
+    
+    // NEW: Add to Independent Animation Queue (Decoupling v1.3.6)
+    if (!project.animationQueue) project.animationQueue = [];
+    project.animationQueue.unshift({
+        id: "anim_" + imgId,
+        prompt: result.promptSnippet,
+        resultId: imgId,
+        isGrokDone: false,
+        time: result.time
+    });
+
     saveState();
     
     renderProjectLibrary();
@@ -1897,81 +1926,65 @@ async function renderProjectAnimation() {
     const container = document.getElementById('animation-list-container');
     if (!project || !container) return;
 
-    if (!project.promptsList || project.promptsList.length === 0) {
+    if (!project.animationQueue || project.animationQueue.length === 0) {
         container.innerHTML = `<div class="glass-panel" style="text-align: center; color: var(--text-dim); padding: 60px;">
             <span style="font-size: 40px; display: block; margin-bottom: 20px;">🎬</span>
-            Очередь анимации пуста. Сначала добавьте промты во вкладке «Кадры».
+            Очередь анимации пуста. Сгенерируйте кадры во вкладке «Кадры».
         </div>`;
         return;
     }
 
-    const folder = getFolderForProject(project.id);
-    const prefix = (folder && folder.prefix) ? folder.prefix : DEFAULT_PREFIX;
-
-        let html = "";
+    let html = "";
     
-    for (let i = 0; i < project.promptsList.length; i++) {
-        const rawPrompt = project.promptsList[i];
-        if (!rawPrompt || rawPrompt.trim().length < 2) continue;
+    // NEW: Use Animation Queue instead of mirroring Prompt List
+    for (let i = 0; i < project.animationQueue.length; i++) {
+        const item = project.animationQueue[i];
+        if (!item) continue;
 
-        const fullPrompt = rawPrompt.includes(prefix) ? rawPrompt : (prefix.trim() + "\n\n" + rawPrompt.trim()).trim();
+        const base64 = await getImageFromDB(item.resultId);
         
-        const resultsArray = project.results || [];
-        const matchingResult = [...resultsArray].find(r => r.promptSnippet === fullPrompt);
-        let imgTag = "";
-        
-        if (matchingResult) {
-            const base64 = await getImageFromDB(matchingResult.id);
-            imgTag = `<img src="${base64}">`;
-        } else {
-            imgTag = `
-                <div class="anim-empty-frame">
-                    <span>🖼️</span> ОЖИДАНИЕ КАДРА
-                </div>
-            `;
-        }
-
         const isProcessing = state.animAssembly.isRunning && state.animAssembly.currentIdx === i;
-        const isDone = matchingResult && matchingResult.isGrokDone;
+        const isDone = item.isGrokDone;
 
         html += `
-            <div class="animation-row" id="anim-row-${i}" style="${isProcessing ? 'border-color: var(--accent-grok); background: rgba(236, 72, 153, 0.05);' : (isDone ? 'opacity: 0.7; background: #1a2a22;' : '')}">
-                <div class="anim-index">${i + 1}</div>
-                <div class="anim-prompt-text">${rawPrompt}</div>
+            <div class="animation-row" id="anim-row-${i}" style="${isProcessing ? 'border-color: var(--accent-grok); background: rgba(236, 72, 153, 0.05);' : (isDone ? 'opacity: 0.7; background: #111;' : '')}">
+                <div class="anim-index">${project.animationQueue.length - i}</div>
+                <div class="anim-prompt-text">${item.prompt}</div>
                 <div class="anim-frame-container" id="anim-frame-${i}">
-                    ${imgTag}
+                    <img src="${base64 || ''}">
                 </div>
-                <div class="anim-status-container" style="display:flex; justify-content:center; align-items:center;">
+                <div class="anim-status-container" style="display:flex; justify-content:center; align-items:center; gap:20px;">
                     <label class="custom-checkbox-label" style="cursor:pointer; display:flex; align-items:center; gap:10px; font-weight:bold; color: ${isDone ? 'var(--accent-primary)' : 'var(--text-dim)'}">
                         <input type="checkbox" style="width:20px; height:20px; cursor:pointer;" 
                                ${isDone ? 'checked' : ''} 
-                               ${!matchingResult ? 'disabled' : ''}
                                onchange="toggleAnimDone(${i}, this.checked)">
                         ${isDone ? '✅ СКАЧАНО' : 'Ожидает'}
                     </label>
+                    <button class="lib-del-btn" onclick="deleteAnimationItem(${i})" style="position:static; padding:10px; height:40px; width:40px; font-size:16px;">🗑️</button>
                 </div>
             </div>
         `;
     }
 
-    container.innerHTML = html || `<p style="text-align: center; color: var(--text-dim);">Нет активных промтов.</p>`;
+    container.innerHTML = html || `<p style="text-align: center; color: var(--text-dim);">Нет активных анимаций.</p>`;
+}
+
+function deleteAnimationItem(index) {
+    if (!confirm("Удалить эту анимацию из списка? Кадр в библиотеке останется.")) return;
+    const project = getCurrentProject();
+    if (project && project.animationQueue) {
+        project.animationQueue.splice(index, 1);
+        saveState();
+        renderProjectAnimation();
+        logStatus("🗑️ Анимация удалена из очереди (кадр сохранен).", "info");
+    }
 }
 
 // --- NEW CHECKBOX TOGGLE LOGIC ---
 window.toggleAnimDone = (index, isDone) => {
     const project = getCurrentProject();
-    if (!project) return;
-    
-    const folder = getFolderForProject(project.id);
-    const prefix = (folder && folder.prefix) ? folder.prefix : DEFAULT_PREFIX;
-    const rawPrompt = project.promptsList[index];
-    const fullPrompt = rawPrompt.includes(prefix) ? rawPrompt : (prefix.trim() + "\n\n" + rawPrompt.trim()).trim();
-    
-    const resultsArray = project.results || [];
-    const matchingResult = [...resultsArray].find(r => r.promptSnippet === fullPrompt);
-    
-    if (matchingResult) {
-        matchingResult.isGrokDone = isDone;
+    if (project && project.animationQueue) {
+        project.animationQueue[index].isGrokDone = isDone;
         saveState();
         renderProjectAnimation();
     }
@@ -1984,29 +1997,22 @@ async function startAnimationAssembly() {
         return alert("Добавьте хотя бы один промт!");
     }
     
-    // Build Queue: only include prompts that HAVE an associated generated frame but NO animation yet
-    const folder = getFolderForProject(project.id);
-    const prefix = (folder && folder.prefix) ? folder.prefix : DEFAULT_PREFIX;
-    
+    // Build Queue using independent Animation Queue (v1.3.6)
     state.animAssembly.queue = [];
     
-    for (let i = 0; i < project.promptsList.length; i++) {
-        const rawPrompt = project.promptsList[i];
-        const fullPrompt = rawPrompt.includes(prefix) ? rawPrompt : (prefix.trim() + "\n\n" + rawPrompt.trim()).trim();
-        const resultsArray = project.results || [];
-        const matchingResult = [...resultsArray].find(r => r.promptSnippet === fullPrompt);
-        
-        if (matchingResult && !matchingResult.isGrokDone) {
+    for (let i = 0; i < project.animationQueue.length; i++) {
+        const item = project.animationQueue[i];
+        if (!item.isGrokDone) {
             state.animAssembly.queue.push({
                 index: i,
-                prompt: fullPrompt,
-                resultId: matchingResult.id
+                prompt: item.prompt,
+                resultId: item.resultId
             });
         }
     }
     
     if (state.animAssembly.queue.length === 0) {
-        return alert("Нет новых кадров, требующих генерации, либо все уже отмечены галочками!");
+        return alert("Нет новых анимаций в очереди, либо все уже отмечены галочками!");
     }
     
     state.animAssembly.currentIdx = 0;
@@ -2036,20 +2042,14 @@ async function animateSingleFrame(index) {
     }
     
     const project = getCurrentProject();
-    const folder = getFolderForProject(project.id);
-    const prefix = (folder && folder.prefix) ? folder.prefix : DEFAULT_PREFIX;
+    if (!project || !project.animationQueue || !project.animationQueue[index]) return;
     
-    const rawPrompt = project.promptsList[index];
-    const fullPrompt = rawPrompt.includes(prefix) ? rawPrompt : (prefix.trim() + "\n\n" + rawPrompt.trim()).trim();
-    const resultsArray = project.results || [];
-    const matchingResult = [...resultsArray].find(r => r.promptSnippet === fullPrompt);
-    
-    if (!matchingResult) return alert("Сначала сгенерируйте статичный кадр!");
+    const item = project.animationQueue[index];
     
     state.animAssembly.queue = [{
         index: index,
-        prompt: fullPrompt,
-        resultId: matchingResult.id
+        prompt: item.prompt,
+        resultId: item.resultId
     }];
     state.animAssembly.currentIdx = 0;
     state.animAssembly.isRunning = true;
@@ -2058,7 +2058,7 @@ async function animateSingleFrame(index) {
     document.getElementById('btn-start-anim').style.display = 'none';
     document.getElementById('btn-stop-anim').style.display = 'block';
     
-    logStatus(`🚀 Одиночная анимация кадра #${index + 1} запущена.`, "info");
+    logStatus(`🚀 Одиночная анимация кадра #${project.animationQueue.length - index} запущена.`, "info");
     processNextAnimation();
 }
 
@@ -2126,13 +2126,19 @@ window.handleGrokDone = async () => {
     const currentItem = state.animAssembly.queue[state.animAssembly.currentIdx];
     if (!currentItem) return;
     
+    // Update both the queue and the independent results if needed
+    if (project.animationQueue[currentItem.index]) {
+        project.animationQueue[currentItem.index].isGrokDone = true;
+    }
+    
+    // Cross-link with results library for UI consistency
     const resultFrame = project.results.find(r => r.id === currentItem.resultId);
     if (resultFrame) {
         resultFrame.isGrokDone = true;
     }
     
     saveState();
-    logStatus(`🎉 Кадр #${currentItem.index + 1} успешно скачан и отмечен!`, "success");
+    logStatus(`🎉 Анимация выбрана и отмечена как скачанная!`, "success");
     
     state.animAssembly.currentIdx++;
     renderProjectAnimation();
