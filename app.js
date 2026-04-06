@@ -1953,20 +1953,41 @@ async function renderProjectAnimation() {
                 <div class="anim-frame-container" id="anim-frame-${i}">
                     <img src="${base64 || ''}">
                 </div>
-                <div class="anim-status-container" style="display:flex; justify-content:center; align-items:center; gap:20px;">
-                    <label class="custom-checkbox-label" style="cursor:pointer; display:flex; align-items:center; gap:10px; font-weight:bold; color: ${isDone ? 'var(--accent-primary)' : 'var(--text-dim)'}">
-                        <input type="checkbox" style="width:20px; height:20px; cursor:pointer;" 
+                <div class="anim-status-container" style="display:flex; justify-content:center; align-items:center; gap:12px;">
+                    <div style="display:flex; flex-direction:column; gap:4px;">
+                        <button class="lib-del-btn" onclick="moveAnimationItem(${i}, -1)" style="position:static; padding:2px; height:24px; width:24px; font-size:12px; background: var(--bg-dark); border: 1px solid var(--border-color); ${i === 0 ? 'opacity: 0.3; pointer-events: none;' : ''}" title="Переместить вверх">▲</button>
+                        <button class="lib-del-btn" onclick="moveAnimationItem(${i}, 1)" style="position:static; padding:2px; height:24px; width:24px; font-size:12px; background: var(--bg-dark); border: 1px solid var(--border-color); ${i === project.animationQueue.length - 1 ? 'opacity: 0.3; pointer-events: none;' : ''}" title="Переместить вниз">▼</button>
+                    </div>
+                    <label class="custom-checkbox-label" style="cursor:pointer; display:flex; align-items:center; gap:8px; font-weight:bold; color: ${isDone ? 'var(--accent-primary)' : 'var(--text-dim)'}; font-size: 11px;">
+                        <input type="checkbox" style="width:18px; height:18px; cursor:pointer;" 
                                ${isDone ? 'checked' : ''} 
                                onchange="toggleAnimDone(${i}, this.checked)">
                         ${isDone ? '✅ СКАЧАНО' : 'Ожидает'}
                     </label>
-                    <button class="lib-del-btn" onclick="deleteAnimationItem(${i})" style="position:static; padding:10px; height:40px; width:40px; font-size:16px;">🗑️</button>
+                    <button class="lib-del-btn" onclick="deleteAnimationItem(${i})" style="position:static; padding:8px; height:38px; width:38px; font-size:14px; background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444;" title="Удалить из анимаций">🗑️</button>
                 </div>
             </div>
         `;
     }
 
     container.innerHTML = html || `<p style="text-align: center; color: var(--text-dim);">Нет активных анимаций.</p>`;
+}
+
+function moveAnimationItem(index, direction) {
+    const project = getCurrentProject();
+    if (!project || !project.animationQueue) return;
+    
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= project.animationQueue.length) return;
+    
+    // Swap items
+    const temp = project.animationQueue[index];
+    project.animationQueue[index] = project.animationQueue[targetIndex];
+    project.animationQueue[targetIndex] = temp;
+    
+    saveState();
+    renderProjectAnimation();
+    logStatus(`🔄 Смена порядка: Кадр #${index + 1} перемещен.`, "info");
 }
 
 function deleteAnimationItem(index) {
