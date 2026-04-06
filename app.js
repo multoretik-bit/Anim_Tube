@@ -1480,6 +1480,23 @@ async function processNextItem() {
     if (state.assembly.currentIdx >= state.assembly.queue.length) {
         logStatus("✅ Пакетная сборка завершена!", "success");
         stopRollAssembly(false);
+        
+        // AUTO-TRANSITION (v1.3.8)
+        if (state.isAutoMode) {
+            logStatus("⏳ [АВТО]: Переход к анимации через 5 секунд...", "info");
+            setTimeout(() => {
+                // Ensure we are still in auto mode and on the workspace page
+                if (state.isAutoMode && state.activePage === 'workspace') {
+                    switchProjectTab('animation');
+                    logStatus("🎬 [АВТО]: Вкладка переключена. Запуск сборки...", "success");
+                    
+                    // Small delay to ensure tab is rendered and buttons are reachable
+                    setTimeout(() => {
+                        startAnimationAssembly();
+                    }, 1000);
+                }
+            }, 5000);
+        }
         return;
     }
 
