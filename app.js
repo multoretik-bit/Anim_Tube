@@ -609,13 +609,15 @@ function handleIncomingPrompts(rawText) {
         .filter(l => l.length > 5)
         .map(l => l.replace(/^(Prompt|Промт|Кадр)\s*\d*[:\s]*/i, '').trim());
 
-    if (lines.length === 0) {
-        logStatus("⚠️ Не удалось распознать промпты в ответе Gemini.", "error");
-        return;
-    }
+    const newObjects = lines.map(l => ({
+        text: l,
+        isGeminiDone: false,
+        isGrokDone: false,
+        resultId: null
+    }));
 
     if (!project.promptsList) project.promptsList = [];
-    project.promptsList = [...project.promptsList, ...lines];
+    project.promptsList = [...project.promptsList, ...newObjects];
     
     saveState();
     renderProjectPrompts();
@@ -1127,23 +1129,28 @@ function openProject(id) {
     // Migration: ensure project has script fields if it's old
     if (!project.scripts) project.scripts = [];
     
-    // DECAPPING: Initialize Animation Queue (v1.3.6)
-    if (!project.animationQueue) {
-        project.animationQueue = [];
-        // One-time migration: Import existing results into the queue
-        if (project.results && project.results.length > 0) {
-            console.log("🛠️ Migrating results to Animation Queue...");
-            project.results.forEach(res => {
-                project.animationQueue.push({
-                    id: "anim_" + res.id,
-                    prompt: res.promptSnippet || "Legacy Frame",
-                    resultId: res.id,
-                    isGrokDone: res.isGrokDone || false,
-                    time: res.time || new Date().toLocaleTimeString()
-                });
-            });
-        }
+    // 1-to-1 SYNC MIGRATION (v1.3.7)
+    if (project.promptsList && project.promptsList.length > 0 && typeof project.promptsList[0] === 'string') {
+        console.log("🛠️ Migrating Prompts List to 1-to-1 Sync objects...");
+        
+        const folder = getFolderForProject(id);
+        const prefix = (folder && folder.prefix) ? folder.prefix : DEFAULT_PREFIX;
+        
+        project.promptsList = project.promptsList.map(text => {
+            const fullPrompt = text.includes(prefix) ? text : (prefix.trim() + "\n\n" + text.trim()).trim();
+            const matchingResult = project.results ? project.results.find(r => r.promptSnippet === fullPrompt) : null;
+            
+            return {
+                text: text,
+                isGeminiDone: !!matchingResult,
+                isGrokDone: matchingResult ? (matchingResult.isGrokDone || false) : false,
+                resultId: matchingResult ? matchingResult.id : null
+            };
+        });
     }
+    
+    // Cleanup obsolete field from previous attempt
+    if (project.animationQueue) delete project.animationQueue;
 
     // Default to "Script" tab on open (v12.0)
     // We wait a tiny bit to ensure DOM is ready for tab switching
@@ -1249,25 +1256,25 @@ async function startRollAssembly() {
         return alert("Добавьте хотя бы один промт!");
     }
     
-    // EXPLICIT COPY OF FIRST PROMPT (v1.3.2)
-    const firstRaw = project.promptsList[0];
-    const folder = getFolderForProject(project.id);
-    const prefix = (folder && folder.prefix) ? folder.prefix : DEFAULT_PREFIX;
-    const firstFull = firstRaw.includes(prefix) ? firstRaw : (prefix.trim() + "\n\n" + firstRaw.trim()).trim();
+    // DECAPPING: Filter only uncompleted prompts (v1.3.7)
+    const queue = project.promptsList
+        .map((p, idx) => ({ ...p, originalIndex: idx }))
+        .filter(p => !p.isGeminiDone);
     
-    await copyTextToClipboard(firstFull);
-    logStatus("📋 [Промт 1]: Текст скопирован (Robotic Mode).", "success");
+    if (queue.length === 0) {
+        return alert("Все кадры в этом проекте уже помечены как готовые!");
+    }
 
-    state.assembly.queue = [...project.promptsList];
+    state.assembly.queue = queue;
     state.assembly.currentIdx = 0;
     state.assembly.isRunning = true;
-    state.assembly.lockedProjectId = state.activeProjectId; // Gallery Isolation Lock
+    state.assembly.lockedProjectId = state.activeProjectId;
     
     document.getElementById('btn-start-assembly').style.display = 'none';
     document.getElementById('btn-stop-assembly').style.display = 'flex';
     document.getElementById('receiving-slot-panel').style.display = 'block';
     
-    logStatus("🎬 Сборка запущена. Переключаемся в Gemini...", "info");
+    logStatus(`🎬 Пакетная сборка запущена (${queue.length} кадров).`, "info");
     processNextItem();
 }
 
@@ -1472,19 +1479,14 @@ async function processNextItem() {
 
     if (state.assembly.currentIdx >= state.assembly.queue.length) {
         logStatus("✅ Пакетная сборка завершена!", "success");
-        
-        if (state.assembly.superAuto.active && state.assembly.superAuto.phase === 'assembly') {
-            stopSuperAutomation();
-        } else {
-            stopRollAssembly(false);
-        }
+        stopRollAssembly(false);
         return;
     }
 
-    const project = getCurrentProject();
-    const rawPrompt = state.assembly.queue[state.assembly.currentIdx];
+    const item = state.assembly.queue[state.assembly.currentIdx];
+    const rawPrompt = item.text;
     
-    // FETCH PREFIX FROM FOLDER (v12.0)
+    const project = getCurrentProject();
     const folder = getFolderForProject(project.id);
     const prefix = (folder && folder.prefix) ? folder.prefix : DEFAULT_PREFIX;
     
@@ -1688,15 +1690,15 @@ async function handleIncomingImage(base64) {
     };
     project.results.unshift(result);
     
-    // NEW: Add to Independent Animation Queue (Decoupling v1.3.6)
-    if (!project.animationQueue) project.animationQueue = [];
-    project.animationQueue.unshift({
-        id: "anim_" + imgId,
-        prompt: result.promptSnippet,
-        resultId: imgId,
-        isGrokDone: false,
-        time: result.time
-    });
+    // 1-to-1 SYNC: Update the specific prompt status (v1.3.7)
+    if (state.assembly.isRunning && state.assembly.queue[state.assembly.currentIdx - 1]) {
+        const item = state.assembly.queue[state.assembly.currentIdx - 1];
+        const originalPrompt = project.promptsList[item.originalIndex];
+        if (originalPrompt) {
+            originalPrompt.isGeminiDone = true;
+            originalPrompt.resultId = imgId;
+        }
+    }
 
     saveState();
     
@@ -1893,20 +1895,27 @@ function renderProjectPrompts() {
 
     container.innerHTML = project.promptsList.map((p, index) => {
         const isProcessing = state.assembly.isRunning && 
-                             state.assembly.queue.length === 1 && 
-                             state.assembly.queue[0] === p;
+                             state.assembly.queue.length > 0 && 
+                             state.assembly.queue[state.assembly.currentIdx - 1] === p;
+        
+        const isDone = p.isGeminiDone;
                              
         return `
-            <div class="prompt-item ${isProcessing ? 'processing' : ''}" id="prompt-item-${index}">
+            <div class="prompt-item ${isProcessing ? 'processing' : ''} ${isDone ? 'done' : ''}" id="prompt-item-${index}">
                 <div class="prompt-header">
                     <div class="prompt-counter">${index + 1}</div>
-                    <div style="font-size: 10px; color: var(--text-dim); text-transform: uppercase; font-weight: 800; letter-spacing: 1px;">
-                        ${isProcessing ? '⚡ ОБРАБОТКА' : 'КАДР'}
+                    <div class="prompt-status-check">
+                        <label class="custom-checkbox-label" style="cursor:pointer; display:flex; align-items:center; gap:8px; font-weight:bold; color: ${isDone ? 'var(--accent-gemini)' : 'var(--text-dim)'}; font-size: 10px;">
+                            <input type="checkbox" style="width:16px; height:16px; cursor:pointer;" 
+                                   ${isDone ? 'checked' : ''} 
+                                   onchange="toggleGeminiDone(${index}, this.checked)">
+                            ${isDone ? '✅ КАДР ГОТОВ' : 'НЕ ГОТОВ'}
+                        </label>
                     </div>
                 </div>
                 <textarea class="prompt-textarea" 
                           onchange="updatePromptValue(${index}, this.value)" 
-                          placeholder="Опишите, что происходит в этом кадре...">${p}</textarea>
+                          placeholder="Опишите, что происходит в этом кадре...">${p.text}</textarea>
                 <div class="prompt-actions">
                     <button class="prompt-btn prompt-btn-recreate" onclick="recreateSinglePrompt(${index})">
                         <span>🔄</span> Пересоздать
@@ -1920,13 +1929,26 @@ function renderProjectPrompts() {
     }).join('');
 }
 
+window.toggleGeminiDone = (index, isDone) => {
+    const project = getCurrentProject();
+    if (project && project.promptsList[index]) {
+        project.promptsList[index].isGeminiDone = isDone;
+        saveState();
+        renderProjectPrompts();
+        // Also update animation tab if it's mirrored
+        if (document.getElementById('tab-content-animation').classList.contains('active')) {
+            renderProjectAnimation();
+        }
+    }
+};
+
 // --- ANIMATION RENDERER (v1.3.1) ---
 async function renderProjectAnimation() {
     const project = getCurrentProject();
     const container = document.getElementById('animation-list-container');
     if (!project || !container) return;
 
-    if (!project.animationQueue || project.animationQueue.length === 0) {
+    if (!project.promptsList || project.promptsList.length === 0) {
         container.innerHTML = `<div class="glass-panel" style="text-align: center; color: var(--text-dim); padding: 60px;">
             <span style="font-size: 40px; display: block; margin-bottom: 20px;">🎬</span>
             Очередь анимации пуста. Сгенерируйте кадры во вкладке «Кадры».
@@ -1936,35 +1958,38 @@ async function renderProjectAnimation() {
 
     let html = "";
     
-    // NEW: Use Animation Queue instead of mirroring Prompt List
-    for (let i = 0; i < project.animationQueue.length; i++) {
-        const item = project.animationQueue[i];
-        if (!item) continue;
-
-        const base64 = await getImageFromDB(item.resultId);
+    for (let i = 0; i < project.promptsList.length; i++) {
+        const item = project.promptsList[i];
         
-        const isProcessing = state.animAssembly.isRunning && state.animAssembly.currentIdx === i;
+        let imgTag = "";
+        if (item.resultId) {
+            const base64 = await getImageFromDB(item.resultId);
+            imgTag = `<img src="${base64 || ''}">`;
+        } else {
+            imgTag = `<div class="anim-empty-frame"><span>🖼️</span> ОЖИДАНИЕ...</div>`;
+        }
+        
+        const isProcessing = state.animAssembly.isRunning && 
+                             state.animAssembly.queue.length > 0 && 
+                             state.animAssembly.queue[state.animAssembly.currentIdx - 1]?.index === i;
+        
         const isDone = item.isGrokDone;
 
         html += `
             <div class="animation-row" id="anim-row-${i}" style="${isProcessing ? 'border-color: var(--accent-grok); background: rgba(236, 72, 153, 0.05);' : (isDone ? 'opacity: 0.7; background: #111;' : '')}">
-                <div class="anim-index">${project.animationQueue.length - i}</div>
-                <div class="anim-prompt-text">${item.prompt}</div>
+                <div class="anim-index">${i + 1}</div>
+                <div class="anim-prompt-text" style="${!item.resultId ? 'opacity: 0.3' : ''}">${item.text}</div>
                 <div class="anim-frame-container" id="anim-frame-${i}">
-                    <img src="${base64 || ''}">
+                    ${imgTag}
                 </div>
-                <div class="anim-status-container" style="display:flex; justify-content:center; align-items:center; gap:12px;">
-                    <div style="display:flex; flex-direction:column; gap:4px;">
-                        <button class="lib-del-btn" onclick="moveAnimationItem(${i}, -1)" style="position:static; padding:2px; height:24px; width:24px; font-size:12px; background: var(--bg-dark); border: 1px solid var(--border-color); ${i === 0 ? 'opacity: 0.3; pointer-events: none;' : ''}" title="Переместить вверх">▲</button>
-                        <button class="lib-del-btn" onclick="moveAnimationItem(${i}, 1)" style="position:static; padding:2px; height:24px; width:24px; font-size:12px; background: var(--bg-dark); border: 1px solid var(--border-color); ${i === project.animationQueue.length - 1 ? 'opacity: 0.3; pointer-events: none;' : ''}" title="Переместить вниз">▼</button>
-                    </div>
-                    <label class="custom-checkbox-label" style="cursor:pointer; display:flex; align-items:center; gap:8px; font-weight:bold; color: ${isDone ? 'var(--accent-primary)' : 'var(--text-dim)'}; font-size: 11px;">
-                        <input type="checkbox" style="width:18px; height:18px; cursor:pointer;" 
+                <div class="anim-status-container" style="display:flex; justify-content:center; align-items:center; gap:20px;">
+                    <label class="custom-checkbox-label" style="cursor:pointer; display:flex; align-items:center; gap:10px; font-weight:bold; color: ${isDone ? 'var(--accent-primary)' : 'var(--text-dim)'}">
+                        <input type="checkbox" style="width:20px; height:20px; cursor:pointer;" 
                                ${isDone ? 'checked' : ''} 
+                               ${!item.resultId ? 'disabled' : ''}
                                onchange="toggleAnimDone(${i}, this.checked)">
                         ${isDone ? '✅ СКАЧАНО' : 'Ожидает'}
                     </label>
-                    <button class="lib-del-btn" onclick="deleteAnimationItem(${i})" style="position:static; padding:8px; height:38px; width:38px; font-size:14px; background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444;" title="Удалить из анимаций">🗑️</button>
                 </div>
             </div>
         `;
@@ -1973,39 +1998,10 @@ async function renderProjectAnimation() {
     container.innerHTML = html || `<p style="text-align: center; color: var(--text-dim);">Нет активных анимаций.</p>`;
 }
 
-function moveAnimationItem(index, direction) {
-    const project = getCurrentProject();
-    if (!project || !project.animationQueue) return;
-    
-    const targetIndex = index + direction;
-    if (targetIndex < 0 || targetIndex >= project.animationQueue.length) return;
-    
-    // Swap items
-    const temp = project.animationQueue[index];
-    project.animationQueue[index] = project.animationQueue[targetIndex];
-    project.animationQueue[targetIndex] = temp;
-    
-    saveState();
-    renderProjectAnimation();
-    logStatus(`🔄 Смена порядка: Кадр #${index + 1} перемещен.`, "info");
-}
-
-function deleteAnimationItem(index) {
-    if (!confirm("Удалить эту анимацию из списка? Кадр в библиотеке останется.")) return;
-    const project = getCurrentProject();
-    if (project && project.animationQueue) {
-        project.animationQueue.splice(index, 1);
-        saveState();
-        renderProjectAnimation();
-        logStatus("🗑️ Анимация удалена из очереди (кадр сохранен).", "info");
-    }
-}
-
-// --- NEW CHECKBOX TOGGLE LOGIC ---
 window.toggleAnimDone = (index, isDone) => {
     const project = getCurrentProject();
-    if (project && project.animationQueue) {
-        project.animationQueue[index].isGrokDone = isDone;
+    if (project && project.promptsList[index]) {
+        project.promptsList[index].isGrokDone = isDone;
         saveState();
         renderProjectAnimation();
     }
@@ -2018,22 +2014,16 @@ async function startAnimationAssembly() {
         return alert("Добавьте хотя бы один промт!");
     }
     
-    // Build Queue using independent Animation Queue (v1.3.6)
-    state.animAssembly.queue = [];
+    const folder = getFolderForProject(project.id);
+    const prefix = (folder && folder.prefix) ? folder.prefix : DEFAULT_PREFIX;
     
-    for (let i = 0; i < project.animationQueue.length; i++) {
-        const item = project.animationQueue[i];
-        if (!item.isGrokDone) {
-            state.animAssembly.queue.push({
-                index: i,
-                prompt: item.prompt,
-                resultId: item.resultId
-            });
-        }
-    }
+    // Build Queue using Synchronized Status (v1.3.7)
+    state.animAssembly.queue = project.promptsList
+        .map((p, idx) => ({ ...p, index: idx }))
+        .filter(p => p.resultId && !p.isGrokDone);
     
     if (state.animAssembly.queue.length === 0) {
-        return alert("Нет новых анимаций в очереди, либо все уже отмечены галочками!");
+        return alert("Нет новых кадров для анимации, либо все уже отмечены галочками!");
     }
     
     state.animAssembly.currentIdx = 0;
@@ -2043,7 +2033,7 @@ async function startAnimationAssembly() {
     document.getElementById('btn-start-anim').style.display = 'none';
     document.getElementById('btn-stop-anim').style.display = 'block';
     
-    logStatus(`🚀 Сборка анимации запущена (В очереди: ${state.animAssembly.queue.length}). Перекл. в Grok...`, "success");
+    logStatus(`🚀 Сборка анимации запущена (${state.animAssembly.queue.length} кадров).`, "success");
     processNextAnimation();
 }
 
@@ -2063,13 +2053,14 @@ async function animateSingleFrame(index) {
     }
     
     const project = getCurrentProject();
-    if (!project || !project.animationQueue || !project.animationQueue[index]) return;
+    if (!project || !project.promptsList || !project.promptsList[index]) return;
     
-    const item = project.animationQueue[index];
+    const item = project.promptsList[index];
+    if (!item.resultId) return alert("Сначала сгенерируйте статичный кадр!");
     
     state.animAssembly.queue = [{
         index: index,
-        prompt: item.prompt,
+        text: item.text,
         resultId: item.resultId
     }];
     state.animAssembly.currentIdx = 0;
@@ -2079,7 +2070,7 @@ async function animateSingleFrame(index) {
     document.getElementById('btn-start-anim').style.display = 'none';
     document.getElementById('btn-stop-anim').style.display = 'block';
     
-    logStatus(`🚀 Одиночная анимация кадра #${project.animationQueue.length - index} запущена.`, "info");
+    logStatus(`🚀 Одиночная анимация кадра #${index + 1} запущена.`, "info");
     processNextAnimation();
 }
 
@@ -2095,10 +2086,16 @@ async function processNextAnimation() {
     renderProjectAnimation(); // Update UI highlight
     
     const item = state.animAssembly.queue[state.animAssembly.currentIdx];
+    
+    // Apply prefix mapping
+    const folder = getFolderForProject(state.activeProjectId);
+    const prefix = (folder && folder.prefix) ? folder.prefix : DEFAULT_PREFIX;
+    const fullPrompt = item.text.includes(prefix) ? item.text : (prefix.trim() + "\n\n" + item.text.trim()).trim();
+
     logStatus(`🚀 [Анимация ${state.animAssembly.currentIdx + 1}/${state.animAssembly.queue.length}] Отправка в Grok...`, "info");
     
     // Explicit clipboard copy for prompt
-    await copyTextToClipboard(item.prompt);
+    await copyTextToClipboard(fullPrompt);
     
     const base64 = await getImageFromDB(item.resultId);
     
@@ -2123,7 +2120,7 @@ async function processNextAnimation() {
 
     sendToBridge({
         type: "TO_GROK", // Custom command for extension
-        prompt: item.prompt,
+        prompt: fullPrompt,
         assets: [base64], // Send the actual base64 to be pasted
         assetIds: [`anim-frame-${item.index}`] // ID for visual copy trigger
     });
@@ -2147,19 +2144,20 @@ window.handleGrokDone = async () => {
     const currentItem = state.animAssembly.queue[state.animAssembly.currentIdx];
     if (!currentItem) return;
     
-    // Update both the queue and the independent results if needed
-    if (project.animationQueue[currentItem.index]) {
-        project.animationQueue[currentItem.index].isGrokDone = true;
+    // Update the specific prompt status (1-to-1 sync)
+    const originalPrompt = project.promptsList[currentItem.index];
+    if (originalPrompt) {
+        originalPrompt.isGrokDone = true;
     }
     
-    // Cross-link with results library for UI consistency
+    // Also cross-link with results library for UI consistency
     const resultFrame = project.results.find(r => r.id === currentItem.resultId);
     if (resultFrame) {
         resultFrame.isGrokDone = true;
     }
     
     saveState();
-    logStatus(`🎉 Анимация выбрана и отмечена как скачанная!`, "success");
+    logStatus(`🎉 Анимация кадра #${currentItem.index + 1} успешно скачана!`, "success");
     
     state.animAssembly.currentIdx++;
     renderProjectAnimation();
@@ -2173,7 +2171,7 @@ window.handleGrokDone = async () => {
 
 function recreateSinglePrompt(index) {
     const project = getCurrentProject();
-    if (!project || !project.promptsList || project.promptsList[index] === undefined) return;
+    if (!project || !project.promptsList || !project.promptsList[index]) return;
     
     // Safety: don't start if already running something else
     if (state.assembly.isRunning) {
@@ -2181,11 +2179,14 @@ function recreateSinglePrompt(index) {
         stopRollAssembly(false);
     }
     
-    const prompt = project.promptsList[index];
-    if (!prompt || prompt.trim().length < 2) return alert("Промт слишком короткий!");
+    const item = project.promptsList[index];
+    if (!item.text || item.text.trim().length < 2) return alert("Промт слишком короткий!");
 
-    // Setup mini-assembly
-    state.assembly.queue = [prompt];
+    // Setup mini-assembly (1-to-1 refactor)
+    state.assembly.queue = [{
+        ...item,
+        originalIndex: index
+    }];
     state.assembly.currentIdx = 0;
     state.assembly.isRunning = true;
     state.assembly.lockedProjectId = state.activeProjectId;
@@ -2196,11 +2197,7 @@ function recreateSinglePrompt(index) {
     document.getElementById('receiving-slot-panel').style.display = 'block';
     
     logStatus(`🔄 Пересоздание кадра #${index + 1}...`, "info");
-    
-    // Refresh UI to show "Processing" state
     renderProjectPrompts();
-    
-    // Start
     processNextItem();
 }
 
@@ -2209,15 +2206,20 @@ function addPromptToProject() {
     if (!project) return;
     if (!project.promptsList) project.promptsList = [];
     
-    project.promptsList.push("");
+    project.promptsList.push({
+        text: "",
+        isGeminiDone: false,
+        isGrokDone: false,
+        resultId: null
+    });
     saveState();
     renderProjectPrompts();
 }
 
 function updatePromptValue(index, value) {
     const project = getCurrentProject();
-    if (project && project.promptsList) {
-        project.promptsList[index] = value;
+    if (project && project.promptsList[index]) {
+        project.promptsList[index].text = value;
         saveState();
     }
 }
