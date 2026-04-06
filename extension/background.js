@@ -622,6 +622,11 @@ async function executeGrokCycle(promptText, assets, assetIds) {
     });
     
     await sleep(2000);
+    report("🔄 Возврат на страницу генерации (grok.com/imagine)...");
+    try {
+        await chrome.tabs.update(grokTab.id, { url: "https://grok.com/imagine" });
+    } catch (e) {}
+    await sleep(1000);
     focusStudio();
 }
 

@@ -319,29 +319,45 @@ async function executeGrokCycle(promptText, assets, assetIds) {
         const sleep = (ms) => new Promise(r => setTimeout(r, ms));
         const report = (msg) => relayToStudio({ type: "ANIMTUBE_STATUS", text: msg });
 
-        report("🚀 Extension: Получена команда TO_GROK. Ищу вкладки...");
+        report("🚀 Extension: Получена команда TO_GROK. Ищу/Создаю вкладку...");
 
         const tabs = await chrome.tabs.query({});
         
-        const grokTab = tabs.find(t => {
-        const hasGrokUrl = t.url && (t.url.includes("grok.com") || t.url.includes("x.com/i/grok"));
-        const hasGrokTitle = t.title && t.title.toLowerCase().includes("grok");
-        return hasGrokUrl || hasGrokTitle;
-    });
+        let grokTab = tabs.find(t => {
+            const hasGrokUrl = t.url && (t.url.includes("grok.com") || t.url.includes("x.com/i/grok"));
+            const hasGrokTitle = t.title && t.title.toLowerCase().includes("grok");
+            return hasGrokUrl || hasGrokTitle;
+        });
+        
+        const studioTab = tabs.find(t => t.url && (t.url.includes("localhost") || t.url.includes("127.0.0.1") || t.title.includes("AnimTube")));
+
+        if (!grokTab) {
+            report("🆕 Вкладка Grok не найдена. Создаю новую... (grok.com/imagine)");
+            grokTab = await chrome.tabs.create({ url: "https://grok.com/imagine" });
+            report("⏳ Жду 8 сек для инициализации Grok...");
+            await sleep(8000);
+        } else {
+            const currentUrl = grokTab.url || "";
+            if (!currentUrl.includes("/imagine")) {
+                report("🔄 Переход из чата в режим Генерации... (grok.com/imagine)");
+                await chrome.tabs.update(grokTab.id, { url: "https://grok.com/imagine" });
+                report("⏳ Жду 8 сек для прогрузки интерфейса Grok...");
+                await sleep(8000);
+            }
+        }
     
-    const studioTab = tabs.find(t => t.url && (t.url.includes("localhost") || t.url.includes("127.0.0.1") || t.title.includes("AnimTube")));
+        if (!grokTab) {
+            report(`❌ Ошибка: Не удалось создать или найти вкладку Grok!`);
+            isRunningGrokCycle = false;
+            return;
+        }
 
-    if (!grokTab) {
-        report(`❌ Ошибка: Вкладка Grok (grok.com) не найдена!`);
-        return;
-    }
-
-    report("📋 Студия: Готовлю текст промта... (3 сек)");
-    await sleep(1000);
-    report("📋 Студия: Готовлю текст промта... (2 сек)");
-    await sleep(1000);
-    report("📋 Студия: Готовлю текст промта... (1 сек)");
-    await sleep(1000);
+        report("📋 Студия: Готовлю текст промта... (3 сек)");
+        await sleep(1000);
+        report("📋 Студия: Готовлю текст промта... (2 сек)");
+        await sleep(1000);
+        report("📋 Студия: Готовлю текст промта... (1 сек)");
+        await sleep(1000);
 
     report(`✅ Переключаюсь в Grok для вставки текста...`);
 
@@ -632,48 +648,12 @@ async function executeGrokCycle(promptText, assets, assetIds) {
     report("⌛ Скачивание завершено. Начинаю выход (кнопка сверху слева)...");
     await sleep(3000); // 3 sec wait after download as requested
 
-    const exitResult = await chrome.scripting.executeScript({
-        target: { tabId: grokTab.id },
-        func: async () => {
-            const report = (msg) => chrome.runtime.sendMessage({ type: "ANIMTUBE_STATUS", text: msg });
-            
-            // 1. ATTEMPT DOM CLICK (Top-Left Arrow)
-            const findTopLeftBack = () => {
-                const buttons = Array.from(document.querySelectorAll('button, a, [role="button"], div[aria-label*="Back"], div[title*="Back"]'));
-                // Look in the top-left 150x150px zone
-                const backBtn = buttons.find(b => {
-                    const rect = b.getBoundingClientRect();
-                    const isTopLeft = rect.left < 150 && rect.top < 150 && rect.width > 0;
-                    const label = (b.getAttribute('aria-label') || b.title || b.innerText || "").toLowerCase();
-                    const hasBackIcon = b.querySelector('svg');
-                    const isBackText = label.includes('back') || label.includes('назад') || label.includes('close') || label.includes('выйти');
-                    
-                    return isTopLeft && (hasBackIcon || isBackText);
-                });
-                return backBtn;
-            };
-
-            const physicalBtn = findTopLeftBack();
-            if (physicalBtn) {
-                physicalBtn.click();
-                report("✅ Нажата физическая кнопка 'Назад' (сверху слева)!");
-                return "DOM_CLICKED";
-            }
-            return "NOT_FOUND";
-        }
-    });
-
-    const status = exitResult[0].result;
-    lastGrokExitTime = Date.now(); // Mark as triggered
-
-    if (status !== "DOM_CLICKED") {
-        report("⚠️ Кнопка в углу не найдена. Пробую системный 'Назад'...");
-        try {
-            await chrome.tabs.goBack(grokTab.id);
-            report("✅ Выполнена системная команда 'Назад'!");
-        } catch (e) {
-            report("❌ Ошибка навигации. Выйдите из кадра вручную.");
-        }
+    report("🔄 Возврат на страницу генерации (grok.com/imagine)...");
+    try {
+        await chrome.tabs.update(grokTab.id, { url: "https://grok.com/imagine" });
+        report("✅ Переход выполнен!");
+    } catch (e) {
+        report("❌ Ошибка навигации: " + e.message);
     }
 
     report("⌛ Жду 5 сек для очистки Grok...");
