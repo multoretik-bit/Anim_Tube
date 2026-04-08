@@ -73,6 +73,17 @@
             </div>
         </div>
 
+        <div class="sidebar-user" style="margin-top: auto; padding: 20px; background: rgba(0,0,0,0.2); border-radius: 16px; border: 1px solid var(--border-glass);">
+            <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 15px;">
+                <div style="width: 32px; height: 32px; border-radius: 50%; background: var(--accent-primary); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px;">U</div>
+                <div>
+                    <div id="user-display-name" style="font-size: 13px; font-weight: 700;">User</div>
+                    <div id="user-display-role" style="font-size: 10px; color: var(--text-dim); text-transform: uppercase;">Role</div>
+                </div>
+            </div>
+            <button class="btn btn-danger" style="width: 100%; padding: 10px; font-size: 12px;" onclick="logout()">
+                🚪 Выход
+            </button>
         </div>
     </nav>
 
@@ -363,6 +374,26 @@
                     <input type="password" id="key-grok" style="width: 100%;">
                 </div>
                 <button class="btn btn-primary" style="width: 100%;" onclick="saveKeys()">Сохранить настройки</button>
+
+                <!-- ACCOUNT MANAGEMENT SECTION -->
+                <div style="margin-top: 40px; padding-top: 32px; border-top: 1px solid var(--border-glass);">
+                    <h3 style="margin-bottom: 12px;">👤 МОЙ АККАУНТ</h3>
+                    <div style="background: rgba(255,255,255,0.03); border-radius: 16px; padding: 20px; border: 1px solid var(--border-glass);">
+                        <div style="display: grid; grid-template-columns: 100px 1fr; gap: 10px; font-size: 13px;">
+                            <span style="color: var(--text-secondary);">IP Адрес:</span>
+                            <span id="account-ip">0.0.0.0</span>
+                            
+                            <span style="color: var(--text-secondary);">Логин:</span>
+                            <span id="account-login">guest</span>
+                            
+                            <span style="color: var(--text-secondary);">Роль:</span>
+                            <span id="account-role" style="color: var(--accent-primary); font-weight: 700;">USER</span>
+                            
+                            <span style="color: var(--text-secondary);">Вход:</span>
+                            <span id="account-session">00:00:00</span>
+                        </div>
+                    </div>
+                </div>
 
                 <!-- NEW: CLOUD DEPLOYMENT SECTION (v12.0) -->
                 <div style="margin-top: 40px; padding-top: 32px; border-top: 1px solid var(--border-glass);">

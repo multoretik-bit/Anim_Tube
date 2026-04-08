@@ -87,6 +87,23 @@ function applySecurityUI() {
     document.body.classList.remove('role-owner', 'role-partner');
     document.body.classList.add(`role-${authState.user.role}`);
     
+    // Sidebar User Display
+    const nameEl = document.getElementById('user-display-name');
+    const roleEl = document.getElementById('user-display-role');
+    if (nameEl) nameEl.innerText = authState.user.login;
+    if (roleEl) roleEl.innerText = authState.user.role;
+
+    // Settings Account Display
+    const accIp = document.getElementById('account-ip');
+    const accLogin = document.getElementById('account-login');
+    const accRole = document.getElementById('account-role');
+    const accSession = document.getElementById('account-session');
+    
+    if (accIp) accIp.innerText = userIP;
+    if (accLogin) accLogin.innerText = authState.user.login;
+    if (accRole) accRole.innerText = authState.user.role.toUpperCase();
+    if (accSession) accSession.innerText = new Date(authState.sessionStart).toLocaleTimeString();
+
     if (authState.user.role === 'partner') {
         document.getElementById('partner-hud').style.display = 'flex';
     } else {
