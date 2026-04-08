@@ -7,8 +7,8 @@ let db = null;
 
 // --- SECURITY CONFIG & STATE ---
 const WHITELIST = [
-    { login: "admin", pass: "admin123", code: "1", role: "owner", ip: "*" }, // Owner allows all IPs for testing
-    { login: "partner", pass: "partner123", code: "2", role: "partner", ip: "*" } // Example partner
+    { login: "admin", pass: "admin123", code: "3", role: "owner", ip: "184.22.78.203" }, // Owner allows all IPs for testing
+    { login: "partner", pass: "partner123", code: "2", role: "partner", ip: "184.22.78.202" } // Example partner
 ];
 
 let authState = JSON.parse(localStorage.getItem('animtube_auth') || '{"isLoggedIn": false, "user": null, "sessionStart": null, "lastActivity": null}');
