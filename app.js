@@ -7,9 +7,11 @@ let db = null;
 
 // --- SECURITY CONFIG & STATE ---
 const WHITELIST = [
-    { login: "Denis", pass: "n2]3)$$Y9oBC+Qp0", code: "990923063694295", role: "owner", ip: "184.22.78.202" }, // Owner allows all IPs for testing
-	{ login: "Test", pass: "12345", code: "12345", role: "partner", ip: "*" }, // Example partner
-    { login: "Alexey", pass: "k,y[5x_xb*+YbA+8", code: "108197259086133", role: "partner", ip: "184.22.78.202" } // Example partner
+    { login: "Denis", pass: "Ub1dFnfCFUzVRDv", code: "529952203893", role: "owner", ip: "184.22.78.202" }, // Owner allows all IPs for testing
+	{ login: "Alexander", pass: "0gX1t39fZMA2HY7", code: "984377574594", role: "partner", ip: "*" }, // Example partner
+	{ login: "Alexander", pass: "k8ocT1wRnkhMQij", code: "681523913214", role: "partner", ip: "*" }, // Example partner
+    { login: "Alexey", pass: "JAh92C36h3MkiMk", code: "255681851403", role: "partner", ip: "*" }, // Example partner
+    { login: "Andrey", pass: "sbduB1HtwgQeFav", code: "743088149512", role: "manager", ip: "*" } // Test Manager
 ];
 
 let authState = JSON.parse(localStorage.getItem('animtube_auth') || '{"isLoggedIn": false, "user": null, "sessionStart": null, "lastActivity": null}');
@@ -85,7 +87,7 @@ function applySecurityUI() {
     if (!authState.isLoggedIn) return;
     
     // Add role class to body
-    document.body.classList.remove('role-owner', 'role-partner');
+    document.body.classList.remove('role-owner', 'role-partner', 'role-manager');
     document.body.classList.add(`role-${authState.user.role}`);
     
     // Sidebar User Display
@@ -105,7 +107,7 @@ function applySecurityUI() {
     if (accRole) accRole.innerText = authState.user.role.toUpperCase();
     if (accSession) accSession.innerText = new Date(authState.sessionStart).toLocaleTimeString();
 
-    if (authState.user.role === 'partner') {
+    if (authState.user.role === 'partner' || authState.user.role === 'manager') {
         document.getElementById('partner-hud').style.display = 'flex';
     } else {
         document.getElementById('partner-hud').style.display = 'none';
@@ -113,7 +115,7 @@ function applySecurityUI() {
 }
 
 function startPartnerTimer() {
-    if (authState.user.role !== 'partner') return;
+    if (authState.user.role !== 'partner' && authState.user.role !== 'manager') return;
     
     const today = new Date().toLocaleDateString();
     let usage = JSON.parse(localStorage.getItem('animtube_usage') || '{}');
@@ -1008,8 +1010,9 @@ async function getAnimationFromDB(id) {
 // --- NAVIGATION ---
 function showPage(pageId) {
     // Navigation Guard
-    if (authState.user?.role === 'partner' && pageId === 'settings') {
-        logStatus("🚫 Доступ к настройкам запрещен для партнеров.", "error");
+    const role = authState.user?.role;
+    if ((role === 'partner' || role === 'manager') && pageId === 'settings') {
+        logStatus("🚫 Доступ к настройкам запрещен.", "error");
         return;
     }
 
@@ -1033,9 +1036,14 @@ function showPage(pageId) {
 }
 
 function switchProjectTab(tabId) {
-    // Navigation Guard for Partner
-    if (authState.user?.role === 'partner' && tabId === 'script') {
-        logStatus("🚫 Создание сценариев доступно только владельцу.", "error");
+    // Navigation Guard
+    const role = authState.user?.role;
+    if (role === 'partner' && tabId === 'script') {
+        logStatus("🚫 Создание сценариев доступно только владельцу (и менеджеру).", "error");
+        return;
+    }
+    if (role === 'manager' && (tabId === 'frames' || tabId === 'animation')) {
+        logStatus("🚫 Менеджеры не имеют доступа к генерации кадров и анимации.", "error");
         return;
     }
 

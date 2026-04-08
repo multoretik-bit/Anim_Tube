@@ -1730,6 +1730,14 @@ body.role-partner .partner-hidden {
     display: none !important;
 }
 
+body.role-manager .owner-only {
+    display: none !important;
+}
+
+body.role-manager .manager-hidden {
+    display: none !important;
+}
+
 /* Time Limit HUD */
 .partner-timer-hud {
     position: fixed;
