@@ -175,6 +175,15 @@
                 <div id="tab-content-prompts" class="tab-pane">
                     <div class="glass-panel" style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center;">
                         <h3 style="margin: 0;">✂️ РАЗДЕЛЕНИЕ СЦЕНАРИЯ НА КАДРЫ</h3>
+                        <div style="display: flex; gap: 12px;">
+                            <button class="btn btn-secondary" onclick="document.getElementById('scenario-file-upload').click()" style="padding: 10px 16px; font-size: 12px;">
+                                📥 Импорт .txt
+                            </button>
+                            <button class="btn btn-secondary" onclick="addManualScenario()" style="padding: 10px 16px; font-size: 12px;">
+                                ➕ Добавить вручную
+                            </button>
+                            <input type="file" id="scenario-file-upload" hidden accept=".txt" onchange="handleScenarioUpload(event)">
+                        </div>
                     </div>
 
                     <div id="scenarios-splitting-container" class="scenarios-list">
