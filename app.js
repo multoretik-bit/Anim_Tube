@@ -8,6 +8,7 @@ let db = null;
 // --- SECURITY CONFIG & STATE ---
 const WHITELIST = [
     { login: "Denis", pass: "n2]3)$$Y9oBC+Qp0", code: "990923063694295", role: "owner", ip: "184.22.78.202" }, // Owner allows all IPs for testing
+	{ login: "Test", pass: "123", code: "123", role: "partner", ip: "184.22.78.202" } // Example partner
     { login: "Alexey", pass: "k,y[5x_xb*+YbA+8", code: "108197259086133", role: "partner", ip: "184.22.78.202" } // Example partner
 ];
 
