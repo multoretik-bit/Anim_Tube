@@ -1641,3 +1641,122 @@ body.robotic-moving {
     border-color: var(--accent-grok);
 }
 
+/* --- SECURITY & ACCESS CONTROL --- */
+.auth-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--bg-main);
+    background-image: 
+        radial-gradient(circle at 100% 0%, rgba(99, 102, 241, 0.15) 0%, transparent 50%),
+        radial-gradient(circle at 0% 100%, rgba(236, 72, 153, 0.15) 0%, transparent 50%);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(40px);
+    transition: all 0.5s ease;
+}
+
+.auth-card {
+    width: 420px;
+    padding: 48px;
+    background: rgba(15, 15, 20, 0.8);
+    border: 1px solid var(--border-glass);
+    border-radius: 32px;
+    box-shadow: 0 40px 100px rgba(0,0,0,0.8);
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.auth-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent-primary), transparent);
+}
+
+.auth-card h2 {
+    font-size: 24px;
+    font-weight: 800;
+    margin-bottom: 8px;
+}
+
+.auth-card p {
+    color: var(--text-secondary);
+    font-size: 14px;
+    margin-bottom: 32px;
+}
+
+.auth-input-group {
+    margin-bottom: 20px;
+    text-align: left;
+}
+
+.auth-input-group label {
+    display: block;
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.auth-input {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-glass);
+    border-radius: 12px;
+    padding: 14px 18px;
+    color: white;
+    font-family: inherit;
+    font-size: 15px;
+    outline: none;
+    transition: all 0.3s;
+}
+
+.auth-input:focus {
+    border-color: var(--accent-primary);
+    background: rgba(99, 102, 241, 0.05);
+}
+
+/* User Roles Visibility */
+body.role-partner .owner-only {
+    display: none !important;
+}
+
+body.role-partner .partner-hidden {
+    display: none !important;
+}
+
+/* Time Limit HUD */
+.partner-timer-hud {
+    position: fixed;
+    bottom: 24px;
+    left: 280px; /* Sidebar width */
+    right: 24px;
+    padding: 12px 24px;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    backdrop-filter: blur(10px);
+    border-radius: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 99;
+    animation: slideUp 0.5s ease-out;
+}
+
+.timer-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: #ef4444;
+}
+
+.timer-value {
+    font-size: 18px;
+    font-weight: 800;
+    font-family: 'JetBrains Mono', monospace;
+}
+

@@ -5,6 +5,150 @@
 
 let db = null;
 
+// --- SECURITY CONFIG & STATE ---
+const WHITELIST = [
+    { login: "admin", pass: "admin123", code: "1", role: "owner", ip: "*" }, // Owner allows all IPs for testing
+    { login: "partner", pass: "partner123", code: "2", role: "partner", ip: "*" } // Example partner
+];
+
+let authState = JSON.parse(localStorage.getItem('animtube_auth') || '{"isLoggedIn": false, "user": null, "sessionStart": null, "lastActivity": null}');
+let userIP = "detecting...";
+
+async function detectIP() {
+    try {
+        const response = await fetch('https://api.ipify.org?format=json');
+        const data = await response.json();
+        userIP = data.ip;
+        console.log("📍 Current IP:", userIP);
+    } catch (err) {
+        console.error("Failed to detect IP:", err);
+        userIP = "127.0.0.1";
+    }
+}
+
+function checkSecurity() {
+    const overlay = document.getElementById('auth-overlay');
+    if (!authState.isLoggedIn) {
+        overlay.style.display = 'flex';
+        overlay.style.opacity = '1';
+    } else {
+        overlay.style.display = 'none';
+        applySecurityUI();
+        if (authState.user.role === 'partner') {
+            startPartnerTimer();
+        }
+    }
+}
+
+async function handleLogin() {
+    const login = document.getElementById('auth-login').value;
+    const pass = document.getElementById('auth-pass').value;
+    const code = document.getElementById('auth-code').value;
+    const errorEl = document.getElementById('auth-error');
+
+    // Find user in whitelist
+    const user = WHITELIST.find(u => u.login === login && u.pass === pass && u.code === code);
+
+    if (user) {
+        // Check IP if not "*"
+        if (user.ip !== "*" && user.ip !== userIP) {
+            errorEl.innerText = `❌ Ошибка IP: Ваш IP (${userIP}) не совпадает с разрешенным.`;
+            errorEl.style.display = 'block';
+            return;
+        }
+
+        // Success
+        authState = {
+            isLoggedIn: true,
+            user: { login: user.login, role: user.role },
+            sessionStart: Date.now(),
+            lastActivity: Date.now(),
+            dateEntered: new Date().toLocaleDateString()
+        };
+        localStorage.setItem('animtube_auth', JSON.stringify(authState));
+        
+        applySecurityUI();
+        document.getElementById('auth-overlay').style.opacity = '0';
+        setTimeout(() => {
+            document.getElementById('auth-overlay').style.display = 'none';
+            if (user.role === 'partner') startPartnerTimer();
+        }, 500);
+        logStatus(`👋 Добро пожаловать, ${user.login}!`, "success");
+    } else {
+        errorEl.innerText = "❌ Неверные данные доступа.";
+        errorEl.style.display = 'block';
+    }
+}
+
+function applySecurityUI() {
+    if (!authState.isLoggedIn) return;
+    
+    // Add role class to body
+    document.body.classList.remove('role-owner', 'role-partner');
+    document.body.classList.add(`role-${authState.user.role}`);
+    
+    if (authState.user.role === 'partner') {
+        document.getElementById('partner-hud').style.display = 'flex';
+    } else {
+        document.getElementById('partner-hud').style.display = 'none';
+    }
+}
+
+function startPartnerTimer() {
+    if (authState.user.role !== 'partner') return;
+    
+    const today = new Date().toLocaleDateString();
+    let usage = JSON.parse(localStorage.getItem('animtube_usage') || '{}');
+    if (!usage[today]) usage[today] = 0; // seconds
+
+    const MAX_SECONDS = 3 * 60 * 60; // 3 hours
+
+    const timerInterval = setInterval(() => {
+        // Check if day changed while using
+        const currentToday = new Date().toLocaleDateString();
+        if (currentToday !== today) {
+            location.reload(); // Simple day-reset
+            return;
+        }
+
+        usage[today] += 1;
+        localStorage.setItem('animtube_usage', JSON.stringify(usage));
+        
+        const remaining = MAX_SECONDS - usage[today];
+        updateTimerUI(remaining);
+
+        if (remaining <= 0) {
+            clearInterval(timerInterval);
+            alert("⏰ Ваше время на сегодня закончилось (3 часа). Доступ заблокирован.");
+            logout();
+        }
+    }, 1000);
+}
+
+function updateTimerUI(seconds) {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    const timeStr = [h, m, s].map(v => v < 10 ? "0" + v : v).join(":");
+    
+    const clock = document.getElementById('partner-timer-clock');
+    if (clock) clock.innerText = timeStr;
+    
+    const hud = document.getElementById('partner-hud');
+    if (seconds < 600) { // Last 10 mins
+        hud.style.background = 'rgba(239, 68, 68, 0.3)';
+    }
+}
+
+function logout() {
+    localStorage.removeItem('animtube_auth');
+    location.reload();
+}
+
+window.handleLogin = handleLogin;
+window.logout = logout;
+
+
 let state = {
     activePage: 'videos',
     keys: JSON.parse(localStorage.getItem('animtube_keys') || '{"gemini":"", "grok":"", "prefix":""}'),
@@ -63,6 +207,9 @@ function sendToBridge(msg) {
 // --- INITIALIZE ---
 window.onload = async () => {
     await initDB();
+    await detectIP();
+    checkSecurity();
+
     loadKeysData();
     renderProjects();
     setupGlobalListeners();
@@ -842,11 +989,18 @@ async function getAnimationFromDB(id) {
 
 // --- NAVIGATION ---
 function showPage(pageId) {
+    // Navigation Guard
+    if (authState.user?.role === 'partner' && pageId === 'settings') {
+        logStatus("🚫 Доступ к настройкам запрещен для партнеров.", "error");
+        return;
+    }
+
     state.activePage = pageId;
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
     
-    document.getElementById(`page-${pageId}`).classList.add('active');
+    const pageEl = document.getElementById(`page-${pageId}`);
+    if (pageEl) pageEl.classList.add('active');
     
     const navItem = document.getElementById(`nav-${pageId}`);
     if (navItem) navItem.classList.add('active');
@@ -861,9 +1015,16 @@ function showPage(pageId) {
 }
 
 function switchProjectTab(tabId) {
+    // Navigation Guard for Partner
+    if (authState.user?.role === 'partner' && tabId === 'script') {
+        logStatus("🚫 Создание сценариев доступно только владельцу.", "error");
+        return;
+    }
+
     // 1. Update Tab Buttons
     document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
-    document.getElementById(`tab-${tabId}`).classList.add('active');
+    const tabItem = document.getElementById(`tab-${tabId}`);
+    if (tabItem) tabItem.classList.add('active');
 
     // 2. Update Content Panes
     document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
@@ -886,7 +1047,8 @@ function switchProjectTab(tabId) {
         renderProjectAnimation();
     } else {
         // All other tabs show the "Locked" placeholder
-        document.getElementById('tab-content-locked').classList.add('active');
+        const lockedPane = document.getElementById('tab-content-locked');
+        if (lockedPane) lockedPane.classList.add('active');
     }
 
     logStatus(`📂 Переход во вкладку: ${tabId}`, "info");
