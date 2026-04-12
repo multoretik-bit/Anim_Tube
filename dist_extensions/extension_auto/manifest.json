@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "AnimTube Bridge (SUPER AUTO)",
+  "version": "1.1",
+  "permissions": ["activeTab", "scripting", "tabs"],
+  "host_permissions": ["<all_urls>", "https://chatgpt.com/*", "https://chat.openai.com/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>", "https://chatgpt.com/*", "https://chat.openai.com/*"],
+      "js": ["content_animtube.js"],
+      "run_at": "document_start"
+    }
+  ]
+}
