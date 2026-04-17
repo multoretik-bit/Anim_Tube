@@ -68,7 +68,7 @@
             <div class="nav-item" id="nav-assets" onclick="showPage('assets')">
                 <span class="nav-icon">📦</span> Библиотека Ассетов
             </div>
-            <div class="nav-item owner-only" id="nav-settings" onclick="showPage('settings')">
+            <!-- Settings tab removed as per user request -->
                 <span class="nav-icon">⚙️</span> Настройки
             </div>
         </div>
@@ -77,7 +77,7 @@
             <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 15px;">
                 <div style="width: 32px; height: 32px; border-radius: 50%; background: var(--accent-primary); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px;">U</div>
                 <div>
-                    <div id="user-display-name" style="font-size: 13px; font-weight: 700;">User</div>
+                    <div id="user-display-name" style="font-size: 13px; font-weight: 700; cursor: pointer;" onclick="openAccount()">User</div>
                     <div id="user-display-role" style="font-size: 10px; color: var(--text-dim); text-transform: uppercase;">Role</div>
                 </div>
             </div>
@@ -367,7 +367,7 @@
         </section>
 
         <!-- 3. SETTINGS PAGE -->
-        <section id="page-settings" class="page owner-only">
+        <!-- Settings page removed as per user request -->
             <div class="section-header">
                 <h2>Настройки</h2>
                 <p>Конфигурация API и системные параметры.</p>
@@ -449,7 +449,7 @@
             
             <div style="display: flex; gap: 12px;">
                 <button class="btn btn-primary" style="flex: 1;" onclick="saveFolderSettings()">Сохранить изменения</button>
-                <button class="btn btn-secondary" onclick="closeFolderSettings()">Отмена</button>
+                <button class="btn btn-secondary" onclick="// openFolderSettings function retained for other uses">Отмена</button>
             </div>
         </div>
     </div>
@@ -467,8 +467,7 @@
             </div>
 
             <div style="display: flex; gap: 12px;">
-                <button class="btn btn-secondary" onclick="closeSuperAutoModal()" style="flex: 1;">ОТМЕНА</button>
-                <button class="btn btn-primary" onclick="startSuperAutomation()" style="flex: 2;">ЗАПУСТИТЬ</button>
+                <!-- Folder settings and delete buttons removed -->
             </div>
         </div>
     </div>
