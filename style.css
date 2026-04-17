@@ -385,6 +385,7 @@ textarea:focus {
 }
 
 .lib-card:hover .lib-del-btn { opacity: 1; }
+.project-card:hover .lib-del-btn { opacity: 1; }
 
 /* --- MINI TERMINAL --- */
 .terminal {
