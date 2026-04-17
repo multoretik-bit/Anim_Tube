@@ -96,17 +96,6 @@ function applySecurityUI() {
     if (nameEl) nameEl.innerText = authState.user.login;
     if (roleEl) roleEl.innerText = authState.user.role;
 
-    // Settings Account Display
-    const accIp = document.getElementById('account-ip');
-    const accLogin = document.getElementById('account-login');
-    const accRole = document.getElementById('account-role');
-    const accSession = document.getElementById('account-session');
-    
-    if (accIp) accIp.innerText = userIP;
-    if (accLogin) accLogin.innerText = authState.user.login;
-    if (accRole) accRole.innerText = authState.user.role.toUpperCase();
-    if (accSession) accSession.innerText = new Date(authState.sessionStart).toLocaleTimeString();
-
     if (authState.user.role === 'partner' || authState.user.role === 'manager') {
         document.getElementById('partner-hud').style.display = 'flex';
     } else {
@@ -171,7 +160,6 @@ window.logout = logout;
 
 let state = {
     activePage: 'videos',
-    keys: JSON.parse(localStorage.getItem('animtube_keys') || '{"gemini":"", "grok":"", "prefix":""}'),
     projects: JSON.parse(localStorage.getItem('animtube_projects') || '[]'),
     folders: JSON.parse(localStorage.getItem('animtube_folders') || '[]'),
     currentFolderId: null,
@@ -230,7 +218,6 @@ window.onload = async () => {
     await detectIP();
     checkSecurity();
 
-    loadKeysData();
     renderProjects();
     setupGlobalListeners();
     updateAutoModeUI();
@@ -1009,13 +996,6 @@ async function getAnimationFromDB(id) {
 
 // --- NAVIGATION ---
 function showPage(pageId) {
-    // Navigation Guard
-    const role = authState.user?.role;
-    if ((role === 'partner' || role === 'manager') && pageId === 'settings') {
-        logStatus("🚫 Доступ к настройкам запрещен.", "error");
-        return;
-    }
-
     state.activePage = pageId;
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
@@ -1080,54 +1060,6 @@ function switchProjectTab(tabId) {
     logStatus(`📂 Переход во вкладку: ${tabId}`, "info");
 }
 
-window.updateProjectScriptPrefix = (prefix) => {
-    const project = getCurrentProject();
-    if (project) {
-        project.scriptPrefix = prefix;
-        saveState();
-        logStatus("✅ Префикс сценария обновлен.", "success");
-    }
-};
-
-window.updateProjectPrefix = (prefix) => {
-    // Legacy support or ignored. Prefixes are now folder-level.
-};
-
-function openFolderSettings(id, event) {
-    if (event) event.stopPropagation();
-    const folder = state.folders.find(f => f.id === id);
-    if (!folder) return;
-
-    state.editingFolderId = id;
-    
-    // Fill values
-    document.getElementById('modal-script-prefix').value = folder.scriptPrefix || "Напиши сценарий для серии...";
-    document.getElementById('modal-style-prefix').value = folder.prefix || DEFAULT_PREFIX;
-    document.getElementById('modal-split-prefix').value = folder.splitPrefix || "Please split this script into a chronological list of detailed image prompts for an animation. Format each line as 'Prompt N: [Description]'.";
-    
-    document.getElementById('folder-settings-overlay').classList.add('active');
-}
-
-function closeFolderSettings() {
-    document.getElementById('folder-settings-overlay').classList.remove('active');
-    state.editingFolderId = null;
-}
-
-function saveFolderSettings() {
-    const id = state.editingFolderId;
-    const folder = state.folders.find(f => f.id === id);
-    if (!folder) return;
-
-    folder.scriptPrefix = document.getElementById('modal-script-prefix').value;
-    folder.prefix = document.getElementById('modal-style-prefix').value;
-    folder.splitPrefix = document.getElementById('modal-split-prefix').value;
-    
-    saveState();
-    closeFolderSettings();
-    renderProjects();
-    logStatus(`✅ Настройки папки "${folder.name}" сохранены.`, "success");
-}
-
 function getFolderForProject(projectId) {
     const project = state.projects.find(p => p.id === projectId);
     if (!project || !project.folderId) return null;
@@ -1142,9 +1074,6 @@ function createNewFolder() {
     const newFolder = {
         id: Date.now(),
         name: name,
-        prefix: DEFAULT_PREFIX,
-        scriptPrefix: "Напиши подробный сценарий для серии мультфильма про...",
-        splitPrefix: "Please split this script into a chronological list of detailed image prompts for an animation. Format each line as 'Prompt N: [Description]'.",
         created: new Date().toLocaleDateString()
     };
 
@@ -1173,8 +1102,6 @@ function createNewProject() {
         id: Date.now(),
         name: name,
         folderId: state.currentFolderId, 
-        prefix: DEFAULT_PREFIX, 
-        scriptPrefix: "Напиши подробный сценарий для серии мультфильма про...",
         scripts: [],
         promptsText: "", 
         results: [],
@@ -1226,7 +1153,6 @@ function renderProjects() {
                 <div class="folder-icon">📂</div>
                 <div class="project-name">${f.name}</div>
                 <div class="project-meta">${projectCount} проектов • ${f.created}</div>
-                <button class="btn-folder-settings" onclick="openFolderSettings(${f.id}, event)" title="Настройки папки">⚙️</button>
                 <button class="lib-del-btn" onclick="event.stopPropagation(); deleteFolder(${f.id})" style="top: 20px;">×</button>
             `;
             container.appendChild(card);
@@ -1449,7 +1375,6 @@ async function downloadProjectFiles() {
 function saveState() {
     localStorage.setItem('animtube_projects', JSON.stringify(state.projects));
     localStorage.setItem('animtube_folders', JSON.stringify(state.folders));
-    localStorage.setItem('animtube_keys', JSON.stringify(state.keys));
 }
 
 // --- BATCH GENERATION ---
@@ -2002,48 +1927,6 @@ function logStatus(msg, type) {
     terminal.scrollTop = terminal.scrollHeight;
 }
 
-function loadKeysData() {
-    const keyGemini = document.getElementById('key-gemini');
-    if (keyGemini) keyGemini.value = state.keys.gemini || "";
-    
-    const keyGrok = document.getElementById('key-grok');
-    if (keyGrok) keyGrok.value = state.keys.grok || "";
-}
-
-function saveKeys() {
-    state.keys.gemini = document.getElementById('key-gemini').value;
-    state.keys.grok = document.getElementById('key-grok').value;
-    saveState();
-    logStatus("✅ API Ключи сохранены.", "success");
-}
-
-async function triggerDeployment() {
-    logStatus("🚀 Запуск процесса деплоя...", "info");
-    
-    // In a browser environment, we can't run .bat files directly.
-    // We show a professional instruction modal or just a clear guide.
-    const repoUrl = "https://github.com/multoretik-bit/Anim_Tube";
-    
-    const confirmMsg = `
-⚡ ГОТОВНОСТЬ К ДЕПЛОЮ ⚡
-----------------------------------
-Цель: ${repoUrl}
-
-Для завершения публикации:
-1. Запустите файл 'deploy.bat' в папке проекта.
-2. Введите сообщение для коммита.
-3. Дождитесь завершения (🎉 УСПЕШНО).
-
-Открыть ваш репозиторий в браузере сейчас?
-    `;
-    
-    if (confirm(confirmMsg)) {
-        window.open(repoUrl, '_blank');
-        logStatus("🌐 Репозиторий открыт. Ожидание запуска deploy.bat...", "success");
-    } else {
-        logStatus("ℹ️ Деплой отложен пользователем.", "info");
-    }
-}
 
 function createCursor() {
     const c = document.createElement('div');
