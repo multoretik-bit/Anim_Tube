@@ -70,15 +70,16 @@
             </div>
         </div>
 
-        <div class="sidebar-user" style="margin-top: auto; padding: 20px; background: rgba(0,0,0,0.2); border-radius: 16px; border: 1px solid var(--border-glass);">
+        <div class="sidebar-user" id="sidebar-user-card" style="margin-top: auto; padding: 20px; background: rgba(0,0,0,0.2); border-radius: 16px; border: 1px solid var(--border-glass); cursor: pointer; transition: border-color 0.2s, background 0.2s;" onclick="openAccount()" onmouseenter="this.style.borderColor='var(--accent-primary)'" onmouseleave="this.style.borderColor='var(--border-glass)'">
             <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 15px;">
-                <div style="width: 32px; height: 32px; border-radius: 50%; background: var(--accent-primary); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px;">U</div>
-                <div>
-                    <div id="user-display-name" style="font-size: 13px; font-weight: 700; cursor: pointer;" onclick="openAccount()">User</div>
-                    <div id="user-display-role" style="font-size: 10px; color: var(--text-dim); text-transform: uppercase;">Role</div>
+                <div id="user-avatar-letter" style="width: 36px; height: 36px; border-radius: 50%; background: var(--accent-primary); display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 15px; flex-shrink: 0;">U</div>
+                <div style="flex: 1; min-width: 0;">
+                    <div id="user-display-name" style="font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">User</div>
+                    <div id="user-display-role" style="font-size: 10px; color: var(--text-dim); text-transform: uppercase; margin-top: 2px;">Role</div>
                 </div>
+                <span style="font-size: 16px; color: var(--text-dim); flex-shrink: 0;">›</span>
             </div>
-            <button class="btn btn-danger" style="width: 100%; padding: 10px; font-size: 12px;" onclick="logout()">
+            <button class="btn btn-danger" style="width: 100%; padding: 10px; font-size: 12px;" onclick="event.stopPropagation(); logout()">
                 🚪 Выход
             </button>
         </div>
@@ -336,7 +337,13 @@
             </div>
         </section>
 
-        <!-- 3. SETTINGS PAGE (REMOVED) -->
+        <!-- 4. ACCOUNT PAGE -->
+        <section id="page-account" class="page">
+            <div id="account-page-content">
+                <!-- Filled dynamically via JS -->
+            </div>
+        </section>
+
     </main>
 
     

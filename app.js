@@ -93,8 +93,14 @@ function applySecurityUI() {
     // Sidebar User Display
     const nameEl = document.getElementById('user-display-name');
     const roleEl = document.getElementById('user-display-role');
+    const avatarEl = document.getElementById('user-avatar-letter');
     if (nameEl) nameEl.innerText = authState.user.login;
     if (roleEl) roleEl.innerText = authState.user.role;
+    if (avatarEl) {
+        avatarEl.innerText = authState.user.login.substring(0, 2).toUpperCase();
+        const roleColors = { 'owner': '#6366f1', 'partner': '#10b981', 'manager': '#f59e0b' };
+        avatarEl.style.background = roleColors[authState.user.role] || 'var(--accent-primary)';
+    }
 
     if (authState.user.role === 'partner' || authState.user.role === 'manager') {
         document.getElementById('partner-hud').style.display = 'flex';
@@ -156,6 +162,7 @@ function logout() {
 
 window.handleLogin = handleLogin;
 window.logout = logout;
+window.openAccount = () => showPage('account');
 
 
 let state = {
@@ -1008,6 +1015,7 @@ function showPage(pageId) {
     
     if (pageId === 'videos') renderProjects();
     if (pageId === 'assets') renderGlobalAssets();
+    if (pageId === 'account') renderAccountPage();
     if (pageId === 'workspace') {
         renderProjectScripts();
         renderProjectLibrary();
@@ -1068,12 +1076,13 @@ function getFolderForProject(projectId) {
 
 // --- FOLDER MANAGEMENT ---
 function createNewFolder() {
-    const name = prompt("Введите название папки (Большого проекта):", "Новая папка");
+    const name = prompt("Введите название папки (Канала):", "Новый канал");
     if (!name) return;
 
     const newFolder = {
         id: Date.now(),
         name: name,
+        ownedBy: authState.user ? authState.user.login : null,
         created: new Date().toLocaleDateString()
     };
 
@@ -1101,7 +1110,8 @@ function createNewProject() {
     const newProject = {
         id: Date.now(),
         name: name,
-        folderId: state.currentFolderId, 
+        folderId: state.currentFolderId,
+        ownedBy: authState.user ? authState.user.login : null,
         scripts: [],
         promptsText: "", 
         results: [],
@@ -1112,6 +1122,128 @@ function createNewProject() {
     state.projects.unshift(newProject);
     saveState();
     renderProjects();
+}
+
+// --- ACCOUNT PAGE ---
+function renderAccountPage() {
+    if (!authState.isLoggedIn) return;
+    const user = authState.user;
+    
+    const roleColors = { 'owner': '#6366f1', 'partner': '#10b981', 'manager': '#f59e0b' };
+    const roleLabels = { 'owner': '👑 ВЛАДЕЛЕЦ', 'partner': '🤝 ПАРТНЁР', 'manager': '📊 МЕНЕДЖЕР' };
+    const roleColor = roleColors[user.role] || '#6b7280';
+    const roleLabel = roleLabels[user.role] || user.role.toUpperCase();
+    const initials = user.login.substring(0, 2).toUpperCase();
+
+    const whitelistEntry = WHITELIST.find(u => u.login === user.login && u.role === user.role);
+    const code = whitelistEntry ? whitelistEntry.code : '——';
+    const sessionTime = authState.sessionStart ? new Date(authState.sessionStart).toLocaleTimeString() : '—';
+    const sessionDate = authState.sessionStart ? new Date(authState.sessionStart).toLocaleDateString() : '—';
+
+    // Determine "my" folders:
+    // Owner sees ALL. Partners/managers see only their own (or unowned = owner's)
+    const myFolders = user.role === 'owner'
+        ? state.folders
+        : state.folders.filter(f => f.ownedBy === user.login);
+
+    const totalProjects = myFolders.reduce((acc, f) =>
+        acc + state.projects.filter(p => p.folderId === f.id).length, 0
+    );
+
+    const folderCards = myFolders.map(f => {
+        const projCount = state.projects.filter(p => p.folderId === f.id).length;
+        return `
+            <div class="project-card folder-card" onclick="exitFolder(); openFolder(${f.id}); showPage('videos');" style="cursor:pointer; position:relative;">
+                <button class="lib-del-btn" onclick="event.stopPropagation(); deleteFolder(${f.id}); renderAccountPage();" style="top:10px; right:10px;">×</button>
+                <div class="folder-icon">📺</div>
+                <div class="project-name">${f.name}</div>
+                <div class="project-meta">${projCount} проектов • ${f.created || ''}</div>
+                <div style="margin-top: 8px; font-size: 10px; font-weight: 700; color: ${roleColor}; letter-spacing: 1px;">ОТКРЫТЬ КАНАЛ →</div>
+            </div>
+        `;
+    }).join('');
+
+    const container = document.getElementById('account-page-content');
+    if (!container) return;
+
+    container.innerHTML = `
+        <div class="section-header" style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom: 32px;">
+            <div>
+                <h2 style="margin:0;">👤 Личный кабинет</h2>
+                <p style="color: var(--text-secondary); margin-top: 6px;">Ваш профиль и персональные каналы AnimTube</p>
+            </div>
+            <button class="btn btn-secondary" onclick="showPage('videos')" style="padding: 10px 20px;">← Назад</button>
+        </div>
+
+        <!-- PROFILE CARD -->
+        <div class="glass-panel" style="display: grid; grid-template-columns: auto 1fr auto; gap: 32px; align-items: center; border: 2px solid ${roleColor}44; background: linear-gradient(135deg, ${roleColor}11 0%, rgba(0,0,0,0) 100%);">
+            
+            <!-- Avatar -->
+            <div style="width: 90px; height: 90px; border-radius: 50%; background: linear-gradient(135deg, ${roleColor}, ${roleColor}88); display:flex; align-items:center; justify-content:center; font-weight:900; font-size:32px; box-shadow: 0 0 40px ${roleColor}44; flex-shrink:0;">
+                ${initials}
+            </div>
+
+            <!-- Info -->
+            <div>
+                <div style="display:flex; align-items:center; gap:16px; margin-bottom:12px; flex-wrap:wrap;">
+                    <h2 style="margin:0; font-size:30px; font-weight:900;">${user.login}</h2>
+                    <span style="background:${roleColor}22; color:${roleColor}; border:1px solid ${roleColor}66; padding:5px 16px; border-radius:20px; font-size:11px; font-weight:800; letter-spacing:2px;">${roleLabel}</span>
+                </div>
+                <div style="display:grid; grid-template-columns: 140px 1fr; gap: 8px 16px; font-size:13px;">
+                    <span style="color:var(--text-dim); font-weight:700; text-transform:uppercase; font-size:11px; letter-spacing:1px;">Код доступа:</span>
+                    <span style="font-family:monospace; letter-spacing:3px; color:white; font-weight:800; font-size:15px;">${code}</span>
+                    <span style="color:var(--text-dim); font-weight:700; text-transform:uppercase; font-size:11px; letter-spacing:1px;">IP адрес:</span>
+                    <span style="color:var(--accent-primary); font-weight:600;">${userIP}</span>
+                    <span style="color:var(--text-dim); font-weight:700; text-transform:uppercase; font-size:11px; letter-spacing:1px;">Вход:</span>
+                    <span style="color:var(--text-secondary);">${sessionDate} в ${sessionTime}</span>
+                </div>
+            </div>
+
+            <!-- Stats -->
+            <div style="display:flex; flex-direction:column; gap:12px; text-align:center; flex-shrink:0;">
+                <div style="background:rgba(99,102,241,0.1); border:1px solid ${roleColor}44; border-radius:16px; padding:16px 28px;">
+                    <div style="font-size:36px; font-weight:900; color:${roleColor};">${myFolders.length}</div>
+                    <div style="font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:1.5px; margin-top:4px;">Каналов</div>
+                </div>
+                <div style="background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.2); border-radius:16px; padding:16px 28px;">
+                    <div style="font-size:36px; font-weight:900; color:#10b981;">${totalProjects}</div>
+                    <div style="font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:1.5px; margin-top:4px;">Проектов</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MY CHANNELS -->
+        <div style="margin-top:48px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
+                <div>
+                    <h3 style="margin:0; font-size:20px; font-weight:800; letter-spacing:1px;">📺 МОИ КАНАЛЫ</h3>
+                    <p style="color:var(--text-secondary); font-size:13px; margin-top:4px;">Папки с проектами, закреплённые за вашим аккаунтом</p>
+                </div>
+                <button class="btn btn-primary" onclick="createNewFolderForAccount()" style="padding:10px 20px;">
+                    📁 Создать канал
+                </button>
+            </div>
+
+            <div class="project-grid">
+                ${folderCards}
+                ${myFolders.length === 0 ? `
+                    <div style="grid-column:1/-1; text-align:center; padding:80px 20px; color:var(--text-dim); border: 2px dashed var(--border-glass); border-radius: 24px;">
+                        <div style="font-size:60px; margin-bottom:20px;">📫</div>
+                        <h3 style="color:var(--text-secondary); margin-bottom:8px;">У вас пока нет каналов</h3>
+                        <p>Нажмите «Создать канал», чтобы начать!</p>
+                    </div>
+                ` : ''}
+            </div>
+        </div>
+    `;
+}
+
+function createNewFolderForAccount() {
+    createNewFolder();
+    // Re-render account page after folder creation
+    setTimeout(() => {
+        if (state.activePage === 'account') renderAccountPage();
+    }, 100);
 }
 
 function renderProjects() {
