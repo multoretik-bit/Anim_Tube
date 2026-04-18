@@ -361,7 +361,8 @@
             </div>
 
             <div style="display: flex; gap: 12px;">
-                <!-- Folder settings and delete buttons removed -->
+                <button class="btn btn-secondary" style="flex: 1;" onclick="closeSuperAutoModal()">ОТМЕНА</button>
+                <button class="btn btn-primary" style="flex: 1;" onclick="startSuperAutomation()">ЗАПУСТИТЬ</button>
             </div>
         </div>
     </div>
@@ -374,18 +375,18 @@
             <p style="color: var(--text-secondary); margin-bottom: 24px; font-size: 14px;">Настройте базовые промпты для этого канала.</p>
             
             <div style="text-align: left; margin-bottom: 15px;">
-                <label style="display: block; font-size: 11px; font-weight: 800; color: var(--accent-primary); margin-bottom: 8px; text-transform: uppercase;">Промпт для кадров (Style Prefix)</label>
-                <textarea id="folder-prompt-prefix" placeholder="Напр: Create an image in Peppa Pig style..." style="height: 60px; font-size: 13px;"></textarea>
+                <label style="display: block; font-size: 11px; font-weight: 800; color: var(--accent-primary); margin-bottom: 8px; text-transform: uppercase;">Промт для кадров (Style Prefix)</label>
+                <textarea id="folder-prompt-prefix" placeholder="Напр: Create an image that closely resembles the style of the Peppa Pig cartoon..." style="height: 60px; font-size: 13px;"></textarea>
             </div>
 
             <div style="text-align: left; margin-bottom: 15px;">
                 <label style="display: block; font-size: 11px; font-weight: 800; color: var(--accent-success); margin-bottom: 8px; text-transform: uppercase;">Промт для разделения сценария</label>
-                <textarea id="folder-split-prefix" placeholder="Напр: Please split this script into image prompts..." style="height: 60px; font-size: 13px;"></textarea>
+                <textarea id="folder-split-prefix" placeholder="Напр: Тут 2 части одного сценария, работай только над одной..." style="height: 60px; font-size: 13px;"></textarea>
             </div>
 
             <div style="text-align: left; margin-bottom: 25px;">
                 <label style="display: block; font-size: 11px; font-weight: 800; color: var(--accent-chatgpt); margin-bottom: 8px; text-transform: uppercase;">Промт для сценария (Script Base)</label>
-                <textarea id="folder-script-prefix" placeholder="Напр: Напиши сценарий для серии про..." style="height: 60px; font-size: 13px;"></textarea>
+                <textarea id="folder-script-prefix" placeholder="Напр: Create another script based on a new idea..." style="height: 60px; font-size: 13px;"></textarea>
             </div>
 
             <div style="display: flex; gap: 12px;">

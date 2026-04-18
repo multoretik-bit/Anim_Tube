@@ -1167,9 +1167,9 @@ function submitCreateChannel() {
         color: currentChannelColor,
         ownedBy: authState.user ? authState.user.login : null,
         assignedTo: null,
-        prefix: "",
-        scriptPrefix: "",
-        splitPrefix: "",
+        prefix: "Create an image that closely resembles the style of the Peppa Pig cartoon, using the settings and art style of the Peppa Pig animated series: No text and a 1920×1080 frame. Делай в разных ракурсах, немного видоизменяй с предыдущего кадра",
+        scriptPrefix: "Create another script based on a new idea: \n-\nAt least 2,500 characters for the Russian version and 2,500 characters for the English version, for a total of 5,000 characters",
+        splitPrefix: "Тут 2 части одного сценария, работай только над одной, английской версией не трогая первую русскую половину. каждый промт сплошным текстом I need to create storyboards for my video based on the Peppa Pig animated series. Could you divide my script into 20 equal parts? Specify the room where the action takes place, such as: kitchen, livingroom, childrenroom, hallway For each part, please provide a written description of what the frame should look like—without any text or other elements—and specify the location, characters, and action. Write each frame as a single block of text; start each new one on a new line, and do this for all 20 of them. Называй локации именно так: Kitchen livingroom childrenroom hallway, если в этом моменте нет ни одной из локации, не называй её",
         created: new Date().toLocaleDateString()
     };
 
