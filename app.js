@@ -169,6 +169,7 @@ window.openAccount = () => showPage('account');
 window.handleChannelAvatarUpload = handleChannelAvatarUpload;
 window.closeCreateChannel = closeCreateChannel;
 window.submitCreateChannel = submitCreateChannel;
+window.createNewFolder = createNewFolder;
 
 let state = {
     activePage: 'videos',
@@ -1575,9 +1576,13 @@ function renderProjects() {
 }
 
 function deleteFolder(id) {
+    if (authState.user.role !== 'owner') {
+        alert("🚫 Удалять каналы может только Владелец.");
+        return;
+    }
     const folder = state.folders.find(f => f.id === id);
     if (!folder) return;
-    if (!confirm(`Удалить папку "${folder.name}"? Проекты внутри НЕ будут удалены, они переместятся в корень.`)) return;
+    if (!confirm(`Удалить канал "${folder.name}"? Проекты внутри НЕ будут удалены, они переместятся в корень.`)) return;
     
     state.projects.forEach(p => {
         if (p.folderId === id) p.folderId = null;
@@ -1586,7 +1591,7 @@ function deleteFolder(id) {
     state.folders = state.folders.filter(f => f.id !== id);
     saveState();
     renderProjects();
-    logStatus(`🗑️ Папка "${folder.name}" удалена.`, "info");
+    logStatus(`🗑️ Канал "${folder.name}" удалён.`, "info");
 }
 
 function deleteProject(id) {
