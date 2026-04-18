@@ -9,16 +9,33 @@ const SUPABASE_KEY = "sb_publishable_rMHUQggerdk7ixtXGSCvgA_0_SGQA8e";
 
 function getDB() {
     try {
-        // Try global supabase object (CDN v2)
         const lib = window.supabase;
-        if (lib && lib.createClient) {
-            console.log("📡 Инициализация Supabase Client...");
-            return lib.createClient(SUPABASE_URL, SUPABASE_KEY);
+        if (!lib) {
+            console.error("❌ Supabase library not found in window.supabase");
+            return null;
         }
-        console.warn("⚠️ Библиотека Supabase не найдена в window.supabase");
+
+        // Try standard createClient
+        const client = lib.createClient ? lib.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+        
+        if (client) {
+            if (typeof client.from === 'function') {
+                console.log("✅ Supabase Client initialized successfully.");
+                return client;
+            } else {
+                const keys = Object.keys(client).join(', ');
+                console.error("⚠️ Client created but .from is missing. Available keys: " + keys);
+                // Last ditch effort: maybe it's nested?
+                if (client.supabase && typeof client.supabase.from === 'function') return client.supabase;
+                throw new Error("Client structure invalid. Keys: " + (keys || "none"));
+            }
+        }
         return null;
     } catch (e) {
-        console.error("❌ Ошибка при создании клиента:", e);
+        console.error("❌ getDB Error:", e);
+        // Display error in UI if possible
+        const errBox = document.getElementById('cloud-error-box');
+        if (errBox) errBox.innerText = "Init Error: " + e.message;
         return null;
     }
 }
