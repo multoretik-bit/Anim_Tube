@@ -122,7 +122,8 @@ function renderSidebarProfile() {
         const roleLabels = { 'owner': '👑 ВЛАДЕЛЬЦУ', 'partner': '🤝 ПАРТНЁРУ', 'manager': '📊 МЕНЕДЖЕРУ' };
         roleEl.innerHTML = `
             ${roleLabels[user.role] || user.role.toUpperCase()} 
-            <span class="cloud-sync-btn" onclick="loadState()" title="Синхронизировать с облаком" style="cursor:pointer; margin-left:8px; opacity:0.6; transition:0.3s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6">☁️</span>
+            <span id="sync-status-dot" style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#6b7280; margin-left:8px; vertical-align:middle;" title="Статус облака"></span>
+            <span class="cloud-sync-btn" onclick="loadState()" title="Синхронизировать сейчас" style="cursor:pointer; margin-left:4px; opacity:0.6; transition:0.3s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6">☁️</span>
         `;
     }
     
@@ -1901,8 +1902,12 @@ async function saveState() {
         if (avatarData.length > 0) {
             await db.from('user_avatars').upsert(avatarData);
         }
+        const dot = document.getElementById('sync-status-dot');
+        if (dot) dot.style.background = '#10b981'; // Green
     } catch (err) {
         console.error("Supabase Sync Error:", err);
+        const dot = document.getElementById('sync-status-dot');
+        if (dot) dot.style.background = '#ef4444'; // Red
     }
 }
 
@@ -1947,9 +1952,13 @@ async function loadState() {
 
         renderProjects();
         renderSidebarProfile();
+        const dot = document.getElementById('sync-status-dot');
+        if (dot) dot.style.background = '#10b981'; // Green
         logStatus("✅ Облачная синхронизация завершена.", "success");
     } catch (err) {
         console.error("Cloud Load Failed:", err);
+        const dot = document.getElementById('sync-status-dot');
+        if (dot) dot.style.background = '#ef4444'; // Red
         logStatus("⚠️ Ошибка синхронизации. Работаем в локальном режиме.", "error");
     }
 }
