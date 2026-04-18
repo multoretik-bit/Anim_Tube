@@ -1908,6 +1908,8 @@ async function saveState() {
         console.error("Supabase Sync Error:", err);
         const dot = document.getElementById('sync-status-dot');
         if (dot) dot.style.background = '#ef4444'; // Red
+        const errorMsg = err.message || (err.error ? err.error.message : "Ошибка сохранения");
+        logStatus("⚠️ Ошибка сохранения в облако: " + errorMsg, "error");
     }
 }
 
@@ -1959,7 +1961,10 @@ async function loadState() {
         console.error("Cloud Load Failed:", err);
         const dot = document.getElementById('sync-status-dot');
         if (dot) dot.style.background = '#ef4444'; // Red
-        logStatus("⚠️ Ошибка синхронизации. Работаем в локальном режиме.", "error");
+        
+        // Show detailed error message to help the user debug
+        const errorMsg = err.message || (err.error ? err.error.message : "Неизвестная ошибка");
+        logStatus("⚠️ Ошибка синхронизации: " + errorMsg, "error");
     }
 }
 
