@@ -8,10 +8,19 @@ const SUPABASE_URL = "https://qyumcgwotdzalbsfdumh.supabase.co";
 const SUPABASE_KEY = "sb_publishable_rMHUQggerdk7ixtXGSCvgA_0_SGQA8e";
 
 function getDB() {
-    if (window.supabase && window.supabase.createClient) {
-        return window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    try {
+        // Try global supabase object (CDN v2)
+        const lib = window.supabase;
+        if (lib && lib.createClient) {
+            console.log("📡 Инициализация Supabase Client...");
+            return lib.createClient(SUPABASE_URL, SUPABASE_KEY);
+        }
+        console.warn("⚠️ Библиотека Supabase не найдена в window.supabase");
+        return null;
+    } catch (e) {
+        console.error("❌ Ошибка при создании клиента:", e);
+        return null;
     }
-    return null;
 }
 
 let db = null;
