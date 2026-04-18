@@ -1989,38 +1989,50 @@ async function loadState() {
         }
         logStatus("☁️ Синхронизация с облаком...", "info");
 
-        // Load Folders (Case-sensitive column names fix)
-        let fQuery = cloudDB.from('folders').select('*');
-        if (authState.user.role !== 'owner') {
-            // Using quotes for case-sensitive Postgres columns
-            fQuery = fQuery.or(`"assignedTo".eq.${authState.user.login},"ownedBy".eq.${authState.user.login}`);
-        }
-        const { data: fData, error: fErr } = await fQuery;
+        // 1. Load Cloud Folders
+        const { data: cloudFolders, error: fErr } = await fQuery;
         if (fErr) throw fErr;
-        if (fData) state.folders = fData;
-
-        // Load Projects
+        
+        // 2. Load Cloud Projects
         let pQuery = cloudDB.from('projects').select('*');
         if (authState.user.role !== 'owner') {
-            const visibleFolderIds = state.folders.map(f => f.id);
-            if (visibleFolderIds.length > 0) {
-                pQuery = pQuery.in('folderId', visibleFolderIds);
+            const cloudFolderIds = cloudFolders ? cloudFolders.map(f => f.id) : [];
+            const localFolderIds = state.folders.map(f => f.id);
+            const allFolderIds = [...new Set([...cloudFolderIds, ...localFolderIds])];
+            if (allFolderIds.length > 0) {
+                pQuery = pQuery.in('folderId', allFolderIds);
             } else {
                 pQuery = null;
             }
         }
-        
+        let cloudProjects = [];
         if (pQuery) {
             const { data: pData, error: pErr } = await pQuery;
             if (pErr) throw pErr;
-            if (pData) state.projects = pData;
+            cloudProjects = pData || [];
         }
 
-        // Load Avatars
+        // 3. SMART MERGE: Combine Local + Cloud (Local wins on conflict for existing user)
+        const mergeData = (localArr, cloudArr) => {
+            const map = new Map();
+            cloudArr.forEach(item => map.set(item.id, item));
+            localArr.forEach(item => map.set(item.id, item)); // Local overwrites cloud if ID matches
+            return Array.from(map.values());
+        };
+
+        if (cloudFolders) state.folders = mergeData(state.folders, cloudFolders);
+        if (cloudProjects) state.projects = mergeData(state.projects, cloudProjects);
+
+        // 4. Load Avatars
         const { data: aData } = await cloudDB.from('user_avatars').select('*');
         if (aData) {
-            aData.forEach(row => state.userAvatars[row.login] = row.avatar);
+            aData.forEach(row => {
+                if (!state.userAvatars[row.login]) state.userAvatars[row.login] = row.avatar;
+            });
         }
+
+        // 5. Initial Sync Back (Upload local data to cloud if it was just merged)
+        saveState(); 
 
         renderProjects();
         renderSidebarProfile();
