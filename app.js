@@ -3,7 +3,13 @@
  * Sequence: Text First -> Website Return -> Visual Copy -> ChatGPT Send
  */
 
-let db = null;
+// --- SUPABASE CONFIG (SYNC ENGINE v2.0) ---
+// ВСТАВЬТЕ ВАШИ ДАННЫЕ ИЗ SUPABASE SETTINGS -> API
+const SUPABASE_URL = "https://jjjkypymutcvrlngyhtt.supabase.co";
+const SUPABASE_KEY = "sb_publishable_L1a5vhq7PjjSh7QTIrPGRg_RO-bH6FN";
+const supabase = (typeof supabase !== 'undefined') ? supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+
+let db = supabase;
 
 // --- SECURITY CONFIG & STATE ---
 const WHITELIST = [
@@ -69,6 +75,8 @@ async function handleLogin() {
             dateEntered: new Date().toLocaleDateString()
         };
         localStorage.setItem('animtube_auth', JSON.stringify(authState));
+        
+        await loadState();
         
         applySecurityUI();
         document.getElementById('auth-overlay').style.opacity = '0';
@@ -251,6 +259,11 @@ window.onload = async () => {
     await initDB();
     await detectIP();
     checkSecurity();
+
+    // Cloud Sync if logged in
+    if (authState.isLoggedIn) {
+        await loadState();
+    }
 
     renderProjects();
     setupGlobalListeners();
@@ -1832,9 +1845,95 @@ async function downloadProjectFiles() {
 }
 
 
-function saveState() {
+async function saveState() {
+    // 1. Local Backup
     localStorage.setItem('animtube_projects', JSON.stringify(state.projects));
     localStorage.setItem('animtube_folders', JSON.stringify(state.folders));
+    localStorage.setItem('animtube_user_avatars', JSON.stringify(state.userAvatars));
+
+    if (!db || !authState.isLoggedIn) return;
+
+    // 2. Cloud Sync
+    try {
+        // Sync Folders
+        if (state.folders.length > 0) {
+            const foldersToSync = state.folders.map(f => ({
+                ...f,
+                ownedBy: f.ownedBy || authState.user.login // Ensure owner is set
+            }));
+            await db.from('folders').upsert(foldersToSync);
+        }
+
+        // Sync Projects (Save only important data to avoid payload limits)
+        if (state.projects.length > 0) {
+            const projectsToSync = state.projects.map(p => ({
+                id: p.id,
+                folderId: p.folderId,
+                name: p.name,
+                scripts: p.scripts,
+                promptsList: p.promptsList,
+                results: p.results,
+                assets: p.assets,
+                ownedBy: p.ownedBy || authState.user.login
+            }));
+            await db.from('projects').upsert(projectsToSync);
+        }
+
+        // Sync Avatars
+        const avatarData = Object.entries(state.userAvatars).map(([login, avatar]) => ({ login, avatar }));
+        if (avatarData.length > 0) {
+            await db.from('user_avatars').upsert(avatarData);
+        }
+    } catch (err) {
+        console.error("Supabase Sync Error:", err);
+    }
+}
+
+async function loadState() {
+    if (!db || !authState.isLoggedIn) return;
+
+    try {
+        logStatus("☁️ Синхронизация с облаком...", "info");
+
+        // Load Folders (Owner sees all, Partners see assigned/owned)
+        let fQuery = db.from('folders').select('*');
+        if (authState.user.role !== 'owner') {
+            fQuery = fQuery.or(`assignedTo.eq.${authState.user.login},ownedBy.eq.${authState.user.login}`);
+        }
+        const { data: fData, error: fErr } = await fQuery;
+        if (fErr) throw fErr;
+        if (fData) state.folders = fData;
+
+        // Load Projects
+        let pQuery = db.from('projects').select('*');
+        if (authState.user.role !== 'owner') {
+            const visibleFolderIds = state.folders.map(f => f.id);
+            if (visibleFolderIds.length > 0) {
+                pQuery = pQuery.in('folderId', visibleFolderIds);
+            } else {
+                pQuery = null;
+            }
+        }
+        
+        if (pQuery) {
+            const { data: pData, error: pErr } = await pQuery;
+            if (pErr) throw pErr;
+            if (pData) state.projects = pData;
+        }
+
+        // Load Avatars
+        const { data: aData } = await db.from('user_avatars').select('*');
+        if (aData) {
+            aData.forEach(row => state.userAvatars[row.login] = row.avatar);
+        }
+
+        renderProjects();
+        renderSidebarProfile();
+        logStatus("✅ Облачная синхронизация завершена.", "success");
+    } catch (err) {
+        console.error("Cloud Load Failed:", err);
+        logStatus("⚠️ Ошибка синхронизации. Работаем в локальном режиме.", "error");
+    }
 }
 
 // --- BATCH GENERATION ---
