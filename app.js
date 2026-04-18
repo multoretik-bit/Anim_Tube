@@ -1358,7 +1358,7 @@ function renderAccountPage() {
     // Owner sees ALL. Partners/managers see only their own (or unowned = owner's)
     const myFolders = user.role === 'owner'
         ? state.folders
-        : state.folders.filter(f => f.ownedBy === user.login);
+        : state.folders.filter(f => f.assignedTo === user.login || f.ownedBy === user.login);
 
     const totalProjects = myFolders.reduce((acc, f) =>
         acc + state.projects.filter(p => p.folderId === f.id).length, 0
@@ -1586,7 +1586,7 @@ function renderProjects() {
     if (!state.currentFolderId) {
         const visibleFolders = authState.user.role === 'owner' 
             ? state.folders 
-            : state.folders.filter(f => f.assignedTo === authState.user.login);
+            : state.folders.filter(f => f.assignedTo === authState.user.login || f.ownedBy === authState.user.login);
 
         if (visibleFolders.length === 1 && authState.user.role !== 'owner') {
             const f = visibleFolders[0];
