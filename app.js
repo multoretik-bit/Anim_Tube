@@ -40,7 +40,7 @@ function getDB() {
     }
 }
 
-let db = null;
+let cloudDB = null;
 
 // --- SECURITY CONFIG & STATE ---
 const WHITELIST = [
@@ -1913,8 +1913,8 @@ async function saveState() {
     localStorage.setItem('animtube_user_avatars', JSON.stringify(state.userAvatars));
 
     // Lazy DB Init
-    if (!db) db = getDB();
-    if (!db || !authState.isLoggedIn) return;
+    if (!cloudDB) cloudDB = getDB();
+    if (!cloudDB || !authState.isLoggedIn) return;
 
     // 2. Cloud Sync
     try {
@@ -1924,7 +1924,7 @@ async function saveState() {
                 ...f,
                 ownedBy: f.ownedBy || authState.user.login // Ensure owner is set
             }));
-            await db.from('folders').upsert(foldersToSync);
+            await cloudDB.from('folders').upsert(foldersToSync);
         }
 
         // Sync Projects (Save only important data to avoid payload limits)
@@ -1939,13 +1939,13 @@ async function saveState() {
                 assets: p.assets,
                 ownedBy: p.ownedBy || authState.user.login
             }));
-            await db.from('projects').upsert(projectsToSync);
+            await cloudDB.from('projects').upsert(projectsToSync);
         }
 
         // Sync Avatars
         const avatarData = Object.entries(state.userAvatars).map(([login, avatar]) => ({ login, avatar }));
         if (avatarData.length > 0) {
-            await db.from('user_avatars').upsert(avatarData);
+            await cloudDB.from('user_avatars').upsert(avatarData);
         }
         const dot = document.getElementById('sync-status-dot');
         const cDot = document.getElementById('cloud-status-indicator');
@@ -1974,15 +1974,23 @@ async function saveState() {
 }
 
 async function loadState() {
-    // Lazy DB Init
-    if (!db) db = getDB();
-    if (!db || !authState.isLoggedIn) return;
+    // Force re-init if current DB is broken
+    if (!cloudDB || typeof cloudDB.from !== 'function') {
+        cloudDB = getDB();
+    }
+    
+    if (!cloudDB || !authState.isLoggedIn) return;
 
     try {
+        // Double check .from before calling
+        if (typeof cloudDB.from !== 'function') {
+            const keys = Object.keys(cloudDB).join(', ');
+            throw new Error("cloudDB.from missing. Keys: " + (keys || "empty"));
+        }
         logStatus("☁️ Синхронизация с облаком...", "info");
 
         // Load Folders (Case-sensitive column names fix)
-        let fQuery = db.from('folders').select('*');
+        let fQuery = cloudDB.from('folders').select('*');
         if (authState.user.role !== 'owner') {
             // Using quotes for case-sensitive Postgres columns
             fQuery = fQuery.or(`"assignedTo".eq.${authState.user.login},"ownedBy".eq.${authState.user.login}`);
@@ -1992,7 +2000,7 @@ async function loadState() {
         if (fData) state.folders = fData;
 
         // Load Projects
-        let pQuery = db.from('projects').select('*');
+        let pQuery = cloudDB.from('projects').select('*');
         if (authState.user.role !== 'owner') {
             const visibleFolderIds = state.folders.map(f => f.id);
             if (visibleFolderIds.length > 0) {
@@ -2009,7 +2017,7 @@ async function loadState() {
         }
 
         // Load Avatars
-        const { data: aData } = await db.from('user_avatars').select('*');
+        const { data: aData } = await cloudDB.from('user_avatars').select('*');
         if (aData) {
             aData.forEach(row => state.userAvatars[row.login] = row.avatar);
         }
