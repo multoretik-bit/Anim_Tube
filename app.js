@@ -1079,13 +1079,21 @@ function getFolderForProject(projectId) {
 
 // --- FOLDER MANAGEMENT ---
 function createNewFolder() {
-    const name = prompt("Введите название папки (Канала):", "Новый канал");
+    if (authState.user.role !== 'owner') {
+        alert("🚫 Создавать новые каналы может только Владелец.");
+        return;
+    }
+    const name = prompt("Введите название канала (например, Peppa Dark):", "Новый канал");
     if (!name) return;
 
     const newFolder = {
         id: Date.now(),
         name: name,
         ownedBy: authState.user ? authState.user.login : null,
+        assignedTo: null,
+        prefix: "",
+        scriptPrefix: "",
+        splitPrefix: "",
         created: new Date().toLocaleDateString()
     };
 
@@ -1115,6 +1123,7 @@ function openFolderSettings(id) {
     document.getElementById('folder-settings-title').innerText = `⚙️ ${folder.name.toUpperCase()}`;
     document.getElementById('folder-prompt-prefix').value = folder.prefix || "";
     document.getElementById('folder-script-prefix').value = folder.scriptPrefix || "";
+    document.getElementById('folder-split-prefix').value = folder.splitPrefix || "";
     
     document.getElementById('folder-settings-overlay').style.display = 'flex';
 }
@@ -1131,6 +1140,7 @@ function saveFolderSettings() {
     if (folder) {
         folder.prefix = document.getElementById('folder-prompt-prefix').value;
         folder.scriptPrefix = document.getElementById('folder-script-prefix').value;
+        folder.splitPrefix = document.getElementById('folder-split-prefix').value;
         saveState();
         logStatus(`✅ Настройки папки "${folder.name}" сохранены.`, "success");
     }
@@ -1141,6 +1151,10 @@ function saveFolderSettings() {
 
 // --- PROJECT MANAGEMENT ---
 function createNewProject() {
+    if (!state.currentFolderId && authState.user.role !== 'owner') {
+        alert("⚠️ Пожалуйста, сначала войдите в ваш Канал, чтобы создать в нём проект.");
+        return;
+    }
     const name = prompt("Введите название видео-проекта:", "Новый проект");
     if (!name) return;
 
@@ -1274,8 +1288,83 @@ function renderAccountPage() {
                 ` : ''}
             </div>
         </div>
+        <!-- PARTNER MANAGEMENT (Owner Only) -->
+        ${user.role === 'owner' ? `
+        <div style="margin-top:64px; padding-top:48px; border-top:1px solid var(--border-glass);">
+            <div style="margin-bottom:32px;">
+                <h3 style="margin:0; font-size:20px; font-weight:800; letter-spacing:1px;">👥 УПРАВЛЕНИЕ ПАРТНЁРАМИ</h3>
+                <p style="color:var(--text-secondary); font-size:13px; margin-top:4px;">Назначьте каналы вашим сотрудникам для ведения.</p>
+            </div>
+
+            <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap:24px;">
+                ${WHITELIST.filter(u => u.role !== 'owner').map(u => {
+                    const assigned = state.folders.filter(f => f.assignedTo === u.login);
+                    return `
+                        <div class="glass-panel" style="padding:24px; border-radius:24px; background:rgba(255,255,255,0.02);">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                                <div style="display:flex; align-items:center; gap:12px;">
+                                    <div style="width:40px; height:40px; border-radius:50%; background:var(--accent-primary); display:flex; align-items:center; justify-content:center; font-weight:900;">${u.login[0]}</div>
+                                    <div>
+                                        <div style="font-weight:800; font-size:15px;">${u.login}</div>
+                                        <div style="font-size:10px; color:var(--text-dim); text-transform:uppercase;">${u.role}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div style="background:rgba(0,0,0,0.2); border-radius:16px; padding:16px;">
+                                <div style="font-size:11px; font-weight:800; color:var(--text-dim); text-transform:uppercase; margin-bottom:12px; letter-spacing:1px;">Назначенные каналы:</div>
+                                <div style="display:flex; flex-direction:column; gap:8px;">
+                                    ${assigned.length > 0 ? assigned.map(f => `
+                                        <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03); padding:8px 12px; border-radius:10px; border:1px solid var(--border-glass);">
+                                            <span style="font-size:13px; font-weight:600;">📺 ${f.name}</span>
+                                            <button class="btn-del-mini" onclick="unassignFolder(${f.id})" title="Отвязать канал">×</button>
+                                        </div>
+                                    `).join('') : '<div style="color:var(--text-dim); font-size:12px; font-style:italic;">Каналы не назначены</div>'}
+                                </div>
+                            </div>
+
+                            <div style="margin-top:20px;">
+                                <select onchange="assignFolderToUser(this.value, '${u.login}')" style="width:100%; background:var(--bg-glass); border:1px solid var(--border-glass); border-radius:12px; padding:12px; color:white; font-size:12px; outline:none; cursor:pointer;">
+                                    <option value="">+ Привязать новый канал...</option>
+                                    ${state.folders.filter(f => !f.assignedTo).map(f => `
+                                        <option value="${f.id}">${f.name}</option>
+                                    `).join('')}
+                                </select>
+                            </div>
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+        </div>
+        ` : ''}
     `;
 }
+
+// --- ASSIGNMENT LOGIC ---
+function assignFolderToUser(folderId, userLogin) {
+    if (!folderId) return;
+    const folder = state.folders.find(f => f.id == folderId);
+    if (folder) {
+        folder.assignedTo = userLogin;
+        saveState();
+        renderAccountPage();
+        logStatus(`✅ Канал "${folder.name}" назначен пользователю ${userLogin}.`, "success");
+    }
+}
+
+function unassignFolder(folderId) {
+    const folder = state.folders.find(f => f.id == folderId);
+    if (folder) {
+        const prevUser = folder.assignedTo;
+        folder.assignedTo = null;
+        saveState();
+        renderAccountPage();
+        logStatus(`ℹ️ Канал "${folder.name}" отвязан от пользователя ${prevUser}.`, "info");
+    }
+}
+
+window.assignFolderToUser = assignFolderToUser;
+window.unassignFolder = unassignFolder;
 
 function createNewFolderForAccount() {
     createNewFolder();
@@ -1295,9 +1384,9 @@ function renderProjects() {
     // 1. Handle Navigation Header (Breadcrumbs)
     if (state.currentFolderId) {
         const folder = state.folders.find(f => f.id === state.currentFolderId);
-        const folderName = folder ? folder.name : "Папка";
+        const folderName = folder ? folder.name : "Канал";
         
-        if (description) description.innerHTML = `<span style="color:var(--accent-primary); cursor:pointer;" onclick="exitFolder()">Мои Проекты</span> / <b>${folderName}</b>`;
+        if (description) description.innerHTML = `<span style="color:var(--accent-primary); cursor:pointer;" onclick="exitFolder()">Мои Каналы</span> / <b>${folderName}</b>`;
         
         // Add "Back" button as first item
         const backBtn = document.createElement('div');
@@ -1309,23 +1398,47 @@ function renderProjects() {
         `;
         container.appendChild(backBtn);
     } else {
-        if (description) description.innerText = "Управляйте своими анимационными проектами по папкам.";
+        if (description) description.innerText = "Управляйте своими анимационными каналами и проектами.";
     }
 
     // 2. Render Folders (only at root)
     if (!state.currentFolderId) {
-        state.folders.forEach(f => {
+        const visibleFolders = authState.user.role === 'owner' 
+            ? state.folders 
+            : state.folders.filter(f => f.assignedTo === authState.user.login);
+
+        if (visibleFolders.length === 1 && authState.user.role !== 'owner') {
+            const f = visibleFolders[0];
+            const projectCount = state.projects.filter(p => p.folderId === f.id).length;
+            container.innerHTML = `
+                <div class="featured-channel-card" onclick="openFolder(${f.id})" style="grid-column: 1/-1;">
+                    <div class="channel-main-info">
+                        <div class="folder-badge" style="position:static; margin-bottom:15px; width:fit-content;">АКТИВНЫЙ КАНАЛ</div>
+                        <div style="font-size: 60px; margin-bottom: 20px;">📺</div>
+                        <h1 style="font-size: 42px; font-weight: 900; margin-bottom: 10px;">${f.name}</h1>
+                        <p style="color: var(--text-secondary); font-size: 16px;">${projectCount} активных проектов • Ведущий: ${authState.user.login}</p>
+                    </div>
+                    <div class="channel-actions">
+                         <button class="btn btn-primary" style="padding: 15px 40px; font-size: 16px;">ОТКРЫТЬ СТУДИЮ КАНАЛА →</button>
+                         <button class="btn-folder-settings" onclick="event.stopPropagation(); openFolderSettings(${f.id})" style="position:static; width:50px; height:50px; font-size:24px;">⚙️</button>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+
+        visibleFolders.forEach(f => {
             const projectCount = state.projects.filter(p => p.folderId === f.id).length;
             const card = document.createElement('div');
             card.className = "project-card folder-card";
             card.onclick = () => openFolder(f.id);
             card.innerHTML = `
-                <div class="folder-badge">ПАПКА</div>
+                <div class="folder-badge">КАНАЛ</div>
                 <button class="btn-folder-settings" onclick="event.stopPropagation(); openFolderSettings(${f.id})" title="Настройки промптов">⚙️</button>
                 <div class="folder-icon">📂</div>
                 <div class="project-name">${f.name}</div>
                 <div class="project-meta">${projectCount} проектов • ${f.created}</div>
-                <button class="lib-del-btn" onclick="event.stopPropagation(); deleteFolder(${f.id})" style="top: 50px;">×</button>
+                <button class="lib-del-btn role-owner-only" onclick="event.stopPropagation(); deleteFolder(${f.id})" style="top: 50px;">×</button>
             `;
             container.appendChild(card);
         });
@@ -1333,6 +1446,14 @@ function renderProjects() {
 
     // 3. Render Projects (filtered by current folder)
     const filteredProjects = state.projects.filter(p => p.folderId === state.currentFolderId);
+    
+    // Non-owners can't see root projects if they are not in a folder
+    if (!state.currentFolderId && authState.user.role !== 'owner') {
+        if (container.children.length === 0) {
+            container.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 100px; color: var(--text-dim);">У вас пока нет назначенных каналов.</div>`;
+        }
+        return;
+    }
     
     if (filteredProjects.length === 0 && !state.currentFolderId && state.folders.length === 0) {
         container.innerHTML = `
