@@ -6,11 +6,15 @@
 // --- SUPABASE CONFIG (SYNC ENGINE v2.0) ---
 const SUPABASE_URL = "https://qyumcgwotdzalbsfdumh.supabase.co";
 const SUPABASE_KEY = "sb_publishable_rMHUQggerdk7ixtXGSCvgA_0_SGQA8e";
-const supabaseClient = (window.supabase && window.supabase.createClient) 
-    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) 
-    : null;
 
-let db = supabaseClient;
+function getDB() {
+    if (window.supabase && window.supabase.createClient) {
+        return window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    }
+    return null;
+}
+
+let db = null;
 
 // --- SECURITY CONFIG & STATE ---
 const WHITELIST = [
@@ -1882,6 +1886,8 @@ async function saveState() {
     localStorage.setItem('animtube_folders', JSON.stringify(state.folders));
     localStorage.setItem('animtube_user_avatars', JSON.stringify(state.userAvatars));
 
+    // Lazy DB Init
+    if (!db) db = getDB();
     if (!db || !authState.isLoggedIn) return;
 
     // 2. Cloud Sync
@@ -1942,6 +1948,8 @@ async function saveState() {
 }
 
 async function loadState() {
+    // Lazy DB Init
+    if (!db) db = getDB();
     if (!db || !authState.isLoggedIn) return;
 
     try {
