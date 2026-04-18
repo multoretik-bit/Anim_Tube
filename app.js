@@ -166,7 +166,9 @@ window.openFolderSettings = openFolderSettings;
 window.closeFolderSettings = closeFolderSettings;
 window.saveFolderSettings = saveFolderSettings;
 window.openAccount = () => showPage('account');
-
+window.handleChannelAvatarUpload = handleChannelAvatarUpload;
+window.closeCreateChannel = closeCreateChannel;
+window.submitCreateChannel = submitCreateChannel;
 
 let state = {
     activePage: 'videos',
@@ -1077,18 +1079,91 @@ function getFolderForProject(projectId) {
     return state.folders.find(f => f.id === project.folderId);
 }
 
-// --- FOLDER MANAGEMENT ---
+// --- CHANNEL MANAGEMENT (v1.4) ---
+let currentChannelAvatar = null;
+let currentChannelColor = '#6366f1';
+
 function createNewFolder() {
     if (authState.user.role !== 'owner') {
         alert("🚫 Создавать новые каналы может только Владелец.");
         return;
     }
-    const name = prompt("Введите название канала (например, Peppa Dark):", "Новый канал");
-    if (!name) return;
+    
+    // Reset modal
+    document.getElementById('new-channel-name').value = "";
+    document.getElementById('new-channel-niche').value = "";
+    document.getElementById('channel-avatar-preview').innerHTML = '<span style="font-size: 30px;">🖼️</span>';
+    document.getElementById('channel-avatar-preview').style.borderColor = 'var(--border-glass)';
+    currentChannelAvatar = null;
+    currentChannelColor = '#6366f1';
+
+    document.getElementById('create-channel-overlay').style.display = 'flex';
+}
+
+function closeCreateChannel() {
+    document.getElementById('create-channel-overlay').style.display = 'none';
+}
+
+function handleChannelAvatarUpload(input) {
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const imgUrl = e.target.result;
+            currentChannelAvatar = imgUrl;
+            document.getElementById('channel-avatar-preview').innerHTML = `<img src="${imgUrl}" style="width:100%; height:100%; object-fit:cover;">`;
+            
+            // Extract dominant color
+            extractDominantColor(imgUrl, (color) => {
+                currentChannelColor = color;
+                document.getElementById('channel-avatar-preview').style.borderColor = color;
+                document.getElementById('channel-avatar-preview').style.boxShadow = `0 0 20px ${color}44`;
+            });
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+
+function extractDominantColor(imgUrl, callback) {
+    const img = new Image();
+    img.src = imgUrl;
+    img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = 50; canvas.height = 50;
+        ctx.drawImage(img, 0, 0, 50, 50);
+        const data = ctx.getImageData(0, 0, 50, 50).data;
+        
+        let r=0, g=0, b=0;
+        for(let i=0; i<data.length; i+=4) {
+            r += data[i]; g += data[i+1]; b += data[i+2];
+        }
+        r = Math.floor(r/(data.length/4));
+        g = Math.floor(g/(data.length/4));
+        b = Math.floor(b/(data.length/4));
+        
+        // Ensure color is not too dark
+        const brightness = (r*299 + g*587 + b*114) / 1000;
+        if (brightness < 80) { r += 50; g += 50; b += 50; }
+        
+        callback(`rgb(${r}, ${g}, ${b})`);
+    };
+}
+
+function submitCreateChannel() {
+    const name = document.getElementById('new-channel-name').value.trim();
+    const niche = document.getElementById('new-channel-niche').value.trim();
+    
+    if (!name) {
+        alert("Пожалуйста, введите название канала.");
+        return;
+    }
 
     const newFolder = {
         id: Date.now(),
         name: name,
+        niche: niche || "Без ниши",
+        avatar: currentChannelAvatar,
+        color: currentChannelColor,
         ownedBy: authState.user ? authState.user.login : null,
         assignedTo: null,
         prefix: "",
@@ -1099,8 +1174,12 @@ function createNewFolder() {
 
     state.folders.unshift(newFolder);
     saveState();
+    logStatus(`✅ Канал "${name}" успешно создан!`, "success");
+    closeCreateChannel();
     renderProjects();
-    logStatus(`📁 Папка "${name}" создана.`, "success");
+    
+    // If we are in account page, re-render it
+    if (state.activePage === 'account') renderAccountPage();
 }
 
 function openFolder(id) {
@@ -1410,16 +1489,23 @@ function renderProjects() {
         if (visibleFolders.length === 1 && authState.user.role !== 'owner') {
             const f = visibleFolders[0];
             const projectCount = state.projects.filter(p => p.folderId === f.id).length;
+            const channelColor = f.color || 'var(--accent-primary)';
+            
             container.innerHTML = `
-                <div class="featured-channel-card" onclick="openFolder(${f.id})" style="grid-column: 1/-1;">
-                    <div class="channel-main-info">
-                        <div class="folder-badge" style="position:static; margin-bottom:15px; width:fit-content;">АКТИВНЫЙ КАНАЛ</div>
-                        <div style="font-size: 60px; margin-bottom: 20px;">📺</div>
-                        <h1 style="font-size: 42px; font-weight: 900; margin-bottom: 10px;">${f.name}</h1>
-                        <p style="color: var(--text-secondary); font-size: 16px;">${projectCount} активных проектов • Ведущий: ${authState.user.login}</p>
+                <div class="featured-channel-card" onclick="openFolder(${f.id})" style="grid-column: 1/-1; border-color: ${channelColor}; box-shadow: 0 30px 60px ${channelColor}22;">
+                    <div class="channel-main-info" style="display:flex; align-items:center; gap:40px;">
+                        <div style="width:180px; height:180px; border-radius:40px; overflow:hidden; border:4px solid ${channelColor}; flex-shrink:0; box-shadow: 0 0 30px ${channelColor}44;">
+                            ${f.avatar ? `<img src="${f.avatar}" style="width:100%; height:100%; object-fit:cover;">` : `<div style="width:100%; height:100%; background:${channelColor}22; display:flex; align-items:center; justify-content:center; font-size:60px;">📺</div>`}
+                        </div>
+                        <div>
+                            <div class="folder-badge" style="background:${channelColor}; margin-bottom:15px; width:fit-content; position:static;">АКТИВНЫЙ КАНАЛ</div>
+                            <h1 style="font-size: 48px; font-weight: 900; margin-bottom: 5px;">${f.name}</h1>
+                            <div style="color:${channelColor}; font-weight:800; text-transform:uppercase; letter-spacing:2px; font-size:14px; margin-bottom:15px;">🚀 ${f.niche || 'Общая ниша'}</div>
+                            <p style="color: var(--text-secondary); font-size: 16px;">${projectCount} активных проектов • Ведущий: ${authState.user.login}</p>
+                        </div>
                     </div>
                     <div class="channel-actions">
-                         <button class="btn btn-primary" style="padding: 15px 40px; font-size: 16px;">ОТКРЫТЬ СТУДИЮ КАНАЛА →</button>
+                         <button class="btn btn-primary" style="background:${channelColor}; padding: 15px 40px; font-size: 16px; box-shadow: 0 10px 20px ${channelColor}44;">ОТКРЫТЬ СТУДИЮ →</button>
                          <button class="btn-folder-settings" onclick="event.stopPropagation(); openFolderSettings(${f.id})" style="position:static; width:50px; height:50px; font-size:24px;">⚙️</button>
                     </div>
                 </div>
@@ -1429,14 +1515,19 @@ function renderProjects() {
 
         visibleFolders.forEach(f => {
             const projectCount = state.projects.filter(p => p.folderId === f.id).length;
+            const channelColor = f.color || 'var(--accent-primary)';
             const card = document.createElement('div');
             card.className = "project-card folder-card";
+            card.style.borderColor = `${channelColor}44`;
             card.onclick = () => openFolder(f.id);
             card.innerHTML = `
-                <div class="folder-badge">КАНАЛ</div>
+                <div class="folder-badge" style="background:${channelColor}">КАНАЛ</div>
                 <button class="btn-folder-settings" onclick="event.stopPropagation(); openFolderSettings(${f.id})" title="Настройки промптов">⚙️</button>
-                <div class="folder-icon">📂</div>
+                <div style="width:80px; height:80px; border-radius:20px; overflow:hidden; margin-bottom:10px; border:2px solid ${channelColor}44;">
+                    ${f.avatar ? `<img src="${f.avatar}" style="width:100%; height:100%; object-fit:cover;">` : `<div style="width:100%; height:100%; background:${channelColor}11; display:flex; align-items:center; justify-content:center; font-size:30px;">📂</div>`}
+                </div>
                 <div class="project-name">${f.name}</div>
+                <div style="font-size:10px; font-weight:800; color:${channelColor}; text-transform:uppercase; letter-spacing:1px; margin-top:-8px;">${f.niche || '—'}</div>
                 <div class="project-meta">${projectCount} проектов • ${f.created}</div>
                 <button class="lib-del-btn role-owner-only" onclick="event.stopPropagation(); deleteFolder(${f.id})" style="top: 50px;">×</button>
             `;

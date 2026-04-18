@@ -395,6 +395,34 @@
         </div>
     </div>
 
+    <!-- MODAL: Create Channel -->
+    <div id="create-channel-overlay" class="modal-overlay">
+        <div class="modal" style="width: 500px;">
+            <div style="font-size: 40px; margin-bottom: 20px;">📡</div>
+            <h2 style="margin-bottom: 12px;">СОЗДАТЬ НОВЫЙ КАНАЛ</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 24px; font-size: 14px;">Настройте внешний вид вашего канала для работы.</p>
+            
+            <div style="display: flex; gap: 20px; margin-bottom: 24px; align-items: center;">
+                <div id="channel-avatar-preview" style="width: 100px; height: 100px; border-radius: 20px; border: 2px dashed var(--border-glass); background: var(--bg-glass); display: flex; align-items: center; justify-content: center; flex-shrink: 0; position: relative; overflow: hidden; cursor: pointer;" onclick="document.getElementById('channel-avatar-input').click()">
+                    <span style="font-size: 30px;">🖼️</span>
+                </div>
+                <div style="flex: 1; text-align: left;">
+                    <label style="display: block; font-size: 11px; font-weight: 800; color: var(--accent-primary); margin-bottom: 8px; text-transform: uppercase;">Название канала</label>
+                    <input type="text" id="new-channel-name" placeholder="Напр: Peppa Dark" style="width: 100%; background: var(--bg-glass); border: 1px solid var(--border-glass); border-radius: 12px; padding: 12px; color: white; margin-bottom: 12px;">
+                    <label style="display: block; font-size: 11px; font-weight: 800; color: var(--accent-chatgpt); margin-bottom: 8px; text-transform: uppercase;">Ниша / Тематика</label>
+                    <input type="text" id="new-channel-niche" placeholder="Напр: Хоррор сказки" style="width: 100%; background: var(--bg-glass); border: 1px solid var(--border-glass); border-radius: 12px; padding: 12px; color: white;">
+                </div>
+            </div>
+            
+            <input type="file" id="channel-avatar-input" accept="image/*" style="display: none;" onchange="handleChannelAvatarUpload(this)">
+
+            <div style="display: flex; gap: 12px;">
+                <button class="btn btn-secondary" style="flex: 1;" onclick="closeCreateChannel()">ОТМЕНА</button>
+                <button class="btn btn-primary" style="flex: 1;" onclick="submitCreateChannel()">СОЗДАТЬ КАНАЛ</button>
+            </div>
+        </div>
+    </div>
+
     <script src="app.js"></script>
 </body>
 </html>
