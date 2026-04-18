@@ -76,7 +76,8 @@ async function handleLogin() {
         };
         localStorage.setItem('animtube_auth', JSON.stringify(authState));
         
-        await loadState();
+        // Non-blocking Cloud Sync
+        loadState().catch(e => console.error("Initial cloud load failed:", e));
         
         applySecurityUI();
         document.getElementById('auth-overlay').style.opacity = '0';
@@ -256,20 +257,24 @@ function sendToBridge(msg) {
 
 // --- INITIALIZE ---
 window.onload = async () => {
-    await initDB();
-    await detectIP();
+    try {
+        await initDB();
+    } catch (e) { console.error("DB Init failed:", e); }
+    
+    // 1. Render UI immediately
     checkSecurity();
-
-    // Cloud Sync if logged in
-    if (authState.isLoggedIn) {
-        await loadState();
-    }
-
     renderProjects();
     setupGlobalListeners();
     updateAutoModeUI();
-    console.log("🚀 AnimTube v1.2 loaded.");
-    logStatus("✨ AnimTube v1.2 Ready.", "success");
+
+    // 2. Background tasks
+    detectIP().catch(e => console.error("IP Detect failed:", e));
+
+    if (authState.isLoggedIn) {
+        loadState().catch(e => console.error("Initial load failed:", e));
+    }
+
+    console.log("🚀 AnimTube v1.2.3 loaded.");
 };
 
 function setupGlobalListeners() {
