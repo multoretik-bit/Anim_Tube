@@ -424,6 +424,22 @@
         </div>
     </div>
 
+    <!-- MODAL: User Avatar Upload -->
+    <div id="avatar-upload-overlay" class="modal-overlay">
+        <div class="modal" style="width: 400px;">
+            <div style="font-size: 40px; margin-bottom: 20px;">🖼️</div>
+            <h2 id="avatar-modal-title" style="margin-bottom: 12px;">ВАШ АВАТАР</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 24px; font-size: 14px;">Выберите изображение для вашего профиля.</p>
+            
+            <input type="file" id="user-avatar-input" accept="image/*" style="display: none;" onchange="handleUserAvatarUpload(this)">
+
+            <div style="display: flex; gap: 12px;">
+                <button class="btn btn-secondary" style="flex: 1;" onclick="closeAvatarModal()">ОТМЕНА</button>
+                <button class="btn btn-primary" style="flex: 1;" onclick="submitUserAvatar()">ВЫБРАТЬ ФАЙЛ</button>
+            </div>
+        </div>
+    </div>
+
     <script src="app.js"></script>
 </body>
 </html>

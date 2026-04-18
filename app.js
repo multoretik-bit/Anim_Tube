@@ -90,18 +90,35 @@ function applySecurityUI() {
     document.body.classList.remove('role-owner', 'role-partner', 'role-manager');
     document.body.classList.add(`role-${authState.user.role}`);
     
-    // Sidebar User Display
+    renderSidebarProfile();
+}
+
+function renderSidebarProfile() {
+    const user = authState.user;
+    if (!user) return;
+
     const nameEl = document.getElementById('user-display-name');
     const roleEl = document.getElementById('user-display-role');
     const avatarEl = document.getElementById('user-avatar-letter');
-    if (nameEl) nameEl.innerText = authState.user.login;
-    if (roleEl) roleEl.innerText = authState.user.role;
-    if (avatarEl) {
-        avatarEl.innerText = authState.user.login.substring(0, 2).toUpperCase();
-        const roleColors = { 'owner': '#6366f1', 'partner': '#10b981', 'manager': '#f59e0b' };
-        avatarEl.style.background = roleColors[authState.user.role] || 'var(--accent-primary)';
+    
+    if (nameEl) nameEl.innerText = user.login;
+    if (roleEl) {
+        const roleLabels = { 'owner': '👑 ВЛАДЕЛЬЦУ', 'partner': '🤝 ПАРТНЁРУ', 'manager': '📊 МЕНЕДЖЕРУ' };
+        roleEl.innerText = roleLabels[user.role] || user.role.toUpperCase();
     }
-
+    
+    if (avatarEl) {
+        const userAvatar = state.userAvatars[user.login];
+        if (userAvatar) {
+            avatarEl.innerHTML = `<img src="${userAvatar}" style="width:100%; height:100%; object-fit:cover; border-radius:50%;">`;
+            avatarEl.style.background = 'transparent';
+        } else {
+            avatarEl.innerText = user.login.substring(0, 2).toUpperCase();
+            const roleColors = { 'owner': '#6366f1', 'partner': '#10b981', 'manager': '#f59e0b' };
+            avatarEl.style.background = roleColors[user.role] || 'var(--accent-primary)';
+        }
+    }
+}
     if (authState.user.role === 'partner' || authState.user.role === 'manager') {
         document.getElementById('partner-hud').style.display = 'flex';
     } else {
@@ -166,6 +183,9 @@ window.openFolderSettings = openFolderSettings;
 window.closeFolderSettings = closeFolderSettings;
 window.saveFolderSettings = saveFolderSettings;
 window.openAccount = () => showPage('account');
+window.openAvatarModal = openAvatarModal;
+window.handleUserAvatarUpload = handleUserAvatarUpload;
+window.submitUserAvatar = submitUserAvatar;
 window.handleChannelAvatarUpload = handleChannelAvatarUpload;
 window.closeCreateChannel = closeCreateChannel;
 window.submitCreateChannel = submitCreateChannel;
@@ -175,6 +195,7 @@ let state = {
     activePage: 'videos',
     projects: JSON.parse(localStorage.getItem('animtube_projects') || '[]'),
     folders: JSON.parse(localStorage.getItem('animtube_folders') || '[]'),
+    userAvatars: JSON.parse(localStorage.getItem('animtube_user_avatars') || '{}'),
     currentFolderId: null,
     activeProjectId: null,
     assembly: {
@@ -1179,8 +1200,41 @@ function submitCreateChannel() {
     closeCreateChannel();
     renderProjects();
     
-    // If we are in account page, re-render it
     if (state.activePage === 'account') renderAccountPage();
+}
+
+// --- USER AVATAR MANAGEMENT (v1.5) ---
+let activeAvatarTarget = null; // null for self, or login for partner
+
+function openAvatarModal(targetLogin = null) {
+    activeAvatarTarget = targetLogin;
+    const title = targetLogin ? `Аватар для ${targetLogin}` : "Ваш аватар";
+    document.getElementById('avatar-modal-title').innerText = title;
+    document.getElementById('avatar-upload-overlay').style.display = 'flex';
+}
+
+function closeAvatarModal() {
+    document.getElementById('avatar-upload-overlay').style.display = 'none';
+}
+
+function handleUserAvatarUpload(input) {
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const base64 = e.target.result;
+            state.userAvatars[activeAvatarTarget || authState.user.login] = base64;
+            saveState();
+            renderAccountPage();
+            renderSidebarProfile();
+            closeAvatarModal();
+            logStatus("✅ Аватар успешно обновлен!", "success");
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+
+function submitUserAvatar() {
+    document.getElementById('user-avatar-input').click();
 }
 
 function openFolder(id) {
@@ -1283,17 +1337,22 @@ function renderAccountPage() {
 
     const folderCards = myFolders.map(f => {
         const projCount = state.projects.filter(p => p.folderId === f.id).length;
+        const channelColor = f.color || 'var(--accent-primary)';
         return `
-            <div class="project-card folder-card" onclick="exitFolder(); openFolder(${f.id}); showPage('videos');" style="cursor:pointer; position:relative;">
-                <div class="folder-badge">ПАПКА</div>
-                <button class="btn-folder-settings" onclick="event.stopPropagation(); openFolderSettings(${f.id})" title="Настройки промптов">⚙️</button>
-                <button class="lib-del-btn" onclick="event.stopPropagation(); deleteFolder(${f.id}); renderAccountPage();" style="top:50px; right:10px;">×</button>
-                <div class="folder-icon">📺</div>
-                <div class="project-name">${f.name}</div>
-                <div class="project-meta">${projCount} проектов • ${f.created || ''}</div>
-                <div style="margin-top: 8px; font-size: 10px; font-weight: 700; color: ${roleColor}; letter-spacing: 1px;">ОТКРЫТЬ КАНАЛ →</div>
-            </div>
-        `;
+                <div class="project-card folder-card" onclick="exitFolder(); openFolder(${f.id}); showPage('videos');" style="cursor:pointer; position:relative; border-color: ${channelColor}44; padding: 24px; border-radius: 24px;">
+                    <div class="folder-badge" style="background:${channelColor}">КАНАЛ</div>
+                    <button class="btn-folder-settings" onclick="event.stopPropagation(); openFolderSettings(${f.id})" title="Настройки промптов">⚙️</button>
+                    
+                    <div style="width:64px; height:64px; border-radius:18px; overflow:hidden; margin-bottom:12px; border:2px solid ${channelColor}44;">
+                        ${f.avatar ? `<img src="${f.avatar}" style="width:100%; height:100%; object-fit:cover;">` : `<div style="width:100%; height:100%; background:${channelColor}11; display:flex; align-items:center; justify-content:center; font-size:24px;">📺</div>`}
+                    </div>
+                    
+                    <div class="project-name" style="font-size:18px; font-weight:800;">${f.name}</div>
+                    <div style="font-size:10px; font-weight:800; color:${channelColor}; text-transform:uppercase; letter-spacing:1px; margin-top:-4px; margin-bottom:8px;">${f.niche || 'Общая ниша'}</div>
+                    <div class="project-meta">${projCount} проектов • ${f.created || ''}</div>
+                    <div style="margin-top: 12px; font-size: 10px; font-weight: 800; color: ${channelColor}; letter-spacing: 1.5px; text-transform:uppercase;">Открыть студию →</div>
+                </div>
+            `;
     }).join('');
 
     const container = document.getElementById('account-page-content');
@@ -1308,40 +1367,43 @@ function renderAccountPage() {
             <button class="btn btn-secondary" onclick="showPage('videos')" style="padding: 10px 20px;">← Назад</button>
         </div>
 
-        <!-- PROFILE CARD -->
-        <div class="glass-panel" style="display: grid; grid-template-columns: auto 1fr auto; gap: 32px; align-items: center; border: 2px solid ${roleColor}44; background: linear-gradient(135deg, ${roleColor}11 0%, rgba(0,0,0,0) 100%);">
+        <!-- PROFILE CARD (Premium Design) -->
+        <div class="glass-panel" style="display: grid; grid-template-columns: auto 1fr auto; gap: 40px; align-items: center; padding: 40px; border-radius: 32px; border: 1px solid rgba(255,255,255,0.05); background: linear-gradient(145deg, rgba(255,255,255,0.03) 0%, rgba(0,0,0,0.2) 100%);">
             
-            <!-- Avatar -->
-            <div style="width: 90px; height: 90px; border-radius: 50%; background: linear-gradient(135deg, ${roleColor}, ${roleColor}88); display:flex; align-items:center; justify-content:center; font-weight:900; font-size:32px; box-shadow: 0 0 40px ${roleColor}44; flex-shrink:0;">
-                ${initials}
+            <!-- Avatar Section -->
+            <div style="position: relative; flex-shrink: 0;">
+                <div style="width: 120px; height: 120px; border-radius: 40px; overflow: hidden; border: 3px solid ${roleColor}66; box-shadow: 0 20px 40px ${roleColor}22; background: ${roleColor}11; display:flex; align-items:center; justify-content:center;">
+                    ${state.userAvatars[user.login] ? `<img src="${state.userAvatars[user.login]}" style="width:100%; height:100%; object-fit:cover;">` : `<span style="font-size:48px; font-weight:900; color:${roleColor}">${initials}</span>`}
+                </div>
+                <button class="btn-avatar-edit" onclick="openAvatarModal()" style="position: absolute; bottom: -10px; right: -10px; width: 40px; height: 40px; border-radius: 12px; background: white; color: black; border: none; font-size: 18px; cursor: pointer; box-shadow: 0 10px 20px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; transition: transform 0.2s;" onmouseenter="this.style.transform='scale(1.1)'" onmouseleave="this.style.transform='scale(1)'">📸</button>
             </div>
 
-            <!-- Info -->
+            <!-- Info Section -->
             <div>
-                <div style="display:flex; align-items:center; gap:16px; margin-bottom:12px; flex-wrap:wrap;">
-                    <h2 style="margin:0; font-size:30px; font-weight:900;">${user.login}</h2>
-                    <span style="background:${roleColor}22; color:${roleColor}; border:1px solid ${roleColor}66; padding:5px 16px; border-radius:20px; font-size:11px; font-weight:800; letter-spacing:2px;">${roleLabel}</span>
+                <div style="display:flex; align-items:center; gap:20px; margin-bottom:12px;">
+                    <h1 style="margin:0; font-size:36px; font-weight:900; letter-spacing:-1px;">${user.login}</h1>
+                    <span style="background:${roleColor}22; color:${roleColor}; border:1px solid ${roleColor}44; padding:6px 18px; border-radius:12px; font-size:10px; font-weight:900; letter-spacing:2px; text-transform:uppercase;">${roleLabel}</span>
                 </div>
-                <div style="display:grid; grid-template-columns: 140px 1fr; gap: 8px 16px; font-size:13px;">
-                    <span style="color:var(--text-dim); font-weight:700; text-transform:uppercase; font-size:11px; letter-spacing:1px;">Код доступа:</span>
-                    <span style="font-family:monospace; letter-spacing:3px; color:white; font-weight:800; font-size:15px;">${code}</span>
-                    <span style="color:var(--text-dim); font-weight:700; text-transform:uppercase; font-size:11px; letter-spacing:1px;">IP адрес:</span>
-                    <span style="color:var(--accent-primary); font-weight:600;">${userIP}</span>
-                    <span style="color:var(--text-dim); font-weight:700; text-transform:uppercase; font-size:11px; letter-spacing:1px;">Вход:</span>
-                    <span style="color:var(--text-secondary);">${sessionDate} в ${sessionTime}</span>
+                <div style="display:flex; gap:32px; opacity:0.7; font-size:13px;">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <span style="font-size:11px; font-weight:800; color:var(--text-dim);">ЛОГИН:</span>
+                        <span style="font-weight:700;">${user.login}</span>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <span style="font-size:11px; font-weight:800; color:var(--text-dim);">IP:</span>
+                        <span style="font-weight:700; color:var(--accent-primary);">${userIP}</span>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <span style="font-size:11px; font-weight:800; color:var(--text-dim);">КОД:</span>
+                        <span style="font-family:monospace; font-weight:700;">${code}</span>
+                    </div>
                 </div>
             </div>
 
-            <!-- Stats -->
-            <div style="display:flex; flex-direction:column; gap:12px; text-align:center; flex-shrink:0;">
-                <div style="background:rgba(99,102,241,0.1); border:1px solid ${roleColor}44; border-radius:16px; padding:16px 28px;">
-                    <div style="font-size:36px; font-weight:900; color:${roleColor};">${myFolders.length}</div>
-                    <div style="font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:1.5px; margin-top:4px;">Каналов</div>
-                </div>
-                <div style="background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.2); border-radius:16px; padding:16px 28px;">
-                    <div style="font-size:36px; font-weight:900; color:#10b981;">${totalProjects}</div>
-                    <div style="font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:1.5px; margin-top:4px;">Проектов</div>
-                </div>
+            <!-- Profile Settings Button -->
+            <div style="text-align: right;">
+                 <div style="font-size: 11px; font-weight: 800; color: var(--text-dim); text-transform: uppercase; margin-bottom: 8px;">Последний вход</div>
+                 <div style="font-size: 14px; font-weight: 600;">${sessionDate} <span style="opacity:0.5; font-weight:400;">в ${sessionTime}</span></div>
             </div>
         </div>
 
@@ -1376,36 +1438,45 @@ function renderAccountPage() {
                 <p style="color:var(--text-secondary); font-size:13px; margin-top:4px;">Назначьте каналы вашим сотрудникам для ведения.</p>
             </div>
 
-            <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap:24px;">
+            <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap:32px;">
                 ${WHITELIST.filter(u => u.role !== 'owner').map(u => {
                     const assigned = state.folders.filter(f => f.assignedTo === u.login);
+                    const userAvatar = state.userAvatars[u.login];
                     return `
-                        <div class="glass-panel" style="padding:24px; border-radius:24px; background:rgba(255,255,255,0.02);">
-                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-                                <div style="display:flex; align-items:center; gap:12px;">
-                                    <div style="width:40px; height:40px; border-radius:50%; background:var(--accent-primary); display:flex; align-items:center; justify-content:center; font-weight:900;">${u.login[0]}</div>
+                        <div class="glass-panel" style="padding:32px; border-radius:32px; background:rgba(255,255,255,0.01); border:1px solid rgba(255,255,255,0.05); transition:transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s;" onmouseenter="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 20px 40px rgba(0,0,0,0.3)';" onmouseleave="this.style.transform='none'; this.style.boxShadow='none';">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:28px;">
+                                <div style="display:flex; align-items:center; gap:16px;">
+                                    <div style="width:56px; height:56px; border-radius:20px; overflow:hidden; background:var(--accent-primary); display:flex; align-items:center; justify-content:center; font-weight:900; font-size:20px; box-shadow: 0 10px 20px rgba(99,102,241,0.2);">
+                                        ${userAvatar ? `<img src="${userAvatar}" style="width:100%; height:100%; object-fit:cover;">` : u.login[0]}
+                                    </div>
                                     <div>
-                                        <div style="font-weight:800; font-size:15px;">${u.login}</div>
-                                        <div style="font-size:10px; color:var(--text-dim); text-transform:uppercase;">${u.role}</div>
+                                        <div style="font-weight:900; font-size:18px; letter-spacing:-0.5px;">${u.login}</div>
+                                        <div style="font-size:10px; color:var(--accent-primary); font-weight:800; text-transform:uppercase; letter-spacing:1.5px;">${u.role}</div>
                                     </div>
                                 </div>
+                                <button class="btn-avatar-edit" onclick="openAvatarModal('${u.login}')" style="width:36px; height:36px; border-radius:10px; background:rgba(255,255,255,0.05); border:1px solid var(--border-glass); color:white; font-size:14px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.2s;" title="Изменить аватар сотрудника" onmouseenter="this.style.background='white'; this.style.color='black'" onmouseleave="this.style.background='rgba(255,255,255,0.05)'; this.style.color='white'">👤</button>
                             </div>
                             
-                            <div style="background:rgba(0,0,0,0.2); border-radius:16px; padding:16px;">
-                                <div style="font-size:11px; font-weight:800; color:var(--text-dim); text-transform:uppercase; margin-bottom:12px; letter-spacing:1px;">Назначенные каналы:</div>
-                                <div style="display:flex; flex-direction:column; gap:8px;">
+                            <div style="background:rgba(0,0,0,0.3); border-radius:24px; padding:20px; border:1px solid rgba(255,255,255,0.03);">
+                                <div style="font-size:11px; font-weight:900; color:var(--text-dim); text-transform:uppercase; margin-bottom:16px; letter-spacing:1.5px; opacity:0.6;">АКТИВНЫЕ КАНАЛЫ:</div>
+                                <div style="display:flex; flex-direction:column; gap:12px;">
                                     ${assigned.length > 0 ? assigned.map(f => `
-                                        <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03); padding:8px 12px; border-radius:10px; border:1px solid var(--border-glass);">
-                                            <span style="font-size:13px; font-weight:600;">📺 ${f.name}</span>
-                                            <button class="btn-del-mini" onclick="unassignFolder(${f.id})" title="Отвязать канал">×</button>
+                                        <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); padding:10px 16px; border-radius:14px; border:1px solid rgba(255,255,255,0.05);">
+                                            <div style="display:flex; align-items:center; gap:12px;">
+                                                <div style="width:28px; height:28px; border-radius:8px; overflow:hidden; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.1); flex-shrink:0;">
+                                                    ${f.avatar ? `<img src="${f.avatar}" style="width:100%; height:100%; object-fit:cover;">` : '<span style="font-size:12px; display:flex; align-items:center; justify-content:center; height:100%;">📺</span>'}
+                                                </div>
+                                                <span style="font-size:14px; font-weight:700;">${f.name}</span>
+                                            </div>
+                                            <button class="btn-del-mini" onclick="unassignFolder(${f.id})" title="Отвязать канал" style="opacity:0.4; transition:opacity 0.2s;" onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0.4'">×</button>
                                         </div>
-                                    `).join('') : '<div style="color:var(--text-dim); font-size:12px; font-style:italic;">Каналы не назначены</div>'}
+                                    `).join('') : '<div style="color:var(--text-dim); font-size:13px; font-style:italic; padding:10px; text-align:center;">Нет назначенных каналов</div>'}
                                 </div>
                             </div>
 
-                            <div style="margin-top:20px;">
-                                <select onchange="assignFolderToUser(this.value, '${u.login}')" style="width:100%; background:var(--bg-glass); border:1px solid var(--border-glass); border-radius:12px; padding:12px; color:white; font-size:12px; outline:none; cursor:pointer;">
-                                    <option value="">+ Привязать новый канал...</option>
+                            <div style="margin-top:24px;">
+                                <select onchange="assignFolderToUser(this.value, '${u.login}')" style="width:100%; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.1); border-radius:16px; padding:14px; color:white; font-size:12px; font-weight:700; outline:none; cursor:pointer; transition:all 0.2s; appearance:none;" onfocus="this.style.borderColor='var(--accent-primary)'; this.style.background='rgba(255,255,255,0.05)';" onblur="this.style.borderColor='rgba(255,255,255,0.1)'; this.style.background='rgba(255,255,255,0.03)';">
+                                    <option value="" style="background:#0a0a0c;">+ ПРИВЯЗАТЬ НОВЫЙ КАНАЛ...</option>
                                     ${state.folders.filter(f => !f.assignedTo).map(f => `
                                         <option value="${f.id}">${f.name}</option>
                                     `).join('')}

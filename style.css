@@ -105,10 +105,10 @@ body {
 }
 
 .nav-item.active {
-    background: rgba(99, 102, 241, 0.1);
-    color: var(--text-primary);
-    border-color: rgba(99, 102, 241, 0.2);
-    box-shadow: 0 4px 20px rgba(99, 102, 241, 0.1);
+    background: linear-gradient(135deg, var(--accent-primary) 0%, #4f46e5 100%);
+    color: #fff;
+    box-shadow: 0 10px 20px rgba(99, 102, 241, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .nav-icon { font-size: 18px; }
@@ -932,6 +932,27 @@ textarea:focus {
     background: var(--accent-primary);
     color: white;
     box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+}
+
+/* --- SIDEBAR PROFILE --- */
+.sidebar-user {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sidebar-user:hover {
+    background: rgba(255,255,255,0.05) !important;
+    border-color: rgba(255,255,255,0.1) !important;
+}
+
+/* --- AVATAR EDIT BTN --- */
+.btn-avatar-edit {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-avatar-edit:hover {
+    background: var(--accent-primary) !important;
+    color: white !important;
+    transform: scale(1.1) rotate(10deg);
 }
 
 .tab-item.locked {
