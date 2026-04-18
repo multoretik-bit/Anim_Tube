@@ -4,8 +4,8 @@
  */
 
 // --- SUPABASE CONFIG (SYNC ENGINE v2.0) ---
-const SUPABASE_URL = "https://jjjkypymutcvrlngyhtt.supabase.co";
-const SUPABASE_KEY = "sb_publishable_L1a5vhq7PjjSh7QTIrPGRg_RO-bH6FN";
+const SUPABASE_URL = "https://qyumcgwotdzalbsfdumh.supabase.co";
+const SUPABASE_KEY = "sb_publishable_rMHUQggerdk7ixtXGSCvgA_0_SGQA8e";
 const supabaseClient = (window.supabase && window.supabase.createClient) 
     ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) 
     : null;
