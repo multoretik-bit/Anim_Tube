@@ -4,12 +4,13 @@
  */
 
 // --- SUPABASE CONFIG (SYNC ENGINE v2.0) ---
-// ВСТАВЬТЕ ВАШИ ДАННЫЕ ИЗ SUPABASE SETTINGS -> API
 const SUPABASE_URL = "https://jjjkypymutcvrlngyhtt.supabase.co";
 const SUPABASE_KEY = "sb_publishable_L1a5vhq7PjjSh7QTIrPGRg_RO-bH6FN";
-const supabase = (typeof supabase !== 'undefined') ? supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+const supabaseClient = (window.supabase && window.supabase.createClient) 
+    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) 
+    : null;
 
-let db = supabase;
+let db = supabaseClient;
 
 // --- SECURITY CONFIG & STATE ---
 const WHITELIST = [
@@ -76,7 +77,11 @@ async function handleLogin() {
         };
         localStorage.setItem('animtube_auth', JSON.stringify(authState));
         
-        await loadState();
+        try {
+            await loadState();
+        } catch (e) {
+            console.error("Cloud load failed, continuing locally:", e);
+        }
         
         applySecurityUI();
         document.getElementById('auth-overlay').style.opacity = '0';
@@ -256,20 +261,25 @@ function sendToBridge(msg) {
 
 // --- INITIALIZE ---
 window.onload = async () => {
-    await initDB();
-    await detectIP();
+    try {
+        await initDB();
+    } catch (e) { console.error("DB Init failed:", e); }
+    
+    // Non-blocking IP detection
+    detectIP().then(() => checkSecurity());
+    
+    // Initial UI check (will show login or workspace)
     checkSecurity();
 
-    // Cloud Sync if logged in
+    // Cloud Sync if logged in (non-blocking)
     if (authState.isLoggedIn) {
-        await loadState();
+        loadState().catch(e => console.error("Initial load failed:", e));
     }
 
     renderProjects();
     setupGlobalListeners();
     updateAutoModeUI();
-    console.log("🚀 AnimTube v1.2 loaded.");
-    logStatus("✨ AnimTube v1.2 Ready.", "success");
+    console.log("🚀 AnimTube v1.2.1 loaded.");
 };
 
 function setupGlobalListeners() {
