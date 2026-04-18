@@ -120,7 +120,10 @@ function renderSidebarProfile() {
     if (nameEl) nameEl.innerText = user.login;
     if (roleEl) {
         const roleLabels = { 'owner': '👑 ВЛАДЕЛЬЦУ', 'partner': '🤝 ПАРТНЁРУ', 'manager': '📊 МЕНЕДЖЕРУ' };
-        roleEl.innerText = roleLabels[user.role] || user.role.toUpperCase();
+        roleEl.innerHTML = `
+            ${roleLabels[user.role] || user.role.toUpperCase()} 
+            <span class="cloud-sync-btn" onclick="loadState()" title="Синхронизировать с облаком" style="cursor:pointer; margin-left:8px; opacity:0.6; transition:0.3s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6">☁️</span>
+        `;
     }
     
     if (avatarEl) {
@@ -273,6 +276,13 @@ window.onload = async () => {
 
     if (authState.isLoggedIn) {
         loadState().catch(e => console.error("Initial load failed:", e));
+        
+        // AUTO-REFRESH for partners/managers every 30s
+        if (authState.user.role !== 'owner') {
+            setInterval(() => {
+                if (authState.isLoggedIn) loadState();
+            }, 30000);
+        }
     }
 
     console.log("🚀 AnimTube v1.2.3 loaded.");
@@ -1511,14 +1521,15 @@ function renderAccountPage() {
 }
 
 // --- ASSIGNMENT LOGIC ---
-function assignFolderToUser(folderId, userLogin) {
+async function assignFolderToUser(folderId, userLogin) {
     if (!folderId) return;
     const folder = state.folders.find(f => f.id == folderId);
     if (folder) {
         folder.assignedTo = userLogin;
-        saveState();
+        logStatus(`⏳ Синхронизация доступа для ${userLogin}...`, "info");
+        await saveState();
         renderAccountPage();
-        logStatus(`✅ Канал "${folder.name}" назначен пользователю ${userLogin}.`, "success");
+        logStatus(`✅ Канал "${folder.name}" успешно привязан к ${userLogin}.`, "success");
     }
 }
 
@@ -1901,10 +1912,11 @@ async function loadState() {
     try {
         logStatus("☁️ Синхронизация с облаком...", "info");
 
-        // Load Folders (Owner sees all, Partners see assigned/owned)
+        // Load Folders (Case-sensitive column names fix)
         let fQuery = db.from('folders').select('*');
         if (authState.user.role !== 'owner') {
-            fQuery = fQuery.or(`assignedTo.eq.${authState.user.login},ownedBy.eq.${authState.user.login}`);
+            // Using quotes for case-sensitive Postgres columns
+            fQuery = fQuery.or(`"assignedTo".eq.${authState.user.login},"ownedBy".eq.${authState.user.login}`);
         }
         const { data: fData, error: fErr } = await fQuery;
         if (fErr) throw fErr;
