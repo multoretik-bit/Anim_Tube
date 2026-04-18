@@ -91,6 +91,12 @@ function applySecurityUI() {
     document.body.classList.add(`role-${authState.user.role}`);
     
     renderSidebarProfile();
+    
+    if (authState.user.role === 'partner' || authState.user.role === 'manager') {
+        document.getElementById('partner-hud').style.display = 'flex';
+    } else {
+        document.getElementById('partner-hud').style.display = 'none';
+    }
 }
 
 function renderSidebarProfile() {
@@ -117,12 +123,6 @@ function renderSidebarProfile() {
             const roleColors = { 'owner': '#6366f1', 'partner': '#10b981', 'manager': '#f59e0b' };
             avatarEl.style.background = roleColors[user.role] || 'var(--accent-primary)';
         }
-    }
-}
-    if (authState.user.role === 'partner' || authState.user.role === 'manager') {
-        document.getElementById('partner-hud').style.display = 'flex';
-    } else {
-        document.getElementById('partner-hud').style.display = 'none';
     }
 }
 
