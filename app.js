@@ -1990,6 +1990,10 @@ async function loadState() {
         logStatus("☁️ Синхронизация с облаком...", "info");
 
         // 1. Load Cloud Folders
+        let fQuery = cloudDB.from('folders').select('*');
+        if (authState.user.role !== 'owner') {
+            fQuery = fQuery.or(`"assignedTo".eq.${authState.user.login},"ownedBy".eq.${authState.user.login}`);
+        }
         const { data: cloudFolders, error: fErr } = await fQuery;
         if (fErr) throw fErr;
         
