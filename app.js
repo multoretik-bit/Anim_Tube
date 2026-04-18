@@ -4,12 +4,13 @@
  */
 
 // --- SUPABASE CONFIG (SYNC ENGINE v2.0) ---
-// ВСТАВЬТЕ ВАШИ ДАННЫЕ ИЗ SUPABASE SETTINGS -> API
 const SUPABASE_URL = "https://jjjkypymutcvrlngyhtt.supabase.co";
 const SUPABASE_KEY = "sb_publishable_L1a5vhq7PjjSh7QTIrPGRg_RO-bH6FN";
-const supabase = (typeof supabase !== 'undefined') ? supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+const supabaseClient = (window.supabase && window.supabase.createClient) 
+    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) 
+    : null;
 
-let db = supabase;
+let db = supabaseClient;
 
 // --- SECURITY CONFIG & STATE ---
 const WHITELIST = [
