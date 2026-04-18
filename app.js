@@ -162,6 +162,9 @@ function logout() {
 
 window.handleLogin = handleLogin;
 window.logout = logout;
+window.openFolderSettings = openFolderSettings;
+window.closeFolderSettings = closeFolderSettings;
+window.saveFolderSettings = saveFolderSettings;
 window.openAccount = () => showPage('account');
 
 
@@ -1102,6 +1105,40 @@ function exitFolder() {
     renderProjects();
 }
 
+// --- FOLDER SETTINGS (v1.3.8) ---
+function openFolderSettings(id) {
+    const folder = state.folders.find(f => f.id === id);
+    if (!folder) return;
+
+    state.activeFolderIdForSettings = id;
+    
+    document.getElementById('folder-settings-title').innerText = `⚙️ ${folder.name.toUpperCase()}`;
+    document.getElementById('folder-prompt-prefix').value = folder.prefix || "";
+    document.getElementById('folder-script-prefix').value = folder.scriptPrefix || "";
+    
+    document.getElementById('folder-settings-overlay').style.display = 'flex';
+}
+
+function closeFolderSettings() {
+    document.getElementById('folder-settings-overlay').style.display = 'none';
+    state.activeFolderIdForSettings = null;
+}
+
+function saveFolderSettings() {
+    const id = state.activeFolderIdForSettings;
+    const folder = state.folders.find(f => f.id === id);
+    
+    if (folder) {
+        folder.prefix = document.getElementById('folder-prompt-prefix').value;
+        folder.scriptPrefix = document.getElementById('folder-script-prefix').value;
+        saveState();
+        logStatus(`✅ Настройки папки "${folder.name}" сохранены.`, "success");
+    }
+    
+    closeFolderSettings();
+    renderProjects();
+}
+
 // --- PROJECT MANAGEMENT ---
 function createNewProject() {
     const name = prompt("Введите название видео-проекта:", "Новый проект");
@@ -1154,7 +1191,9 @@ function renderAccountPage() {
         const projCount = state.projects.filter(p => p.folderId === f.id).length;
         return `
             <div class="project-card folder-card" onclick="exitFolder(); openFolder(${f.id}); showPage('videos');" style="cursor:pointer; position:relative;">
-                <button class="lib-del-btn" onclick="event.stopPropagation(); deleteFolder(${f.id}); renderAccountPage();" style="top:10px; right:10px;">×</button>
+                <div class="folder-badge">ПАПКА</div>
+                <button class="btn-folder-settings" onclick="event.stopPropagation(); openFolderSettings(${f.id})" title="Настройки промптов">⚙️</button>
+                <button class="lib-del-btn" onclick="event.stopPropagation(); deleteFolder(${f.id}); renderAccountPage();" style="top:50px; right:10px;">×</button>
                 <div class="folder-icon">📺</div>
                 <div class="project-name">${f.name}</div>
                 <div class="project-meta">${projCount} проектов • ${f.created || ''}</div>
@@ -1282,10 +1321,11 @@ function renderProjects() {
             card.onclick = () => openFolder(f.id);
             card.innerHTML = `
                 <div class="folder-badge">ПАПКА</div>
+                <button class="btn-folder-settings" onclick="event.stopPropagation(); openFolderSettings(${f.id})" title="Настройки промптов">⚙️</button>
                 <div class="folder-icon">📂</div>
                 <div class="project-name">${f.name}</div>
                 <div class="project-meta">${projectCount} проектов • ${f.created}</div>
-                <button class="lib-del-btn" onclick="event.stopPropagation(); deleteFolder(${f.id})" style="top: 20px;">×</button>
+                <button class="lib-del-btn" onclick="event.stopPropagation(); deleteFolder(${f.id})" style="top: 50px;">×</button>
             `;
             container.appendChild(card);
         });

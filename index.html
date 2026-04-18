@@ -366,6 +366,30 @@
         </div>
     </div>
 
+    <!-- MODAL: Folder Settings -->
+    <div id="folder-settings-overlay" class="modal-overlay">
+        <div class="modal" style="width: 500px;">
+            <div style="font-size: 40px; margin-bottom: 20px;">⚙️</div>
+            <h2 id="folder-settings-title" style="margin-bottom: 12px;">НАСТРОЙКИ КАНАЛА</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 24px; font-size: 14px;">Настройте базовые промпты для этого канала.</p>
+            
+            <div style="text-align: left; margin-bottom: 20px;">
+                <label style="display: block; font-size: 11px; font-weight: 800; color: var(--accent-primary); margin-bottom: 8px; text-transform: uppercase;">Промпт для кадров (Style Prefix)</label>
+                <textarea id="folder-prompt-prefix" placeholder="Напр: Create an image in Peppa Pig style..." style="height: 100px; font-size: 13px;"></textarea>
+            </div>
+
+            <div style="text-align: left; margin-bottom: 30px;">
+                <label style="display: block; font-size: 11px; font-weight: 800; color: var(--accent-chatgpt); margin-bottom: 8px; text-transform: uppercase;">Промпт для сценария (Script Base)</label>
+                <textarea id="folder-script-prefix" placeholder="Напр: Напиши сценарий для серии про..." style="height: 100px; font-size: 13px;"></textarea>
+            </div>
+
+            <div style="display: flex; gap: 12px;">
+                <button class="btn btn-secondary" style="flex: 1;" onclick="closeFolderSettings()">ОТМЕНА</button>
+                <button class="btn btn-primary" style="flex: 1;" onclick="saveFolderSettings()">СОХРАНИТЬ</button>
+            </div>
+        </div>
+    </div>
+
     <script src="app.js"></script>
 </body>
 </html>
