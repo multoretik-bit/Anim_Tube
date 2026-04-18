@@ -1437,6 +1437,19 @@ function renderAccountPage() {
             </div>
         </div>
 
+        <!-- CLOUD STATUS PANEL -->
+        <div class="glass-panel" style="margin-top:24px; padding:24px; border-radius:24px; display:flex; align-items:center; justify-content:space-between; border:1px solid rgba(255,255,255,0.05);">
+            <div style="display:flex; align-items:center; gap:16px;">
+                <div id="cloud-status-indicator" style="width:12px; height:12px; border-radius:50%; background:#6b7280; box-shadow: 0 0 10px rgba(0,0,0,0.5);"></div>
+                <div>
+                    <div style="font-size:14px; font-weight:800; letter-spacing:1px;">СТАТУС ОБЛАКА</div>
+                    <div id="cloud-status-text" style="font-size:12px; opacity:0.6;">Проверка связи...</div>
+                </div>
+            </div>
+            <div id="cloud-error-box" style="color:#ef4444; font-size:12px; font-weight:600; max-width:50%; text-align:right;"></div>
+            <button class="btn btn-secondary" onclick="loadState()" style="padding:8px 16px; font-size:12px;">🔄 Обновить связь</button>
+        </div>
+
         <!-- MY CHANNELS -->
         <div style="margin-top:48px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
@@ -1903,12 +1916,27 @@ async function saveState() {
             await db.from('user_avatars').upsert(avatarData);
         }
         const dot = document.getElementById('sync-status-dot');
+        const cDot = document.getElementById('cloud-status-indicator');
+        const cText = document.getElementById('cloud-status-text');
+        const cError = document.getElementById('cloud-error-box');
+
         if (dot) dot.style.background = '#10b981'; // Green
+        if (cDot) cDot.style.background = '#10b981';
+        if (cText) cText.innerText = 'Синхронизировано';
+        if (cError) cError.innerText = '';
     } catch (err) {
         console.error("Supabase Sync Error:", err);
         const dot = document.getElementById('sync-status-dot');
+        const cDot = document.getElementById('cloud-status-indicator');
+        const cText = document.getElementById('cloud-status-text');
+        const cError = document.getElementById('cloud-error-box');
+
         if (dot) dot.style.background = '#ef4444'; // Red
+        if (cDot) cDot.style.background = '#ef4444';
+        if (cText) cText.innerText = 'Ошибка сохранения';
+        
         const errorMsg = err.message || (err.error ? err.error.message : "Ошибка сохранения");
+        if (cError) cError.innerText = errorMsg;
         logStatus("⚠️ Ошибка сохранения в облако: " + errorMsg, "error");
     }
 }
@@ -1955,15 +1983,30 @@ async function loadState() {
         renderProjects();
         renderSidebarProfile();
         const dot = document.getElementById('sync-status-dot');
+        const cDot = document.getElementById('cloud-status-indicator');
+        const cText = document.getElementById('cloud-status-text');
+        const cError = document.getElementById('cloud-error-box');
+
         if (dot) dot.style.background = '#10b981'; // Green
+        if (cDot) cDot.style.background = '#10b981';
+        if (cText) cText.innerText = 'Подключено';
+        if (cError) cError.innerText = '';
+
         logStatus("✅ Облачная синхронизация завершена.", "success");
     } catch (err) {
         console.error("Cloud Load Failed:", err);
         const dot = document.getElementById('sync-status-dot');
+        const cDot = document.getElementById('cloud-status-indicator');
+        const cText = document.getElementById('cloud-status-text');
+        const cError = document.getElementById('cloud-error-box');
+
         if (dot) dot.style.background = '#ef4444'; // Red
+        if (cDot) cDot.style.background = '#ef4444';
+        if (cText) cText.innerText = 'Ошибка подключения';
         
         // Show detailed error message to help the user debug
         const errorMsg = err.message || (err.error ? err.error.message : "Неизвестная ошибка");
+        if (cError) cError.innerText = errorMsg;
         logStatus("⚠️ Ошибка синхронизации: " + errorMsg, "error");
     }
 }
