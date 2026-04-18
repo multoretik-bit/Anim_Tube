@@ -1922,12 +1922,19 @@ async function saveState() {
         if (state.folders.length > 0) {
             const foldersToSync = state.folders.map(f => ({
                 ...f,
-                ownedBy: f.ownedBy || authState.user.login // Ensure owner is set
+                ownedBy: f.ownedBy || authState.user.login
             }));
             await cloudDB.from('folders').upsert(foldersToSync);
         }
+        
+        // --- DELETION SYNC: Remove folders from cloud that were deleted locally ---
+        const localFolderIds = state.folders.map(f => f.id);
+        await cloudDB.from('folders')
+            .delete()
+            .eq('ownedBy', authState.user.login)
+            .not('id', 'in', `(${localFolderIds.join(',') || 'NULL'})`);
 
-        // Sync Projects (Save only important data to avoid payload limits)
+        // Sync Projects
         if (state.projects.length > 0) {
             const projectsToSync = state.projects.map(p => ({
                 id: p.id,
@@ -1941,6 +1948,13 @@ async function saveState() {
             }));
             await cloudDB.from('projects').upsert(projectsToSync);
         }
+
+        // --- DELETION SYNC: Remove projects from cloud that were deleted locally ---
+        const localProjectIds = state.projects.map(p => p.id);
+        await cloudDB.from('projects')
+            .delete()
+            .eq('ownedBy', authState.user.login)
+            .not('id', 'in', `(${localProjectIds.join(',') || 'NULL'})`);
 
         // Sync Avatars
         const avatarData = Object.entries(state.userAvatars).map(([login, avatar]) => ({ login, avatar }));
