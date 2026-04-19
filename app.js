@@ -1688,6 +1688,12 @@ function renderProjects() {
     const container = document.getElementById('project-list-container');
     const description = document.getElementById('projects-view-description');
     if (!container) return;
+    
+    // Safety check: if not logged in, don't try to render user-specific data
+    if (!authState.isLoggedIn || !authState.user) {
+        container.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 100px; color: var(--text-dim);">Пожалуйста, войдите в систему.</div>`;
+        return;
+    }
 
     container.innerHTML = "";
 
