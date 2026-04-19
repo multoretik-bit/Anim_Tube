@@ -2227,8 +2227,12 @@ async function loadState() {
             localArr.forEach(item => {
                 if (map.has(item.id)) {
                     const cloudItem = map.get(item.id);
-                    // Preserve assets from local state during merge
-                    const merged = { ...item, ...cloudItem, assets: item.assets || cloudItem.assets };
+                    // Priority: Use cloud assets if they exist and are not empty
+                    const cloudAssets = cloudItem.assets;
+                    const localAssets = item.assets;
+                    const finalAssets = (cloudAssets && cloudAssets.length > 0) ? cloudAssets : (localAssets || []);
+                    
+                    const merged = { ...item, ...cloudItem, assets: finalAssets };
                     forceCloudFields.forEach(f => {
                         if (cloudItem[f] !== undefined) merged[f] = cloudItem[f];
                     });
@@ -2249,7 +2253,7 @@ async function loadState() {
                 state.folders = validCloudFolders;
             } else {
                 // OWNERS: Merge local edits with cloud
-                state.folders = mergeData(state.folders, validCloudFolders, ['views', 'revenue', 'assignedTo', 'niche'], false);
+                state.folders = mergeData(state.folders, validCloudFolders, ['views', 'revenue', 'assignedTo', 'niche', 'assets', 'prefix', 'scriptPrefix', 'splitPrefix'], false);
             }
             state.folders = state.folders.filter(f => f.avatar);
         }
