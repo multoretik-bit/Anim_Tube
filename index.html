@@ -216,9 +216,6 @@
                 <div class="tab-item manager-hidden" id="tab-animation" onclick="switchProjectTab('animation')">
                     <span class="tab-icon">🎬</span> Анимация
                 </div>
-                <div class="tab-item-auto" id="btn-automation-toggle" onclick="toggleAutoMode()" title="Режим автоматизации">
-                    <span class="auto-icon">✨</span>
-                </div>
             </div>
 
             <!-- TAB CONTENTS -->
@@ -356,17 +353,18 @@
 
                             <div class="terminal" id="studio-terminal">> Проект загружен...</div>
 
-                            <!-- Project Assets -->
-                            <div class="glass-panel" id="project-settings-assets" style="display:none;">
-                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                                    <h1 style="font-size: 32px; font-weight: 800; margin: 0; letter-spacing: -0.5px;">Доброе утро, <span style="color: var(--accent-primary);" id="greeting-name">...</span>!</h1>
-                                    <button class="btn btn-secondary" onclick="openAssetSelectorModal()" style="padding: 6px 12px; font-size: 11px; border-radius: 8px;">🔍 ВЫБРАТЬ</button>
+                            <!-- Channel Assets (Moved from Global) -->
+                            <div class="glass-panel" id="folder-assets-panel">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                                    <h3 style="margin: 0;">📦 АССЕТЫ КАНАЛА</h3>
+                                    <div style="display: flex; gap: 8px;">
+                                        <input type="text" id="folder-asset-name" placeholder="Имя ассета" style="background: rgba(0,0,0,0.2); border: 1px solid var(--border-glass); border-radius: 8px; padding: 6px 12px; font-size: 12px; color: white; outline: none;">
+                                        <button class="btn btn-primary" onclick="window.triggerFolderAssetUpload()" style="padding: 6px 12px; font-size: 11px;">➕ ДОБАВИТЬ</button>
+                                        <input type="file" id="folder-asset-file" hidden accept="image/*" onchange="window.handleAddFolderAsset(this)">
+                                    </div>
                                 </div>
-                                <div id="detection-indicator" class="detection-bar-empty" style="margin-bottom: 12px; padding: 8px; border-radius: 8px; font-size: 11px; font-weight: 600; text-transform: uppercase; border: 1px solid var(--border-glass); background: rgba(255,255,255,0.03); text-align: center;">
-                                    ЖДУ СТАРТА...
-                                </div>
-                                <div id="project-assets-selection" class="library-grid" style="grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; min-height: 60px;">
-                                    <!-- Assets injected via JS -->
+                                <div id="folder-assets-list" class="library-grid" style="grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; min-height: 80px;">
+                                    <!-- Assets for current channel injected here -->
                                 </div>
                             </div>
                         </div>

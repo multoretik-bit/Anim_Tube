@@ -1787,7 +1787,7 @@ function renderProjects() {
             addCard.style.borderRadius = "20px";
             addCard.onclick = createNewFolder;
             addCard.title = "Создать новый канал";
-            addCard.innerHTML = `<span style="font-size: 30px; color: #ef4444; line-height: 1; display: flex; align-items: center; justify-content: center;">+</span>`;
+            addCard.innerHTML = `<div style="display: grid; place-items: center; width: 100%; height: 100%; font-size: 30px; color: #ef4444;">+</div>`;
             container.appendChild(addCard);
         }
     }
@@ -2334,17 +2334,20 @@ function stopRollAssembly(isManual = true) {
     }
 }
 
-// --- GLOBAL ASSET LIBRARY (v11.1) ---
-window.triggerGlobalAssetUpload = () => {
-    const name = document.getElementById('global-asset-name').value.trim();
-    if (!name) return alert("Введите имя ассета (напр. Пеппа)!");
-    document.getElementById('global-asset-file').click();
+// --- FOLDER-LEVEL ASSET LIBRARY (v12) ---
+window.triggerFolderAssetUpload = () => {
+    const name = document.getElementById('folder-asset-name').value.trim();
+    if (!name) return alert("Введите имя ассета!");
+    document.getElementById('folder-asset-file').click();
 };
 
-window.handleAddGlobalAsset = async (input) => {
-    const nameInput = document.getElementById('global-asset-name');
+window.handleAddFolderAsset = async (input) => {
+    const nameInput = document.getElementById('folder-asset-name');
     const name = nameInput.value.trim();
-    if (!input.files || !input.files[0]) return;
+    if (!input.files || !input.files[0] || !state.currentFolderId) return;
+
+    const folder = state.folders.find(f => f.id === state.currentFolderId);
+    if (!folder) return;
 
     const file = input.files[0];
     const reader = new FileReader();
@@ -2352,55 +2355,56 @@ window.handleAddGlobalAsset = async (input) => {
         const base64 = e.target.result;
         const assetId = "asset_" + Date.now();
         
-        const transaction = db.transaction(["assets"], "readwrite");
-        transaction.objectStore("assets").put({ id: assetId, base64, name });
-
+        if (!folder.assets) folder.assets = [];
+        folder.assets.push({ id: assetId, base64, name });
+        
         nameInput.value = "";
         input.value = "";
-        renderGlobalAssets();
-        logStatus(`📦 Ассет "${name}" добавлен в глобальную библиотеку.`, "success");
+        saveState();
+        renderFolderAssets();
+        logStatus(`📦 Ассет "${name}" добавлен в канал.`, "success");
+        
+        // Push update to cloud (v12 Sync)
+        if (authState.user.role === 'owner') {
+            updateChannelStats(folder.id, { assets: folder.assets });
+        }
     };
     reader.readAsDataURL(file);
 };
 
-async function renderGlobalAssets() {
-    const container = document.getElementById('global-assets-list');
-    if (!container) return;
+async function renderFolderAssets() {
+    const container = document.getElementById('folder-assets-list');
+    if (!container || !state.currentFolderId) return;
 
-    const transaction = db.transaction(["assets"], "readonly");
-    const store = transaction.objectStore("assets");
-    const request = store.getAll();
+    const folder = state.folders.find(f => f.id === state.currentFolderId);
+    if (!folder || !folder.assets || folder.assets.length === 0) {
+        container.innerHTML = `<p style="grid-column: 1/-1; text-align: center; color: var(--text-dim); padding: 20px; font-size:12px;">Ассеты не добавлены.</p>`;
+        return;
+    }
 
-    request.onsuccess = () => {
-        const assets = request.result;
-        if (assets.length === 0) {
-            container.innerHTML = `<p style="grid-column: 1/-1; text-align: center; color: var(--text-dim); padding: 40px;">Библиотека пуста. Добавьте первого героя или фон.</p>`;
-            return;
-        }
-
-        container.innerHTML = assets.map(a => `
-            <div class="lib-card" style="position: relative;">
-                <img src="${a.base64}" class="lib-img">
-                <div class="lib-info">
-                    <div style="font-weight: 700; font-size: 14px;">${a.name}</div>
-                </div>
-                <button class="lib-del-btn" onclick="deleteGlobalAsset('${a.id}')">×</button>
+    container.innerHTML = folder.assets.map(a => `
+        <div class="lib-card" style="position: relative;">
+            <img src="${a.base64}" class="lib-img" style="height: 60px;">
+            <div class="lib-info" style="padding: 5px;">
+                <div style="font-weight: 700; font-size: 11px;">${a.name}</div>
             </div>
-        `).join('');
-    };
+            <button class="lib-del-btn" onclick="deleteFolderAsset('${a.id}')">×</button>
+        </div>
+    `).join('');
 }
 
-async function deleteGlobalAsset(id) {
-    if (!confirm("Удалить этот ассет навсегда? Он исчезнет из всех проектов.")) return;
-    const transaction = db.transaction(["assets"], "readwrite");
-    transaction.objectStore("assets").delete(id);
-    
-    // Clean up project references
-    state.projects.forEach(p => {
-        if (p.assets) p.assets = p.assets.filter(a => a.id !== id);
-    });
+async function deleteFolderAsset(id) {
+    if (!confirm("Удалить этот ассет?")) return;
+    const folder = state.folders.find(f => f.id === state.currentFolderId);
+    if (!folder || !folder.assets) return;
+
+    folder.assets = folder.assets.filter(a => a.id !== id);
     saveState();
-    renderGlobalAssets();
+    renderFolderAssets();
+    
+    if (authState.user.role === 'owner') {
+        updateChannelStats(folder.id, { assets: folder.assets });
+    }
 }
 
 // --- PROJECT ASSET SELECTION ---
@@ -2458,39 +2462,8 @@ window.toggleAssetForProject = (id, add) => {
 };
 
 async function renderProjectAssets() {
-    const project = getCurrentProject();
-    const container = document.getElementById('project-assets-selection');
-    if (!project || !container) return;
-
-    if (!project.assets || project.assets.length === 0) {
-        container.innerHTML = `<p style="grid-column: 1/-1; font-size: 11px; color: var(--text-dim);">Ассеты не выбраны.</p>`;
-        return;
-    }
-
-    container.innerHTML = "";
-    for (const assetRef of project.assets) {
-        const transaction = db.transaction(["assets"], "readonly");
-        const request = transaction.objectStore("assets").get(assetRef.id);
-        
-        request.onsuccess = () => {
-            const assetData = request.result;
-            if (!assetData) return;
-            
-            const card = document.createElement('div');
-            card.className = "lib-card";
-            card.style.position = "relative";
-            card.dataset.assetId = assetRef.id; 
-            card.innerHTML = `
-                <img src="${assetData.base64}" class="lib-img" style="height: 70px;">
-                <div class="lib-info" style="padding: 5px;">
-                    <div style="font-size: 10px; font-weight: 700;">${assetData.name}</div>
-                </div>
-                <div class="copy-badge">КОПИРУЮ...</div>
-                <button class="lib-del-btn" onclick="toggleAssetForProject('${assetRef.id}', false)">×</button>
-            `;
-            container.appendChild(card);
-        };
-    }
+    const container = document.getElementById('folder-assets-list');
+    if (container) renderFolderAssets();
 }
 
 // --- HELPER: RUSSIAN-FRIENDLY MATCHING v2 (v11.7) ---
