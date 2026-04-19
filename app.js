@@ -2048,9 +2048,10 @@ async function loadState() {
         // 1. Load Cloud Folders
         let fQuery = cloudDB.from('folders').select('*');
         if (authState.user.role !== 'owner') {
-            fQuery = fQuery.or(`"assignedTo".eq.${authState.user.login},"ownedBy".eq.${authState.user.login}`);
+            fQuery = fQuery.or(`assignedTo.eq.${authState.user.login},ownedBy.eq.${authState.user.login}`);
         }
         const { data: cloudFolders, error: fErr } = await fQuery;
+        console.log("📂 Cloud Folders Loaded:", cloudFolders);
         if (fErr) throw fErr;
         
         // 2. Load Cloud Projects
@@ -2070,6 +2071,7 @@ async function loadState() {
             const { data: pData, error: pErr } = await pQuery;
             if (pErr) throw pErr;
             cloudProjects = pData || [];
+            console.log("📽️ Cloud Projects Loaded:", cloudProjects.length);
         }
 
         // 3. SMART MERGE: Combine Local + Cloud (Local wins on conflict for existing user)
