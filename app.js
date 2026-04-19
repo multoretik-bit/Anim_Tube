@@ -1426,6 +1426,8 @@ function renderAccountPage() {
         }
     }
 
+    const mainImg = document.getElementById('main-profile-img');
+    const mainInitials = document.getElementById('main-profile-initials');
     if (mainImg && mainInitials) {
         const userAvatar = state.userAvatars[user.login];
         if (userAvatar) {
