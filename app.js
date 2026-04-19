@@ -1136,19 +1136,23 @@ function switchProjectTab(tabId) {
     document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
     
     if (tabId === 'script') {
-        document.getElementById('tab-content-script').classList.add('active');
+        const pane = document.getElementById('tab-content-script');
+        if (pane) pane.classList.add('active');
         if (document.getElementById('project-settings-assets')) document.getElementById('project-settings-assets').style.display = 'none';
         renderProjectScripts();
     } else if (tabId === 'prompts') {
-        document.getElementById('tab-content-prompts').classList.add('active');
+        const pane = document.getElementById('tab-content-prompts');
+        if (pane) pane.classList.add('active');
         if (document.getElementById('project-settings-assets')) document.getElementById('project-settings-assets').style.display = 'none';
         renderProjectScenariosForSplitting();
     } else if (tabId === 'frames') {
-        document.getElementById('tab-content-frames').classList.add('active');
+        const pane = document.getElementById('tab-content-frames');
+        if (pane) pane.classList.add('active');
         if (document.getElementById('project-settings-assets')) document.getElementById('project-settings-assets').style.display = 'block';
         renderProjectPrompts();
     } else if (tabId === 'animation') {
-        document.getElementById('tab-content-animation').classList.add('active');
+        const pane = document.getElementById('tab-content-animation');
+        if (pane) pane.classList.add('active');
         if (document.getElementById('project-settings-assets')) document.getElementById('project-settings-assets').style.display = 'none';
         renderProjectAnimation();
     } else {
