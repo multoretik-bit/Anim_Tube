@@ -402,6 +402,129 @@ main {
     opacity: 1;
 }
 
+/* Sidebar Collapse Styles */
+.sidebar {
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
+}
+
+.sidebar.collapsed {
+    width: 80px;
+    padding: 30px 10px;
+}
+
+.sidebar.collapsed .brand h1,
+.sidebar.collapsed .profile-info,
+.sidebar.collapsed .nav-text {
+    display: none;
+}
+
+.sidebar.collapsed .avatar-container {
+    width: 40px;
+    height: 40px;
+}
+
+.sidebar.collapsed .nav-item {
+    justify-content: center;
+    padding: 12px;
+}
+
+/* Profile Project Preview Cards */
+.channel-grid-preview {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+.project-preview-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-glass);
+    border-radius: 24px;
+    padding: 24px;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.project-preview-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+}
+
+.card-bg-glow {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+}
+
+.card-content {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.card-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.card-thumb {
+    width: 80px;
+    height: 50px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 20px;
+    color: white;
+}
+
+.card-info h4 {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+}
+
+.card-info .subs {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.card-stats {
+    font-size: 12px;
+    color: var(--text-secondary);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.btn-open-project {
+    border: none;
+    padding: 8px 16px;
+    border-radius: 20px;
+    color: white;
+    font-weight: 600;
+    font-size: 12px;
+    cursor: pointer;
+    transition: filter 0.2s;
+}
+
+.btn-open-project:hover {
+    filter: brightness(1.2);
+}
+
 .page {
     display: none;
     animation: slideUp 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;

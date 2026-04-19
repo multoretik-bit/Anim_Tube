@@ -55,40 +55,41 @@
     </div>
 
     <!-- Sidebar Navigation -->
-    <nav class="sidebar">
-        <div class="brand">
-            <h1>Lumen</h1>
-        </div>
+    <nav class="sidebar" id="main-sidebar">
+        <div class="sidebar-inner">
+            <div class="brand">
+                <h1>Lumen</h1>
+            </div>
 
-        <div class="sidebar-profile" onclick="openAccount()" style="cursor: pointer;">
-            <div class="avatar-container">
-                <div id="user-avatar-letter" class="avatar-letter">U</div>
-                <!-- Optional image avatar if set -->
+            <div class="sidebar-profile" onclick="showPage('account')" style="cursor: pointer;">
+                <div class="avatar-container">
+                    <img id="sidebar-user-avatar" src="https://ui-avatars.com/api/?name=Alex+Rivers&background=60a5fa&color=fff" style="width: 100%; height: 100%; object-fit: cover;" alt="Avatar">
+                </div>
+                <div class="profile-info">
+                    <div id="sidebar-user-name" class="profile-name">Alex Rivers</div>
+                    <div id="sidebar-user-role" class="profile-handle">@arivers</div>
+                </div>
             </div>
-            <div class="profile-info">
-                <div id="user-display-name" class="profile-name">Alex Rivers</div>
-                <div id="user-display-role" class="profile-handle">@arivers</div>
+            
+            <div class="nav-group">
+                <div class="nav-item active" id="nav-account" onclick="showPage('account')">
+                    <span class="nav-icon">👥</span> <span class="nav-text">Профиль</span>
+                </div>
+                <div class="nav-item" id="nav-videos" onclick="showPage('videos')">
+                    <span class="nav-icon">🎮</span> <span class="nav-text">Мои каналы</span>
+                </div>
+                <div class="nav-item" id="nav-assets" onclick="showPage('assets')">
+                    <span class="nav-icon">🤝</span> <span class="nav-text">Партнёры</span>
+                </div>
+                <div class="nav-item" id="nav-settings" onclick="openFolderSettings()">
+                    <span class="nav-icon">⚙️</span> <span class="nav-text">Settings</span>
+                </div>
             </div>
-        </div>
-        
-        <div class="nav-group">
-            <div class="nav-item" id="nav-profile" onclick="showPage('account')">
-                <span class="nav-icon">👥</span> Профиль
-            </div>
-            <div class="nav-item active" id="nav-videos" onclick="showPage('videos')">
-                <span class="nav-icon">🎮</span> Мои каналы
-            </div>
-            <div class="nav-item" id="nav-assets" onclick="showPage('assets')">
-                <span class="nav-icon">🤝</span> Партнёры (Ассеты)
-            </div>
-            <div class="nav-item" id="nav-settings" onclick="openFolderSettings()">
-                <span class="nav-icon">⚙️</span> Settings
-            </div>
-        </div>
 
-        <div class="sidebar-footer">
-            <div class="nav-item collapse-btn" onclick="logout()">
-                <span class="nav-icon">🚪</span> Выход
+            <div class="sidebar-footer">
+                <div class="nav-item collapse-btn" onclick="toggleSidebar()">
+                    <span class="nav-icon">↻</span> <span class="nav-text">Свернуть</span>
+                </div>
             </div>
         </div>
     </nav>
@@ -98,7 +99,7 @@
         <!-- HEADER (Shared) -->
         <header class="main-header">
             <div class="header-left">
-                <!-- Can be populated dynamically -->
+                <h2 id="page-title-display" class="page-title-display">Профиль</h2>
             </div>
             <div class="header-right">
                 <button class="btn btn-chat">
@@ -111,12 +112,12 @@
             </div>
         </header>
 
-        <!-- 1. VIDEOS BROWSER (Project List) -->
-        <section id="page-videos" class="page active">
+        <!-- 0. PROFILE / DASHBOARD (NEW MAIN PAGE) -->
+        <section id="page-account" class="page active">
             <!-- Profile Overview Header -->
             <div class="profile-overview">
-                <div class="profile-large-avatar">
-                    <div id="main-user-avatar-letter" class="avatar-letter-large">A</div>
+                <div class="profile-large-avatar" onclick="openAvatarModal()" style="cursor: pointer;" title="Сменить аватар">
+                    <img id="main-profile-img" src="https://ui-avatars.com/api/?name=Alex+Rivers&background=60a5fa&color=fff" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">
                 </div>
                 <div class="profile-greeting-info">
                     <h2 class="greeting">Доброе утро, <span id="greeting-name">Алекс</span></h2>
@@ -144,10 +145,68 @@
                 </div>
             </div>
 
+            <!-- "My Projects" preview section on Profile -->
             <div class="section-header" style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 40px; margin-bottom: 20px;">
                 <div>
-                    <h2 class="section-title">Мои проекты</h2>
+                    <h3 class="section-title" style="font-size: 20px;">Мои проекты</h3>
                 </div>
+                <div style="display: flex; gap: 12px; align-items: center;">
+                    <span class="view-all" onclick="showPage('videos')">Все каналы ∨</span>
+                </div>
+            </div>
+
+            <div class="channel-grid-preview" id="profile-projects-preview">
+                <!-- Preview cards will be injected here. For now, hardcoded placeholders to match design -->
+                <div class="project-preview-card" style="border-color: #8a2be2;">
+                    <div class="card-bg-glow" style="background: radial-gradient(circle at top left, rgba(138,43,226,0.2), transparent 70%);"></div>
+                    <div class="card-content">
+                        <div class="card-header">
+                            <div class="card-thumb" style="background: linear-gradient(135deg, #4c1d95, #8a2be2);">VW</div>
+                            <div class="card-info">
+                                <h4>VOIDWALKER</h4>
+                                <span class="subs">1.2M подписчиков</span>
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            <div class="card-stats">
+                                <div>Просмотров: 938K</div>
+                                <div style="color: #34d399;">Доход: ₽215 000</div>
+                            </div>
+                            <button class="btn-open-project" style="background: linear-gradient(90deg, #1e3a8a, #8a2be2);">Открыть →</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="project-preview-card" style="border-color: #eab308;">
+                    <div class="card-bg-glow" style="background: radial-gradient(circle at top left, rgba(234,179,8,0.2), transparent 70%);"></div>
+                    <div class="card-content">
+                        <div class="card-header">
+                            <div class="card-thumb" style="background: linear-gradient(135deg, #a16207, #eab308);">TL</div>
+                            <div class="card-info">
+                                <h4>TASTE LAB</h4>
+                                <span class="subs">412K подписчиков</span>
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            <div class="card-stats">
+                                <div>Просмотров: 412K</div>
+                                <div style="color: #34d399;">Доход: ₽170 000</div>
+                            </div>
+                            <button class="btn-open-project" style="background: linear-gradient(90deg, #ca8a04, #eab308); color: black;">#4DA6FF →</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Old Account Settings (Management) -->
+            <div id="account-page-content" style="margin-top: 50px;">
+                <h3 class="section-title" style="font-size: 20px; margin-bottom: 20px;">Управление аккаунтом</h3>
+                <!-- Dynamic content from app.js injected here -->
+            </div>
+        </section>
+
+        <!-- 1. VIDEOS BROWSER (Project List) -->
+        <section id="page-videos" class="page">
+            <div class="section-header" style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 30px;">
                 <div style="display: flex; gap: 12px; align-items: center;">
                     <button class="btn btn-secondary role-owner-only" onclick="createNewFolder()" style="font-size: 13px; padding: 8px 16px;">
                         📁 Создать канал
@@ -155,7 +214,6 @@
                     <button class="btn btn-primary" onclick="createNewProject()" style="font-size: 13px; padding: 8px 16px;">
                         ➕ Создать проект
                     </button>
-                    <span class="view-all">Все каналы ∨</span>
                 </div>
             </div>
 
@@ -373,7 +431,7 @@
         <section id="page-assets" class="page">
             <div class="section-header">
                 <h2 class="section-title">📦 Партнёры & Ассеты</h2>
-                <p>Загрузите персонажей и локации один раз, чтобы использовать их в любых проектах.</p>
+                <p>Управление партнёрами и ассетами.</p>
             </div>
 
             <div class="glass-panel" style="margin-bottom: 24px;">
@@ -391,14 +449,6 @@
                 <div id="global-assets-list" class="library-grid" style="grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));">
                     <!-- Global images with remove buttons -->
                 </div>
-            </div>
-        </section>
-
-        <!-- 4. ACCOUNT PAGE -->
-        <section id="page-account" class="page">
-            <div id="account-page-content" class="glass-panel">
-                <h2 class="section-title">Профиль пользователя</h2>
-                <!-- Filled dynamically via JS -->
             </div>
         </section>
 
@@ -501,5 +551,32 @@
     <!-- SUPABASE CLIENT -->
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <script src="app.js"></script>
+    <script>
+        // UI Enhancements
+        function toggleSidebar() {
+            document.getElementById('main-sidebar').classList.toggle('collapsed');
+        }
+        
+        // Intercept showPage to update the title
+        const originalShowPage = window.showPage;
+        window.showPage = function(pageId) {
+            if(originalShowPage) originalShowPage(pageId);
+            
+            // Update UI Active States
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            const navMap = { 'account': 'nav-account', 'videos': 'nav-videos', 'assets': 'nav-assets' };
+            if(navMap[pageId]) {
+                const navItem = document.getElementById(navMap[pageId]);
+                if(navItem) navItem.classList.add('active');
+            }
+            
+            // Update Title
+            const titleMap = { 'account': 'Профиль', 'videos': 'Мои каналы', 'assets': 'Партнёры' };
+            const titleEl = document.getElementById('page-title-display');
+            if(titleEl && titleMap[pageId]) {
+                titleEl.textContent = titleMap[pageId];
+            }
+        };
+    </script>
 </body>
 </html>
