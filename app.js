@@ -1696,7 +1696,27 @@ function renderProjects() {
         
         if (description) description.innerHTML = `<span style="color:var(--accent-primary); cursor:pointer;" onclick="exitFolder()">Мои Каналы</span> / <b>${folderName}</b>`;
         
-        // Add "Create Project" button as first item
+        // Add professional Back button
+        const backBtn = document.createElement('div');
+        backBtn.className = "project-card folder-card";
+        backBtn.style.width = "60px";
+        backBtn.style.height = "60px";
+        backBtn.style.display = "flex";
+        backBtn.style.alignItems = "center";
+        backBtn.style.justifyContent = "center";
+        backBtn.style.background = "rgba(255, 255, 255, 0.05)";
+        backBtn.style.border = "1px solid rgba(255, 255, 255, 0.1)";
+        backBtn.style.borderRadius = "12px";
+        backBtn.style.cursor = "pointer";
+        backBtn.onclick = exitFolder;
+        backBtn.innerHTML = `
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: white;">
+                <path d="M15 18l-6-6 6-6"/>
+            </svg>
+        `;
+        container.appendChild(backBtn);
+
+        // Add "Create Project" button
         const addBtn = document.createElement('div');
         addBtn.className = "project-card folder-card btn-add-project";
         addBtn.style.background = "linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.05))";
@@ -1802,7 +1822,6 @@ function renderProjects() {
         card.onclick = () => openProject(p.id);
         card.innerHTML = `
             <button class="lib-del-btn" onclick="event.stopPropagation(); deleteProject(${p.id})">×</button>
-            <button class="btn-move-project" title="Переместить" onclick="event.stopPropagation(); requestMoveProject(${p.id})">📦</button>
             <div class="project-name" style="margin-top:10px;">${p.name}</div>
             <div class="project-meta">${p.results ? p.results.length : 0} кадров • ${p.created}</div>
         `;
