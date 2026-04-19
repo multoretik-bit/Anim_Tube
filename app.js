@@ -2616,7 +2616,6 @@ async function processNextItem() {
     document.querySelectorAll('.asset-matched').forEach(el => el.classList.remove('asset-matched'));
 
     // New Asset Scanning Logic (v12 Channel-Level)
-    const folder = state.folders.find(f => f.id === state.currentFolderId);
     if (folder && folder.assets) {
         for (const asset of folder.assets) {
             if (isAssetMatch(rawPrompt, asset.name)) {
