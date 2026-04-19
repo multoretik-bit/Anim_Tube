@@ -1945,13 +1945,22 @@ async function saveState() {
 
     // 2. Cloud Sync
     try {
-        // Sync Folders
-        if (state.folders.length > 0) {
+        // Sync Folders (ONLY OWNERS update channel definitions/stats)
+        if (state.folders.length > 0 && authState.user.role === 'owner') {
             const foldersToSync = state.folders.map(f => ({
-                ...f,
-                ownedBy: f.ownedBy || authState.user.login
+                id: f.id,
+                name: f.name,
+                niche: f.niche,
+                color: f.color,
+                avatar: f.avatar,
+                assignedTo: f.assignedTo,
+                ownedBy: f.ownedBy || authState.user.login,
+                views: Number(f.views) || 0,
+                revenue: Number(f.revenue) || 0,
+                created: f.created
             }));
-            await cloudDB.from('folders').upsert(foldersToSync);
+            const { error: fSyncErr } = await cloudDB.from('folders').upsert(foldersToSync);
+            if (fSyncErr) throw fSyncErr;
         }
         
         // --- DELETION SYNC: Remove folders from cloud that were deleted locally ---
@@ -2064,17 +2073,20 @@ async function loadState() {
         }
 
         // 3. SMART MERGE: Combine Local + Cloud (Local wins on conflict for existing user)
-        const mergeData = (localArr, cloudArr) => {
+        const mergeData = (localArr, cloudArr, forceCloudFields = []) => {
             const map = new Map();
-            // Cloud version is the primary source for shared data
             cloudArr.forEach(item => map.set(item.id, item));
             
             localArr.forEach(item => {
                 if (map.has(item.id)) {
-                    // If we have it in cloud, merge them but prioritize cloud for stats
-                    // unless it's a field that only exists locally
                     const cloudItem = map.get(item.id);
-                    map.set(item.id, { ...item, ...cloudItem }); 
+                    // Start with local, then overwrite with cloud for shared fields
+                    const merged = { ...item, ...cloudItem };
+                    // Explicitly force these fields from cloud if requested
+                    forceCloudFields.forEach(f => {
+                        if (cloudItem[f] !== undefined) merged[f] = cloudItem[f];
+                    });
+                    map.set(item.id, merged);
                 } else {
                     map.set(item.id, item);
                 }
@@ -2083,9 +2095,10 @@ async function loadState() {
         };
 
         if (cloudFolders) {
-            // Filter cloud folders to only keep those with avatars
             const validCloudFolders = cloudFolders.filter(f => f.avatar);
-            state.folders = mergeData(state.folders, validCloudFolders).filter(f => f.avatar);
+            // For folders, cloud is always source of truth for stats and assignments
+            state.folders = mergeData(state.folders, validCloudFolders, ['views', 'revenue', 'assignedTo', 'niche']);
+            state.folders = state.folders.filter(f => f.avatar);
         }
         if (cloudProjects) {
             // Keep projects only if their folder still exists
