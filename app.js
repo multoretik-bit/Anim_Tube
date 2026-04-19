@@ -2063,10 +2063,14 @@ async function saveState() {
                     niche: f.niche,
                     color: f.color,
                     avatar: f.avatar,
+                    assets: f.assets || [], // Sync assets here
                     assignedTo: f.assignedTo,
                     ownedBy: f.ownedBy || authState.user.login,
                     views: Number(f.views) || 0,
                     revenue: Number(f.revenue) || 0,
+                    prefix: f.prefix || "",
+                    scriptPrefix: f.scriptPrefix || "",
+                    splitPrefix: f.splitPrefix || "",
                     created: f.created
                 }));
                 console.log("📤 Syncing Folders to Cloud:", foldersToSync.length);
@@ -2375,9 +2379,9 @@ window.handleAddFolderAsset = async (input) => {
         renderFolderAssets();
         logStatus(`📦 Ассет "${name}" добавлен в канал.`, "success");
         
-        if (authState.user.role === 'owner') {
-            // Cloud column 'assets' is missing, so we skip cloud sync for now
-            // updateChannelStats(folder.id, { assets: folder.assets });
+        if (authState.user.role === 'owner' || authState.user.role === 'manager') {
+            logStatus(`🛰️ Синхронизация ассетов с облаком...`, "info");
+            syncStateToCloud().catch(err => console.error("Asset Cloud Sync Failed:", err));
         }
     };
     reader.readAsDataURL(file);
@@ -2413,9 +2417,8 @@ async function deleteFolderAsset(id) {
     saveState();
     renderFolderAssets();
     
-    if (authState.user.role === 'owner') {
-        // Skip cloud sync for assets column
-        // updateChannelStats(folder.id, { assets: folder.assets });
+    if (authState.user.role === 'owner' || authState.user.role === 'manager') {
+        syncStateToCloud().catch(err => console.error("Asset Delete Sync Failed:", err));
     }
 }
 
