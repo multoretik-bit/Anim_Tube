@@ -1574,11 +1574,11 @@ function renderAccountPage() {
 }
 
 // --- ASSIGNMENT LOGIC ---
-window.updateChannelStats = function(folderId, field, value) {
+window.updateChannelStats = async function(folderId, field, value) {
     const folder = state.folders.find(f => f.id == folderId);
     if (folder) {
         folder[field] = Number(value) || 0;
-        saveState();
+        await saveState();
         if (state.activePage === 'account') renderAccountPage();
         logStatus(`✅ Данные канала "${folder.name}" обновлены.`, "success");
     }
@@ -2060,8 +2060,19 @@ async function loadState() {
         // 3. SMART MERGE: Combine Local + Cloud (Local wins on conflict for existing user)
         const mergeData = (localArr, cloudArr) => {
             const map = new Map();
+            // Cloud version is the primary source for shared data
             cloudArr.forEach(item => map.set(item.id, item));
-            localArr.forEach(item => map.set(item.id, item)); // Local overwrites cloud if ID matches
+            
+            localArr.forEach(item => {
+                if (map.has(item.id)) {
+                    // If we have it in cloud, merge them but prioritize cloud for stats
+                    // unless it's a field that only exists locally
+                    const cloudItem = map.get(item.id);
+                    map.set(item.id, { ...item, ...cloudItem }); 
+                } else {
+                    map.set(item.id, item);
+                }
+            });
             return Array.from(map.values());
         };
 
