@@ -21,6 +21,15 @@ function getDB() {
         if (client) {
             if (typeof client.from === 'function') {
                 console.log("✅ Supabase Client initialized successfully.");
+                // Connection test (silent)
+                client.from('folders').select('id').limit(1).then(({error}) => {
+                    if (error) {
+                         console.error("🔏 Database connection test failed:", error.message);
+                         logStatus("⚠️ База данных недоступна: " + error.message, "error");
+                    } else {
+                         console.log("📡 Cloud Database reachable.");
+                    }
+                });
                 return client;
             } else {
                 const keys = Object.keys(client).join(', ');
@@ -2054,6 +2063,7 @@ async function loadState() {
         const { data: cloudFolders, error: fErr } = await fQuery;
         if (fErr) {
             console.error("❌ Folder Load Error:", fErr);
+            logStatus("❌ Ошибка загрузки каналов: " + fErr.message, "error");
             throw fErr;
         }
         console.log("📂 Cloud Folders Loaded:", cloudFolders);
