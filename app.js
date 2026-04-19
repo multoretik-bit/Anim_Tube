@@ -1740,9 +1740,7 @@ function deleteFolder(id) {
         });
         
         // Delete all associated projects from Supabase
-        cloudDB.from('projects').delete().eq('folderId', id).then(({error}) => {
-            if (error) console.error("Error deleting associated projects from cloud:", error);
-        });
+        await cloudDB.from('projects').delete().eq('folderId', id);
     }
 
     // Remove associated projects locally
@@ -1763,9 +1761,7 @@ function deleteProject(id) {
 
     // Explicitly delete from Supabase immediately
     if (cloudDB && authState.isLoggedIn) {
-        cloudDB.from('projects').delete().eq('id', id).then(({error}) => {
-            if (error) console.error("Error deleting project from cloud:", error);
-        });
+        await cloudDB.from('projects').delete().eq('id', id);
     }
 
     state.projects = state.projects.filter(p => p.id !== id);
@@ -1976,10 +1972,16 @@ async function saveState() {
 
         // --- DELETION SYNC: Remove projects from cloud that were deleted locally ---
         const localProjectIds = state.projects.map(p => p.id);
-        await cloudDB.from('projects')
-            .delete()
-            .eq('ownedBy', authState.user.login)
-            .not('id', 'in', `(${localProjectIds.join(',') || 'NULL'})`);
+        const delQuery = cloudDB.from('projects').delete();
+        if (authState.user.role === 'owner') {
+            await delQuery.eq('ownedBy', authState.user.login).not('id', 'in', `(${localProjectIds.join(',') || 'NULL'})`);
+        } else {
+            // Partners only delete from folders they can see
+            const myFolderIds = state.folders.map(f => f.id);
+            if (myFolderIds.length > 0) {
+                await delQuery.in('folderId', myFolderIds).not('id', 'in', `(${localProjectIds.join(',') || 'NULL'})`);
+            }
+        }
 
         // Sync Avatars
         const avatarData = Object.entries(state.userAvatars).map(([login, avatar]) => ({ login, avatar }));
