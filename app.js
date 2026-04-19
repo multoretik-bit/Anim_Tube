@@ -1696,18 +1696,7 @@ function renderProjects() {
         
         if (description) description.innerHTML = `<span style="color:var(--accent-primary); cursor:pointer;" onclick="exitFolder()">Мои Каналы</span> / <b>${folderName}</b>`;
         
-        // Add "Back" button as first item
-        const backBtn = document.createElement('div');
-        backBtn.className = "project-card folder-card";
-        backBtn.style.background = "rgba(99, 102, 241, 0.15)";
-        backBtn.style.border = "1px solid rgba(99, 102, 241, 0.4)";
-        backBtn.onclick = exitFolder;
-        backBtn.innerHTML = `
-            <div class="project-name" style="font-weight:900; letter-spacing:3px; color:var(--accent-primary); width:100%; text-align:center;">НАЗАД</div>
-        `;
-        container.appendChild(backBtn);
-
-        // Add "Create Project" button as second item
+        // Add "Create Project" button as first item
         const addBtn = document.createElement('div');
         addBtn.className = "project-card folder-card btn-add-project";
         addBtn.style.background = "linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.05))";
