@@ -1647,9 +1647,12 @@ function renderProjects() {
 
     // 2. Render Folders (only at root)
     if (!state.currentFolderId) {
-        const visibleFolders = authState.user.role === 'owner' 
-            ? state.folders 
+        let visibleFolders = authState.user.role === 'owner' 
+            ? state.folders.filter(f => !f.assignedTo) // Owner sees only unassigned channels
             : state.folders.filter(f => f.assignedTo === authState.user.login || f.ownedBy === authState.user.login);
+
+        // ALWAYS filter to only show channels with avatars (cleanup ghost projects)
+        visibleFolders = visibleFolders.filter(f => f.avatar);
 
         visibleFolders.forEach(f => {
             const projectCount = state.projects.filter(p => p.folderId === f.id).length;
@@ -2076,8 +2079,16 @@ async function loadState() {
             return Array.from(map.values());
         };
 
-        if (cloudFolders) state.folders = mergeData(state.folders, cloudFolders);
-        if (cloudProjects) state.projects = mergeData(state.projects, cloudProjects);
+        if (cloudFolders) {
+            // Filter cloud folders to only keep those with avatars
+            const validCloudFolders = cloudFolders.filter(f => f.avatar);
+            state.folders = mergeData(state.folders, validCloudFolders).filter(f => f.avatar);
+        }
+        if (cloudProjects) {
+            // Keep projects only if their folder still exists
+            const folderIds = new Set(state.folders.map(f => f.id));
+            state.projects = mergeData(state.projects, cloudProjects).filter(p => folderIds.has(p.folderId));
+        }
 
         // 4. Load Avatars
         const { data: aData } = await cloudDB.from('user_avatars').select('*');
