@@ -1460,7 +1460,6 @@ function renderAccountPage() {
         const channelColor = f.color || 'var(--accent-primary)';
         return `
                 <div class="project-card folder-card" onclick="exitFolder(); openFolder(${f.id}); showPage('videos');" style="cursor:pointer; position:relative; border-color: ${channelColor}44; padding: 24px; border-radius: 24px;">
-                    <div class="folder-badge" style="background:${channelColor}">КАНАЛ</div>
                     <button class="btn-folder-settings" onclick="event.stopPropagation(); openFolderSettings(${f.id})" title="Настройки промптов">⚙️</button>
                     
                     <div style="width:64px; height:64px; border-radius:18px; overflow:hidden; margin-bottom:12px; border:2px solid ${channelColor}44;">
@@ -1481,87 +1480,23 @@ function renderAccountPage() {
     container.innerHTML = `
         <div class="section-header" style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom: 32px;">
             <div>
-                <h2 style="margin:0;">👤 Личный кабинет</h2>
-                <p style="color: var(--text-secondary); margin-top: 6px;">Ваш профиль и персональные каналы AnimTube</p>
+                <h2 style="margin:0;">📺 МОИ КАНАЛЫ</h2>
+                <p style="color:var(--text-secondary); font-size:13px; margin-top:4px;">Папки с проектами, закреплённые за вашим аккаунтом</p>
             </div>
-            <button class="btn btn-secondary" onclick="showPage('videos')" style="padding: 10px 20px;">← Назад</button>
+            <button class="btn btn-primary" onclick="createNewFolderForAccount()" style="padding:10px 20px;">
+                📁 Создать канал
+            </button>
         </div>
 
-        <!-- PROFILE CARD (Premium Design) -->
-        <div class="glass-panel" style="display: grid; grid-template-columns: auto 1fr auto; gap: 40px; align-items: center; padding: 40px; border-radius: 32px; border: 1px solid rgba(255,255,255,0.05); background: linear-gradient(145deg, rgba(255,255,255,0.03) 0%, rgba(0,0,0,0.2) 100%);">
-            
-            <!-- Avatar Section -->
-            <div style="position: relative; flex-shrink: 0;">
-                <div style="width: 120px; height: 120px; border-radius: 40px; overflow: hidden; border: 3px solid ${roleColor}66; box-shadow: 0 20px 40px ${roleColor}22; background: ${roleColor}11; display:flex; align-items:center; justify-content:center;">
-                    ${state.userAvatars[user.login] ? `<img src="${state.userAvatars[user.login]}" style="width:100%; height:100%; object-fit:cover;">` : `<span style="font-size:48px; font-weight:900; color:${roleColor}">${initials}</span>`}
+        <div class="project-grid" style="margin-bottom: 48px;">
+            ${folderCards}
+            ${myFolders.length === 0 ? `
+                <div style="grid-column:1/-1; text-align:center; padding:80px 20px; color:var(--text-dim); border: 2px dashed var(--border-glass); border-radius: 24px;">
+                    <div style="font-size:60px; margin-bottom:20px;">📫</div>
+                    <h3 style="color:var(--text-secondary); margin-bottom:8px;">У вас пока нет каналов</h3>
+                    <p>Нажмите «Создать канал», чтобы начать!</p>
                 </div>
-                <button class="btn-avatar-edit" onclick="openAvatarModal()" style="position: absolute; bottom: -10px; right: -10px; width: 40px; height: 40px; border-radius: 12px; background: white; color: black; border: none; font-size: 18px; cursor: pointer; box-shadow: 0 10px 20px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; transition: transform 0.2s;" onmouseenter="this.style.transform='scale(1.1)'" onmouseleave="this.style.transform='scale(1)'">📸</button>
-            </div>
-
-            <!-- Info Section -->
-            <div>
-                <div style="display:flex; align-items:center; gap:20px; margin-bottom:12px;">
-                    <h1 style="margin:0; font-size:36px; font-weight:900; letter-spacing:-1px;">${user.login}</h1>
-                    <span style="background:${roleColor}22; color:${roleColor}; border:1px solid ${roleColor}44; padding:6px 18px; border-radius:12px; font-size:10px; font-weight:900; letter-spacing:2px; text-transform:uppercase;">${roleLabel}</span>
-                </div>
-                <div style="display:flex; gap:32px; opacity:0.7; font-size:13px;">
-                    <div style="display:flex; align-items:center; gap:8px;">
-                        <span style="font-size:11px; font-weight:800; color:var(--text-dim);">ЛОГИН:</span>
-                        <span style="font-weight:700;">${user.login}</span>
-                    </div>
-                    <div style="display:flex; align-items:center; gap:8px;">
-                        <span style="font-size:11px; font-weight:800; color:var(--text-dim);">IP:</span>
-                        <span style="font-weight:700; color:var(--accent-primary);">${userIP}</span>
-                    </div>
-                    <div style="display:flex; align-items:center; gap:8px;">
-                        <span style="font-size:11px; font-weight:800; color:var(--text-dim);">КОД:</span>
-                        <span style="font-family:monospace; font-weight:700;">${code}</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Profile Settings Button -->
-            <div style="text-align: right;">
-                 <div style="font-size: 11px; font-weight: 800; color: var(--text-dim); text-transform: uppercase; margin-bottom: 8px;">Последний вход</div>
-                 <div style="font-size: 14px; font-weight: 600;">${sessionDate} <span style="opacity:0.5; font-weight:400;">в ${sessionTime}</span></div>
-            </div>
-        </div>
-
-        <!-- CLOUD STATUS PANEL -->
-        <div class="glass-panel" style="margin-top:24px; padding:24px; border-radius:24px; display:flex; align-items:center; justify-content:space-between; border:1px solid rgba(255,255,255,0.05);">
-            <div style="display:flex; align-items:center; gap:16px;">
-                <div id="cloud-status-indicator" style="width:12px; height:12px; border-radius:50%; background:#6b7280; box-shadow: 0 0 10px rgba(0,0,0,0.5);"></div>
-                <div>
-                    <div style="font-size:14px; font-weight:800; letter-spacing:1px;">СТАТУС ОБЛАКА</div>
-                    <div id="cloud-status-text" style="font-size:12px; opacity:0.6;">Проверка связи...</div>
-                </div>
-            </div>
-            <div id="cloud-error-box" style="color:#ef4444; font-size:12px; font-weight:600; max-width:50%; text-align:right;"></div>
-            <button class="btn btn-secondary" onclick="loadState()" style="padding:8px 16px; font-size:12px;">🔄 Обновить связь</button>
-        </div>
-
-        <!-- MY CHANNELS -->
-        <div style="margin-top:48px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
-                <div>
-                    <h3 style="margin:0; font-size:20px; font-weight:800; letter-spacing:1px;">📺 МОИ КАНАЛЫ</h3>
-                    <p style="color:var(--text-secondary); font-size:13px; margin-top:4px;">Папки с проектами, закреплённые за вашим аккаунтом</p>
-                </div>
-                <button class="btn btn-primary" onclick="createNewFolderForAccount()" style="padding:10px 20px;">
-                    📁 Создать канал
-                </button>
-            </div>
-
-            <div class="project-grid">
-                ${folderCards}
-                ${myFolders.length === 0 ? `
-                    <div style="grid-column:1/-1; text-align:center; padding:80px 20px; color:var(--text-dim); border: 2px dashed var(--border-glass); border-radius: 24px;">
-                        <div style="font-size:60px; margin-bottom:20px;">📫</div>
-                        <h3 style="color:var(--text-secondary); margin-bottom:8px;">У вас пока нет каналов</h3>
-                        <p>Нажмите «Создать канал», чтобы начать!</p>
-                    </div>
-                ` : ''}
-            </div>
+            ` : ''}
         </div>
         <!-- PARTNER MANAGEMENT (Owner Only) -->
         ${user.role === 'owner' ? `
@@ -1572,8 +1507,8 @@ function renderAccountPage() {
             </div>
 
             <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap:32px;">
-                ${WHITELIST.filter(u => u.role !== 'owner').map(u => {
-                    const assigned = state.folders.filter(f => f.assignedTo === u.login);
+                ${WHITELIST.map(u => {
+                    const assigned = state.folders.filter(f => f.assignedTo === u.login || (u.role === 'owner' && f.ownedBy === u.login && !f.assignedTo));
                     const userAvatar = state.userAvatars[u.login];
                     return `
                         <div class="glass-panel" style="padding:32px; border-radius:32px; background:rgba(255,255,255,0.01); border:1px solid rgba(255,255,255,0.05); transition:transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s;" onmouseenter="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 20px 40px rgba(0,0,0,0.3)';" onmouseleave="this.style.transform='none'; this.style.boxShadow='none';">
@@ -1747,7 +1682,6 @@ function renderProjects() {
             card.style.borderColor = `${channelColor}44`;
             card.onclick = () => openFolder(f.id);
             card.innerHTML = `
-                <div class="folder-badge" style="background:${channelColor}">КАНАЛ</div>
                 <button class="btn-folder-settings" onclick="event.stopPropagation(); openFolderSettings(${f.id})" title="Настройки промптов">⚙️</button>
                 <div style="width:60px; height:60px; border-radius:16px; overflow:hidden; margin-right:15px; border:2px solid ${channelColor}44; flex-shrink:0;">
                     ${f.avatar ? `<img src="${f.avatar}" style="width:100%; height:100%; object-fit:cover;">` : `<div style="width:100%; height:100%; background:${channelColor}11; display:flex; align-items:center; justify-content:center; font-size:24px; font-weight: 800; color:${channelColor};">${f.name.substring(0,2).toUpperCase()}</div>`}
