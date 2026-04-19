@@ -2605,18 +2605,14 @@ async function processNextItem() {
     // Clear previous highlights
     document.querySelectorAll('.asset-matched').forEach(el => el.classList.remove('asset-matched'));
 
-     if (project && project.assets) {
-        for (const assetRef of project.assets) {
-            if (isAssetMatch(rawPrompt, assetRef.name)) {
-                matchedNames.push(assetRef.name);
-                matchedIds.push(assetRef.id);
-                
-                const transaction = db.transaction(["assets"], "readonly");
-                const assetData = await new Promise(r => {
-                    const req = transaction.objectStore("assets").get(assetRef.id);
-                    req.onsuccess = () => r(req.result);
-                });
-                if (assetData) matchingAssets.push(assetData.base64);
+    // New Asset Scanning Logic (v12 Channel-Level)
+    const folder = state.folders.find(f => f.id === state.currentFolderId);
+    if (folder && folder.assets) {
+        for (const asset of folder.assets) {
+            if (isAssetMatch(rawPrompt, asset.name)) {
+                matchedNames.push(asset.name);
+                matchedIds.push(asset.id);
+                matchingAssets.push(asset.base64);
             }
         }
     }
