@@ -1699,12 +1699,24 @@ function renderProjects() {
         // Add "Back" button as first item
         const backBtn = document.createElement('div');
         backBtn.className = "project-card folder-card";
+        backBtn.style.background = "rgba(99, 102, 241, 0.15)";
+        backBtn.style.border = "1px solid rgba(99, 102, 241, 0.4)";
         backBtn.onclick = exitFolder;
         backBtn.innerHTML = `
-            <div class="folder-icon">⬅️</div>
-            <div class="project-name">Назад</div>
+            <div class="project-name" style="font-weight:900; letter-spacing:3px; color:var(--accent-primary); width:100%; text-align:center;">НАЗАД</div>
         `;
         container.appendChild(backBtn);
+
+        // Add "Create Project" button as second item
+        const addBtn = document.createElement('div');
+        addBtn.className = "project-card folder-card btn-add-project";
+        addBtn.style.background = "linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.05))";
+        addBtn.style.border = "1px dashed #10b981";
+        addBtn.onclick = createNewProject;
+        addBtn.innerHTML = `
+            <div class="project-name" style="font-weight:700; color:#10b981;">+ СОЗДАТЬ ПРОЕКТ</div>
+        `;
+        container.appendChild(addBtn);
     } else {
         if (description) description.innerText = "Управляйте своими анимационными каналами и проектами.";
     }
@@ -1738,7 +1750,7 @@ function renderProjects() {
                     <div style="flex:1;">
                         <div class="folder-badge" style="background:${channelColor}; margin-bottom:8px; width:fit-content; position:static;">АКТИВНЫЙ КАНАЛ</div>
                         <h2 style="font-size: 28px; font-weight: 900; margin-bottom: 2px;">${f.name}</h2>
-                        <div style="color:${channelColor}; font-weight:800; text-transform:uppercase; letter-spacing:1.5px; font-size:11px; margin-bottom:10px;">🚀 ${f.niche || 'Общая ниша'}</div>
+                        <div style="color:${channelColor}; font-weight:800; text-transform:uppercase; letter-spacing:1.5px; font-size:11px; margin-bottom:10px;">${f.niche || 'Общая ниша'}</div>
                         <p style="color: var(--text-secondary); font-size: 13px;">${projectCount} активных проектов • Ведущий: ${leading}</p>
                     </div>
                 </div>
@@ -1783,8 +1795,7 @@ function renderProjects() {
         card.innerHTML = `
             <button class="lib-del-btn" onclick="event.stopPropagation(); deleteProject(${p.id})">×</button>
             <button class="btn-move-project" title="Переместить" onclick="event.stopPropagation(); requestMoveProject(${p.id})">📦</button>
-            <div class="folder-icon">🎬</div>
-            <div class="project-name">${p.name}</div>
+            <div class="project-name" style="margin-top:10px;">${p.name}</div>
             <div class="project-meta">${p.results ? p.results.length : 0} кадров • ${p.created}</div>
         `;
         container.appendChild(card);
