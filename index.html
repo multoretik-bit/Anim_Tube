@@ -76,22 +76,22 @@
             
             <div class="nav-group">
                 <div class="nav-item active" id="nav-account" onclick="showPage('account')">
-                    <span class="nav-icon">👥</span> <span class="nav-text">Профиль</span>
+                    <span class="nav-icon" style="color: #ef4444;">👤</span> <span class="nav-text">Профиль</span>
                 </div>
                 <div class="nav-item" id="nav-videos" onclick="showPage('videos')">
-                    <span class="nav-icon">🎮</span> <span class="nav-text">Мои каналы</span>
+                    <span class="nav-icon" style="color: #ef4444;">📺</span> <span class="nav-text">Мои каналы</span>
                 </div>
                 <div class="nav-item" id="nav-assets" onclick="showPage('assets')">
-                    <span class="nav-icon">🤝</span> <span class="nav-text">Партнёры</span>
+                    <span class="nav-icon" style="color: #ef4444;">👥</span> <span class="nav-text">Партнёры</span>
                 </div>
                 <div class="nav-item" id="nav-settings" onclick="openFolderSettings()">
-                    <span class="nav-icon">⚙️</span> <span class="nav-text">Settings</span>
+                    <span class="nav-icon" style="color: #ef4444;">⚙️</span> <span class="nav-text">Settings</span>
                 </div>
             </div>
 
-            <div class="sidebar-footer" style="margin-top: auto;">
-                <div class="nav-item collapse-btn" onclick="toggleSidebar()" style="display: flex; justify-content: center; padding: 20px;">
-                    <span class="nav-icon" style="margin: 0; font-size: 20px;">⬅️</span>
+            <div class="sidebar-footer" style="margin-top: auto; padding-bottom: 20px;">
+                <div class="nav-item collapse-btn" onclick="toggleSidebar()" style="display: flex; justify-content: center; opacity: 0.3; transition: opacity 0.3s;" onmouseenter="this.style.opacity='0.8'" onmouseleave="this.style.opacity='0.3'">
+                    <span class="nav-icon" style="margin: 0; font-size: 18px;">⬅️</span>
                 </div>
             </div>
         </div>
@@ -162,7 +162,6 @@
 
             <!-- Old Account Settings (Management) -->
             <div id="account-page-content" style="margin-top: 50px;">
-                <h3 class="section-title" style="font-size: 20px; margin-bottom: 20px;">Управление аккаунтом</h3>
                 <!-- Dynamic content from app.js injected here -->
             </div>
         </section>
@@ -171,10 +170,7 @@
         <section id="page-videos" class="page">
             <div class="section-header" style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 30px;">
                 <div style="display: flex; gap: 12px; align-items: center;">
-                    <button class="btn btn-secondary role-owner-only" onclick="createNewFolder()" style="font-size: 13px; padding: 8px 16px;">
-                        Создать канал
-                    </button>
-                    <!-- Create Project button moved inside the list -->
+                    <!-- Top button removed, will be moved to bottom left of grid -->
                 </div>
             </div>
 

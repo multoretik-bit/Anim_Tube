@@ -1751,6 +1751,25 @@ function renderProjects() {
             `;
             container.appendChild(card);
         });
+
+        // Add square "Create Channel" button at the end (Owner only)
+        if (authState.user.role === 'owner') {
+            const addCard = document.createElement('div');
+            addCard.className = "featured-channel-card role-owner-only";
+            addCard.style.width = "100px";
+            addCard.style.height = "100px";
+            addCard.style.display = "flex";
+            addCard.style.alignItems = "center";
+            addCard.style.justifyContent = "center";
+            addCard.style.border = "2px dashed #ef4444";
+            addCard.style.background = "rgba(239, 68, 68, 0.05)";
+            addCard.style.cursor = "pointer";
+            addCard.style.borderRadius = "20px";
+            addCard.onclick = createNewFolder;
+            addCard.title = "Создать новый канал";
+            addCard.innerHTML = `<span style="font-size: 30px; color: #ef4444;">+</span>`;
+            container.appendChild(addCard);
+        }
     }
 
     // 3. Render Projects (filtered by current folder)
