@@ -1589,8 +1589,29 @@ function renderAccountPage() {
 window.updateChannelStats = async function(folderId, field, value) {
     const folder = state.folders.find(f => f.id == folderId);
     if (folder) {
-        folder[field] = Number(value) || 0;
-        await saveState();
+        const oldValue = folder[field];
+        const numValue = Number(value) || 0;
+        folder[field] = numValue;
+        
+        logStatus(`⏳ Обновление ${field} в облаке...`, "info");
+        
+        if (cloudDB && authState.isLoggedIn) {
+            const updateData = {};
+            updateData[field] = numValue;
+            
+            const { error } = await cloudDB.from('folders')
+                .update(updateData)
+                .eq('id', folderId);
+                
+            if (error) {
+                console.error("❌ Stat Update Error:", error);
+                folder[field] = oldValue; // Rollback
+                alert("🔴 ОШИБКА: Не удалось обновить статистику в облаке.\n" + error.message);
+                return;
+            }
+        }
+        
+        await saveState(); // Full sync backup
         if (state.activePage === 'account') renderAccountPage();
         logStatus(`✅ Данные канала "${folder.name}" обновлены.`, "success");
     }
@@ -2135,13 +2156,27 @@ async function loadState() {
         if (cloudFolders) {
             const validCloudFolders = cloudFolders.filter(f => f.avatar);
             const isPartner = authState.user.role !== 'owner';
-            state.folders = mergeData(state.folders, validCloudFolders, ['views', 'revenue', 'assignedTo', 'niche'], isPartner);
+            
+            if (isPartner) {
+                // PARTNERS: Cloud is the ONLY truth. Discard any local ghosts.
+                state.folders = validCloudFolders;
+            } else {
+                // OWNERS: Merge local edits with cloud
+                state.folders = mergeData(state.folders, validCloudFolders, ['views', 'revenue', 'assignedTo', 'niche'], false);
+            }
             state.folders = state.folders.filter(f => f.avatar);
         }
+
         if (cloudProjects) {
-            // Keep projects only if their folder still exists
+            const isPartner = authState.user.role !== 'owner';
             const folderIds = new Set(state.folders.map(f => f.id));
-            state.projects = mergeData(state.projects, cloudProjects).filter(p => folderIds.has(p.folderId));
+            
+            if (isPartner) {
+                // PARTNERS: Cloud is the ONLY truth for projects too.
+                state.projects = cloudProjects.filter(p => folderIds.has(p.folderId));
+            } else {
+                state.projects = mergeData(state.projects, cloudProjects).filter(p => folderIds.has(p.folderId));
+            }
         }
 
         // 4. Load Avatars
