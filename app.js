@@ -1106,7 +1106,7 @@ function showPage(pageId) {
     if (navItem) navItem.classList.add('active');
     
     if (pageId === 'videos') renderProjects();
-    if (pageId === 'assets') renderGlobalAssets();
+    if (pageId === 'partners') renderPartnersPage();
     if (pageId === 'account') renderAccountPage();
     if (pageId === 'workspace') {
         renderProjectScripts();
