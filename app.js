@@ -2009,8 +2009,28 @@ async function saveState() {
                 const { error: fSyncErr } = await cloudDB.from('folders').upsert(foldersToSync);
                 if (fSyncErr) {
                     console.error("❌ Folder Upsert Failed:", fSyncErr);
+                    alert("🔴 ОШИБКА ОБЛАКА (Folders): " + fSyncErr.message);
                     throw fSyncErr;
                 }
+            }
+        }
+        
+        // Sync Projects (Owner Only for mass sync)
+        if (authState.user.role === 'owner' && state.projects.length > 0) {
+            const projectsToSync = state.projects.map(p => ({
+                id: p.id,
+                folderId: p.folderId,
+                name: p.name,
+                status: p.status,
+                preview: p.preview,
+                created: p.created,
+                data: p.data || {}
+            }));
+            const { error: pSyncErr } = await cloudDB.from('projects').upsert(projectsToSync);
+            if (pSyncErr) {
+                console.error("❌ Project Upsert Failed:", pSyncErr);
+                alert("🔴 ОШИБКА ОБЛАКА (Projects): " + pSyncErr.message);
+                throw pSyncErr;
             }
         }
         
@@ -3259,10 +3279,18 @@ window.forceSync = async function() {
     try {
         await detectIP();
         cloudDB = getDB();
+        
+        // If owner, push everything to cloud first
+        if (authState.user.role === 'owner') {
+            logStatus("📤 Выгрузка данных в облако...", "info");
+            await saveState();
+        }
+        
         await loadState();
-        logStatus("✅ Соединение восстановлено и данные обновлены.", "success");
+        logStatus("✅ Соединение восстановлено и данные синхронизированы.", "success");
     } catch (err) {
-        logStatus("❌ Ошибка при переподключении: " + err.message, "error");
+        logStatus("❌ Ошибка при синхронизации: " + err.message, "error");
+        alert("🔴 ОШИБКА СИНХРОНИЗАЦИИ: " + err.message);
     } finally {
         if (icon) icon.style.animation = 'none';
     }
