@@ -1632,8 +1632,6 @@ window.updateChannelStats = async function(folderId, fieldOrData, value) {
     if (state.activePage === 'account') renderAccountPage();
     logStatus(`✅ Данные канала обновлены.`, "success");
 }
-    }
-};
 
 async function assignFolderToUser(folderId, userLogin) {
     if (!folderId) return;
