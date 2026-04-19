@@ -2361,6 +2361,30 @@ window.triggerFolderAssetUpload = () => {
     document.getElementById('folder-asset-file').click();
 };
 
+// --- IMAGE COMPRESSION HELPER (v1.3.9) ---
+async function compressImage(base64, maxWidth = 800, quality = 0.7) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
+
+            if (width > maxWidth) {
+                height = Math.round((height * maxWidth) / width);
+                width = maxWidth;
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.src = base64;
+    });
+}
+
 window.handleAddFolderAsset = async (input) => {
     const nameInput = document.getElementById('folder-asset-name');
     const name = nameInput.value.trim();
@@ -2372,7 +2396,10 @@ window.handleAddFolderAsset = async (input) => {
     const file = input.files[0];
     const reader = new FileReader();
     reader.onload = async (e) => {
-        const base64 = e.target.result;
+        const rawBase64 = e.target.result;
+        logStatus("⌛ Сжатие изображения...", "info");
+        const base64 = await compressImage(rawBase64); // Compress to ~50-100KB
+        
         const assetId = "asset_" + Date.now();
         
         if (!folder.assets) folder.assets = [];
