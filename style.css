@@ -6,25 +6,25 @@
 .role-owner section.role-owner-only { display: block !important; }
 
 :root {
-    /* Lumen Color Palette */
-    --bg-main: #0a0b10;
-    --bg-sidebar: #13141c;
-    --bg-card: #15151c;
-    --bg-card-hover: #1c1d26;
+    /* Dark Red Theme Palette */
+    --bg-main: #0c0808;
+    --bg-sidebar: #180d0d;
+    --bg-card: #1c1111;
+    --bg-card-hover: #261616;
     
-    --accent-primary: #8a2be2; /* Vibrant Purple */
-    --accent-secondary: #00d2ff; /* Cyan Glow */
-    --accent-success: #34d399; /* Green text */
+    --accent-primary: #ef4444; /* Vibrant Red */
+    --accent-secondary: #fca5a5; /* Soft Red Glow */
+    --accent-success: #34d399; 
     --accent-chatgpt: #10a37f;
     --accent-grok: #ec4899;
-    --accent-gemini: #5eb5f7;
+    --accent-gemini: #ef4444;
     
     --text-primary: #ffffff;
-    --text-secondary: #a1a1aa;
-    --text-dim: #71717a;
+    --text-secondary: #d1d5db;
+    --text-dim: #9ca3af;
     
-    --border-glass: rgba(255, 255, 255, 0.05);
-    --border-glow: rgba(138, 43, 226, 0.4);
+    --border-glass: rgba(255, 255, 255, 0.03);
+    --border-glow: rgba(239, 68, 68, 0.4);
     
     --font-main: 'Outfit', 'Inter', sans-serif;
 }
@@ -48,8 +48,8 @@ body {
     display: flex;
     overflow: hidden;
     background-image: 
-        radial-gradient(circle at 100% 0%, rgba(138, 43, 226, 0.15) 0%, transparent 40%),
-        radial-gradient(circle at 100% 50%, rgba(255, 165, 0, 0.08) 0%, transparent 30%);
+        radial-gradient(circle at 100% 0%, rgba(239, 68, 68, 0.12) 0%, transparent 40%),
+        radial-gradient(circle at 100% 50%, rgba(220, 38, 38, 0.06) 0%, transparent 30%);
 }
 
 /* --- SIDEBAR --- */

@@ -1444,7 +1444,7 @@ function renderAccountPage() {
                                 <div style="color: ${channelColor};">Просмотров: ${Number(f.views || 0).toLocaleString()}</div>
                                 <div style="color: #34d399;">Доход: $${Number(f.revenue || 0).toLocaleString()}</div>
                             </div>
-                            <button class="btn-open-project" onclick="openFolder(${f.id}); showPage('videos')" style="background: linear-gradient(90deg, #1e3a8a, ${channelColor});">Открыть →</button>
+                            <button class="btn-open-project" onclick="openFolder(${f.id}); showPage('videos')" style="background: linear-gradient(90deg, #7f1d1d, ${channelColor});">Открыть →</button>
                         </div>
                     </div>
                 </div>`;
@@ -1651,56 +1651,39 @@ function renderProjects() {
             ? state.folders 
             : state.folders.filter(f => f.assignedTo === authState.user.login || f.ownedBy === authState.user.login);
 
-        if (visibleFolders.length === 1 && authState.user.role !== 'owner') {
-            const f = visibleFolders[0];
-            const projectCount = state.projects.filter(p => p.folderId === f.id).length;
-            const channelColor = f.color || 'var(--accent-primary)';
-            
-            container.innerHTML = `
-                <div class="featured-channel-card" onclick="openFolder(${f.id})" style="grid-column: 1/-1; border-color: ${channelColor}; box-shadow: 0 30px 60px ${channelColor}22;">
-                    <div class="channel-main-info" style="display:flex; align-items:center; gap:40px;">
-                        <div style="width:180px; height:180px; border-radius:40px; overflow:hidden; border:4px solid ${channelColor}; flex-shrink:0; box-shadow: 0 0 30px ${channelColor}44;">
-                            ${f.avatar ? `<img src="${f.avatar}" style="width:100%; height:100%; object-fit:cover;">` : `<div style="width:100%; height:100%; background:${channelColor}22; display:flex; align-items:center; justify-content:center; font-size:60px;">📺</div>`}
-                        </div>
-                        <div>
-                            <div class="folder-badge" style="background:${channelColor}; margin-bottom:15px; width:fit-content; position:static;">АКТИВНЫЙ КАНАЛ</div>
-                            <h1 style="font-size: 48px; font-weight: 900; margin-bottom: 5px;">${f.name}</h1>
-                            <div style="color:${channelColor}; font-weight:800; text-transform:uppercase; letter-spacing:2px; font-size:14px; margin-bottom:15px;">🚀 ${f.niche || 'Общая ниша'}</div>
-                            <p style="color: var(--text-secondary); font-size: 16px;">${projectCount} активных проектов • Ведущий: ${authState.user.login}</p>
-                        </div>
-                    </div>
-                    <div class="channel-actions">
-                         <button class="btn btn-primary" style="background:${channelColor}; padding: 15px 40px; font-size: 16px; box-shadow: 0 10px 20px ${channelColor}44;">ОТКРЫТЬ СТУДИЮ →</button>
-                         <button class="btn-folder-settings" onclick="event.stopPropagation(); openFolderSettings(${f.id})" style="position:static; width:50px; height:50px; font-size:24px;">⚙️</button>
-                    </div>
-                </div>
-            `;
-            return;
-        }
-
         visibleFolders.forEach(f => {
             const projectCount = state.projects.filter(p => p.folderId === f.id).length;
-            const channelColor = f.color || '#6366f1';
+            const channelColor = f.color || 'var(--accent-primary)';
             const card = document.createElement('div');
-            card.className = "project-card folder-card";
-            card.style.borderColor = `${channelColor}44`;
+            card.className = "featured-channel-card";
+            card.style.borderColor = channelColor;
+            card.style.marginBottom = "30px";
             card.onclick = () => openFolder(f.id);
+            
+            // Find who is leading this channel
+            const leading = f.assignedTo || f.ownedBy || '—';
+            
             card.innerHTML = `
-                <button class="btn-folder-settings" onclick="event.stopPropagation(); openFolderSettings(${f.id})" title="Настройки промптов">⚙️</button>
-                <div style="width:60px; height:60px; border-radius:16px; overflow:hidden; margin-right:15px; border:2px solid ${channelColor}44; flex-shrink:0;">
-                    ${f.avatar ? `<img src="${f.avatar}" style="width:100%; height:100%; object-fit:cover;">` : `<div style="width:100%; height:100%; background:${channelColor}11; display:flex; align-items:center; justify-content:center; font-size:24px; font-weight: 800; color:${channelColor};">${f.name.substring(0,2).toUpperCase()}</div>`}
-                </div>
-                <div class="project-card-info">
-                    <div class="project-name" style="font-size:16px; font-weight:800; color: #fff;">${f.name}</div>
-                    <div class="project-meta">
-                        <span style="font-size:10px; font-weight:800; color:${channelColor}; text-transform:uppercase; letter-spacing:1px;">${f.niche || '—'}</span>
-                        <span style="color:var(--text-dim);">${projectCount} проектов • ${f.created}</span>
+                <div class="channel-main-info" style="display:flex; align-items:center; gap:30px;">
+                    <div style="width:120px; height:120px; border-radius:24px; overflow:hidden; border:3px solid ${channelColor}; flex-shrink:0; box-shadow: 0 10px 20px ${channelColor}22;">
+                        ${f.avatar ? `<img src="${f.avatar}" style="width:100%; height:100%; object-fit:cover;">` : `<div style="width:100%; height:100%; background:${channelColor}22; display:flex; align-items:center; justify-content:center; font-size:40px;">📺</div>`}
+                    </div>
+                    <div style="flex:1;">
+                        <div class="folder-badge" style="background:${channelColor}; margin-bottom:8px; width:fit-content; position:static;">АКТИВНЫЙ КАНАЛ</div>
+                        <h2 style="font-size: 28px; font-weight: 900; margin-bottom: 2px;">${f.name}</h2>
+                        <div style="color:${channelColor}; font-weight:800; text-transform:uppercase; letter-spacing:1.5px; font-size:11px; margin-bottom:10px;">🚀 ${f.niche || 'Общая ниша'}</div>
+                        <p style="color: var(--text-secondary); font-size: 13px;">${projectCount} активных проектов • Ведущий: ${leading}</p>
                     </div>
                 </div>
-                <button class="lib-del-btn role-owner-only" onclick="event.stopPropagation(); deleteFolder(${f.id})" style="position: absolute; right: 20px; top: 50%; transform: translateY(-50%); background: rgba(239, 68, 68, 0.1); color: #ef4444; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center;">×</button>
+                <div class="channel-actions" style="display:flex; align-items:center; gap:15px;">
+                     <button class="btn btn-primary" style="background:${channelColor}; padding: 12px 30px; font-size: 14px; box-shadow: 0 10px 20px ${channelColor}33;">ОТКРЫТЬ СТУДИЮ →</button>
+                     <button class="btn-folder-settings" onclick="event.stopPropagation(); openFolderSettings(${f.id})" style="position:static; width:45px; height:45px; font-size:20px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:12px; cursor:pointer;">⚙️</button>
+                     ${authState.user.role === 'owner' ? `<button class="btn-del-mini" onclick="event.stopPropagation(); deleteFolder(${f.id})" style="width:45px; height:45px; font-size:20px; border-radius:12px; background:rgba(239,68,68,0.1); color:#ef4444; border:none; cursor:pointer;">×</button>` : ''}
+                </div>
             `;
             container.appendChild(card);
         });
+    }
     }
 
     // 3. Render Projects (filtered by current folder)
