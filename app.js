@@ -3371,3 +3371,122 @@ if (!document.getElementById('sync-anim-style')) {
     document.head.appendChild(s);
 }
 
+// --- PARTNERS & SOCIAL LOGIC (NEW) ---
+window.renderPartnersPage = async function() {
+    const container = document.getElementById('partners-list-grid');
+    if (!container) return;
+    
+    container.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--accent-primary); font-weight: 700;">📡 Поиск партнёров в сети...</div>`;
+    
+    try {
+        if (!cloudDB) cloudDB = getDB();
+        
+        // 1. Fetch ALL Folders to calculate views
+        const { data: allFolders } = await cloudDB.from('folders').select('ownedBy, views');
+        const viewStats = {};
+        if (allFolders) {
+            allFolders.forEach(f => {
+                viewStats[f.ownedBy] = (viewStats[f.ownedBy] || 0) + (Number(f.views) || 0);
+            });
+        }
+
+        // 2. Fetch Avatars
+        const { data: allAvatars } = await cloudDB.from('user_avatars').select('*');
+        const avatarsMap = {};
+        if (allAvatars) allAvatars.forEach(a => avatarsMap[a.login] = a.avatar);
+
+        // 3. Render Whitelist Users
+        container.innerHTML = WHITELIST.map(u => {
+            const views = viewStats[u.login] || 0;
+            const avatar = avatarsMap[u.login];
+            const initials = u.login.substring(0, 2).toUpperCase();
+            
+            return `
+                <div class="channel-card" onclick="openPartnerProfile('${u.login}')" style="cursor: pointer; position: relative;">
+                    <div class="channel-avatar">
+                        ${avatar ? `<img src="${avatar}" style="width: 100%; height: 100%; object-fit: cover;">` : `<div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background: var(--accent-primary); color:white; font-weight:900;">${initials}</div>`}
+                    </div>
+                    <div class="channel-info">
+                        <div class="channel-name">${u.login}</div>
+                        <div class="channel-niche">👁️ ${views.toLocaleString()} просмотров</div>
+                        <div class="channel-stats" style="margin-top: 10px;">
+                            <button class="btn btn-primary" style="padding: 6px 12px; font-size: 11px;" onclick="event.stopPropagation(); alert('Мессенджер в разработке...')">✉️ Написать</button>
+                        </div>
+                    </div>
+                    <div class="status-badge status-working" style="position: absolute; top: 15px; right: 15px;">Online</div>
+                </div>
+            `;
+        }).join('');
+
+    } catch (err) {
+        console.error("Partners Load Error:", err);
+        container.innerHTML = `<p style="color: var(--accent-primary);">Ошибка загрузки партнёров.</p>`;
+    }
+}
+
+window.openPartnerProfile = async function(login) {
+    const overlay = document.getElementById('partner-profile-overlay');
+    const nameEl = document.getElementById('partner-profile-name');
+    const viewsEl = document.getElementById('partner-total-views');
+    const imgEl = document.getElementById('partner-profile-img');
+    const initialsEl = document.getElementById('partner-profile-initials');
+    const projectsGrid = document.getElementById('partner-projects-grid');
+    
+    if (!overlay) return;
+    
+    // Reset
+    nameEl.innerText = login;
+    projectsGrid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; color: var(--accent-primary);">📂 Загрузка проектов...</div>`;
+    overlay.classList.add('active');
+
+    try {
+        if (!cloudDB) cloudDB = getDB();
+        
+        // 1. Load Stats
+        const { data: folders } = await cloudDB.from('folders').select('views').eq('ownedBy', login);
+        const totalViews = folders ? folders.reduce((sum, f) => sum + (Number(f.views) || 0), 0) : 0;
+        viewsEl.innerText = `👁️ ${totalViews.toLocaleString()} просмотров`;
+
+        // 2. Load Avatar
+        const { data: avatarData } = await cloudDB.from('user_avatars').select('avatar').eq('login', login).single();
+        if (avatarData && avatarData.avatar) {
+            imgEl.src = avatarData.avatar;
+            imgEl.style.display = 'block';
+            initialsEl.style.display = 'none';
+        } else {
+            imgEl.style.display = 'none';
+            initialsEl.style.display = 'flex';
+            initialsEl.innerText = login.substring(0, 2).toUpperCase();
+        }
+
+        // 3. Load Projects (Public metadata only)
+        const { data: projects } = await cloudDB.from('projects').select('name, preview, created').eq('ownedBy', login);
+        if (!projects || projects.length === 0) {
+            projectsGrid.innerHTML = `<p style="grid-column:1/-1; text-align:center; color: var(--text-dim);">У этого креатора пока нет публичных проектов.</p>`;
+        } else {
+            projectsGrid.innerHTML = projects.map(p => `
+                <div class="channel-card" style="filter: grayscale(0.5); opacity: 0.8; cursor: not-allowed;">
+                    <div class="channel-avatar" style="border-radius: 12px; height: 120px;">
+                        ${p.preview ? `<img src="${p.preview}" style="width: 100%; height: 100%; object-fit: cover;">` : `🎬`}
+                    </div>
+                    <div class="channel-info">
+                        <div class="channel-name">${p.name}</div>
+                        <div class="channel-niche" style="font-size: 10px;">${new Date(p.created).toLocaleDateString()}</div>
+                    </div>
+                    <div style="position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.6); padding: 4px 8px; border-radius: 8px; font-size: 10px;">🔒 PRIVATE</div>
+                </div>
+            `).join('');
+        }
+
+    } catch (err) {
+        console.error("Profile Load Error:", err);
+    }
+}
+
+window.closePartnerProfile = function() {
+    document.getElementById('partner-profile-overlay').classList.remove('active');
+}
+
+window.renderPartnersPage = renderPartnersPage;
+window.openPartnerProfile = openPartnerProfile;
+window.closePartnerProfile = closePartnerProfile;
