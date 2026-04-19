@@ -143,29 +143,21 @@ function renderSidebarProfile() {
     const user = authState.user;
     if (!user) return;
 
-    const nameEl = document.getElementById('user-display-name');
-    const roleEl = document.getElementById('user-display-role');
-    const avatarEl = document.getElementById('user-avatar-letter');
+    const nameEl = document.getElementById('sidebar-user-name');
+    const roleEl = document.getElementById('sidebar-user-role');
+    const avatarEl = document.getElementById('sidebar-user-avatar');
     
     if (nameEl) nameEl.innerText = user.login;
     if (roleEl) {
-        const roleLabels = { 'owner': '👑 ВЛАДЕЛЬЦУ', 'partner': '🤝 ПАРТНЁРУ', 'manager': '📊 МЕНЕДЖЕРУ' };
-        roleEl.innerHTML = `
-            ${roleLabels[user.role] || user.role.toUpperCase()} 
-            <span id="sync-status-dot" style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#6b7280; margin-left:8px; vertical-align:middle;" title="Статус облака"></span>
-            <span class="cloud-sync-btn" onclick="loadState()" title="Синхронизировать сейчас" style="cursor:pointer; margin-left:4px; opacity:0.6; transition:0.3s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6">☁️</span>
-        `;
+        roleEl.innerHTML = `@${user.login.toLowerCase()}`;
     }
     
     if (avatarEl) {
         const userAvatar = state.userAvatars[user.login];
         if (userAvatar) {
-            avatarEl.innerHTML = `<img src="${userAvatar}" style="width:100%; height:100%; object-fit:cover; border-radius:50%;">`;
-            avatarEl.style.background = 'transparent';
+            avatarEl.src = userAvatar;
         } else {
-            avatarEl.innerText = user.login.substring(0, 2).toUpperCase();
-            const roleColors = { 'owner': '#6366f1', 'partner': '#10b981', 'manager': '#f59e0b' };
-            avatarEl.style.background = roleColors[user.role] || 'var(--accent-primary)';
+            avatarEl.src = `https://ui-avatars.com/api/?name=${user.login}&background=6366f1&color=fff`;
         }
     }
 }
@@ -1705,7 +1697,7 @@ function renderProjects() {
 
         visibleFolders.forEach(f => {
             const projectCount = state.projects.filter(p => p.folderId === f.id).length;
-            const channelColor = f.color || 'var(--accent-primary)';
+            const channelColor = f.color || '#6366f1';
             const card = document.createElement('div');
             card.className = "project-card folder-card";
             card.style.borderColor = `${channelColor}44`;
@@ -1713,13 +1705,17 @@ function renderProjects() {
             card.innerHTML = `
                 <div class="folder-badge" style="background:${channelColor}">КАНАЛ</div>
                 <button class="btn-folder-settings" onclick="event.stopPropagation(); openFolderSettings(${f.id})" title="Настройки промптов">⚙️</button>
-                <div style="width:80px; height:80px; border-radius:20px; overflow:hidden; margin-bottom:10px; border:2px solid ${channelColor}44;">
-                    ${f.avatar ? `<img src="${f.avatar}" style="width:100%; height:100%; object-fit:cover;">` : `<div style="width:100%; height:100%; background:${channelColor}11; display:flex; align-items:center; justify-content:center; font-size:30px;">📂</div>`}
+                <div style="width:60px; height:60px; border-radius:16px; overflow:hidden; margin-right:15px; border:2px solid ${channelColor}44; flex-shrink:0;">
+                    ${f.avatar ? `<img src="${f.avatar}" style="width:100%; height:100%; object-fit:cover;">` : `<div style="width:100%; height:100%; background:${channelColor}11; display:flex; align-items:center; justify-content:center; font-size:24px; font-weight: 800; color:${channelColor};">${f.name.substring(0,2).toUpperCase()}</div>`}
                 </div>
-                <div class="project-name">${f.name}</div>
-                <div style="font-size:10px; font-weight:800; color:${channelColor}; text-transform:uppercase; letter-spacing:1px; margin-top:-8px;">${f.niche || '—'}</div>
-                <div class="project-meta">${projectCount} проектов • ${f.created}</div>
-                <button class="lib-del-btn role-owner-only" onclick="event.stopPropagation(); deleteFolder(${f.id})" style="top: 50px;">×</button>
+                <div class="project-card-info">
+                    <div class="project-name" style="font-size:16px; font-weight:800; color: #fff;">${f.name}</div>
+                    <div class="project-meta">
+                        <span style="font-size:10px; font-weight:800; color:${channelColor}; text-transform:uppercase; letter-spacing:1px;">${f.niche || '—'}</span>
+                        <span style="color:var(--text-dim);">${projectCount} проектов • ${f.created}</span>
+                    </div>
+                </div>
+                <button class="lib-del-btn role-owner-only" onclick="event.stopPropagation(); deleteFolder(${f.id})" style="position: absolute; right: 20px; top: 50%; transform: translateY(-50%); background: rgba(239, 68, 68, 0.1); color: #ef4444; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center;">×</button>
             `;
             container.appendChild(card);
         });
