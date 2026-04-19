@@ -2048,9 +2048,14 @@ async function loadState() {
         // 1. Load Cloud Folders
         let fQuery = cloudDB.from('folders').select('*');
         if (authState.user.role !== 'owner') {
-            fQuery = fQuery.or(`assignedTo.eq.${authState.user.login},ownedBy.eq.${authState.user.login}`);
+            const login = authState.user.login;
+            fQuery = fQuery.or(`assignedTo.eq."${login}",ownedBy.eq."${login}"`);
         }
         const { data: cloudFolders, error: fErr } = await fQuery;
+        if (fErr) {
+            console.error("❌ Folder Load Error:", fErr);
+            throw fErr;
+        }
         console.log("📂 Cloud Folders Loaded:", cloudFolders);
         if (fErr) throw fErr;
         
