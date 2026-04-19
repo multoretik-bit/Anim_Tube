@@ -84,10 +84,8 @@
                 <div class="nav-item" id="nav-assets" onclick="showPage('assets')">
                     <span class="nav-icon" style="color: #ef4444;">👥</span> <span class="nav-text">Партнёры</span>
                 </div>
-                <div class="nav-item" id="nav-settings" onclick="openFolderSettings()">
-                    <span class="nav-icon" style="color: #ef4444;">⚙️</span> <span class="nav-text">Settings</span>
-                </div>
             </div>
+
 
             <div class="sidebar-footer" style="margin-top: auto; padding-bottom: 30px;">
                 <div class="nav-item collapse-btn" onclick="toggleSidebar()" style="display: flex; justify-content: center; opacity: 0.2; transition: opacity 0.3s; cursor: pointer;" onmouseenter="this.style.opacity='0.6'" onmouseleave="this.style.opacity='0.2'">
@@ -110,10 +108,7 @@
                 <button class="btn btn-chat">
                     <span class="icon">✈️</span> Написать в чат
                 </button>
-                <div class="notification-bell">
-                    🔔
-                    <span class="badge">9</span>
-                </div>
+
             </div>
         </header>
 
@@ -241,7 +236,7 @@
                 </div>
 
                 <!-- Tab: Prompts (Scenario Splitting) -->
-                <div id="tab-content-script" class="tab-pane">
+                <div id="tab-content-prompts" class="tab-pane">
                     <div class="glass-panel" style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center;">
                         <h3 style="margin: 0;">✂️ РАЗДЕЛЕНИЕ СЦЕНАРИЯ НА КАДРЫ</h3>
                         <div style="display: flex; gap: 12px;">
@@ -351,7 +346,7 @@
                                 <div class="queue-status" id="queue-display"></div>
                             </div>
 
-                            <div class="terminal" id="studio-terminal">> Проект загружен...</div>
+
 
                             <!-- Channel Assets (Moved from Global) -->
                             <div class="glass-panel" id="folder-assets-panel">
