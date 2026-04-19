@@ -1600,34 +1600,38 @@ function renderAccountPage() {
 }
 
 // --- ASSIGNMENT LOGIC ---
-window.updateChannelStats = async function(folderId, field, value) {
+window.updateChannelStats = async function(folderId, fieldOrData, value) {
     const folder = state.folders.find(f => f.id == folderId);
-    if (folder) {
-        const oldValue = folder[field];
-        const numValue = Number(value) || 0;
-        folder[field] = numValue;
-        
-        logStatus(`⏳ Обновление ${field} в облаке...`, "info");
-        
-        if (cloudDB && authState.isLoggedIn) {
-            const updateData = {};
-            updateData[field] = numValue;
+    if (!folder) return;
+
+    let updateData = {};
+    if (typeof fieldOrData === 'object') {
+        updateData = fieldOrData;
+        Object.assign(folder, updateData);
+    } else {
+        const field = fieldOrData;
+        folder[field] = value;
+        updateData[field] = value;
+    }
+    
+    logStatus(`⏳ Синхронизация данных в облаке...`, "info");
+    
+    if (cloudDB && authState.isLoggedIn) {
+        const { error } = await cloudDB.from('folders')
+            .update(updateData)
+            .eq('id', folderId);
             
-            const { error } = await cloudDB.from('folders')
-                .update(updateData)
-                .eq('id', folderId);
-                
-            if (error) {
-                console.error("❌ Stat Update Error:", error);
-                folder[field] = oldValue; // Rollback
-                alert("🔴 ОШИБКА: Не удалось обновить статистику в облаке.\n" + error.message);
-                return;
-            }
+        if (error) {
+            console.error("❌ Cloud Sync Error:", error);
+            alert("🔴 ОШИБКА: Не удалось обновить статистику в облаке.\n" + error.message);
+            return;
         }
-        
-        await saveState(); // Full sync backup
-        if (state.activePage === 'account') renderAccountPage();
-        logStatus(`✅ Данные канала "${folder.name}" обновлены.`, "success");
+    }
+    
+    await saveState(); 
+    if (state.activePage === 'account') renderAccountPage();
+    logStatus(`✅ Данные канала обновлены.`, "success");
+}
     }
 };
 
