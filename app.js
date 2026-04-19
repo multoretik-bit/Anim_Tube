@@ -1415,6 +1415,43 @@ function renderAccountPage() {
         }
     }
 
+    // Render channels in the "Мои проекты" dashboard section (HORIZONTAL)
+    const profileProjectsPreview = document.getElementById('profile-projects-preview');
+    if (profileProjectsPreview) {
+        if (myFolders.length === 0) {
+            profileProjectsPreview.innerHTML = '<div style="color:var(--text-dim); padding:20px;">Нет каналов</div>';
+        } else {
+            profileProjectsPreview.innerHTML = myFolders.map(f => {
+                const channelColor = f.color || '#6366f1';
+                const projCount = state.projects.filter(p => p.folderId === f.id).length;
+                const initials = f.name.substring(0, 2).toUpperCase();
+                
+                return `
+                <div class="project-preview-card" style="border-color: ${channelColor};">
+                    <div class="card-bg-glow" style="background: radial-gradient(circle at top left, ${channelColor}33, transparent 70%);"></div>
+                    <div class="card-content">
+                        <div class="card-header">
+                            <div class="card-thumb" style="background: linear-gradient(135deg, ${channelColor}88, ${channelColor}); font-size:24px;">
+                                ${f.avatar ? `<img src="${f.avatar}" style="width:100%; height:100%; object-fit:cover; border-radius:12px;">` : initials}
+                            </div>
+                            <div class="card-info">
+                                <h4>${f.name}</h4>
+                                <span class="subs">${f.niche || 'Общая ниша'}</span>
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            <div class="card-stats">
+                                <div style="color: ${channelColor};">Просмотров: ${Number(f.views || 0).toLocaleString()}</div>
+                                <div style="color: #34d399;">Доход: $${Number(f.revenue || 0).toLocaleString()}</div>
+                            </div>
+                            <button class="btn-open-project" onclick="openFolder(${f.id}); showPage('videos')" style="background: linear-gradient(90deg, #1e3a8a, ${channelColor});">Открыть →</button>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+    }
+
     // 1. Calculate totals for current user's channels
     let totalViews = 0;
     let totalRevenue = 0;
@@ -1462,25 +1499,8 @@ function renderAccountPage() {
     if (!container) return;
 
     container.innerHTML = `
-        <div class="section-header" style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom: 32px;">
-            <div>
-                <h2 style="margin:0;">📺 МОИ КАНАЛЫ</h2>
-                <p style="color:var(--text-secondary); font-size:13px; margin-top:4px;">Папки с проектами, закреплённые за вашим аккаунтом</p>
-            </div>
-            <button class="btn btn-primary" onclick="createNewFolderForAccount()" style="padding:10px 20px;">
-                📁 Создать канал
-            </button>
-        </div>
-
-        <div class="project-grid" style="margin-bottom: 48px;">
-            ${folderCards}
-            ${myFolders.length === 0 ? `
-                <div style="grid-column:1/-1; text-align:center; padding:80px 20px; color:var(--text-dim); border: 2px dashed var(--border-glass); border-radius: 24px;">
-                    <div style="font-size:60px; margin-bottom:20px;">📫</div>
-                    <h3 style="color:var(--text-secondary); margin-bottom:8px;">У вас пока нет каналов</h3>
-                    <p>Нажмите «Создать канал», чтобы начать!</p>
-                </div>
-            ` : ''}
+        <div style="margin-top: 20px;">
+            <h3 class="section-title" style="font-size: 20px; margin-bottom: 20px;">Управление аккаунтом</h3>
         </div>
         <!-- PARTNER MANAGEMENT (Owner Only) -->
         ${user.role === 'owner' ? `

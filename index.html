@@ -145,9 +145,18 @@
                     <div class="stat-growth success">Суммарно по всем вашим каналам</div>
                 </div>
             </div>
-
-                    </div>
+            <!-- "My Projects" preview section on Profile -->
+            <div class="section-header" style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 40px; margin-bottom: 20px;">
+                <div>
+                    <h3 class="section-title" style="font-size: 20px;">Мои каналы</h3>
                 </div>
+                <button class="btn btn-primary" onclick="createNewFolderForAccount()" style="padding:10px 20px;">
+                    📁 Создать канал
+                </button>
+            </div>
+
+            <div class="channel-grid-preview" id="profile-projects-preview" style="margin-bottom: 40px;">
+                <!-- Cards with revenue/views will be injected here -->
             </div>
 
             <!-- Old Account Settings (Management) -->
