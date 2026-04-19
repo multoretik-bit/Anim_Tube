@@ -1431,6 +1431,30 @@ function renderAccountPage() {
         }
     }
 
+    // 1. Calculate totals for current user's channels
+    let totalViews = 0;
+    let totalRevenue = 0;
+    myFolders.forEach(f => {
+        totalViews += Number(f.views) || 0;
+        totalRevenue += Number(f.revenue) || 0;
+    });
+
+    // Update global dashboard stats
+    const dashViews = document.getElementById('dashboard-views');
+    const dashRev = document.getElementById('dashboard-revenue');
+    if (dashViews) {
+        if (totalViews >= 1000000) {
+            dashViews.innerText = (totalViews / 1000000).toFixed(2) + ' млн';
+        } else if (totalViews >= 1000) {
+            dashViews.innerText = (totalViews / 1000).toFixed(1) + ' тыс';
+        } else {
+            dashViews.innerText = totalViews;
+        }
+    }
+    if (dashRev) {
+        dashRev.innerText = '$' + totalRevenue.toLocaleString('en-US');
+    }
+
     const folderCards = myFolders.map(f => {
         const projCount = state.projects.filter(p => p.folderId === f.id).length;
         const channelColor = f.color || 'var(--accent-primary)';
@@ -1570,14 +1594,24 @@ function renderAccountPage() {
                                 <div style="font-size:11px; font-weight:900; color:var(--text-dim); text-transform:uppercase; margin-bottom:16px; letter-spacing:1.5px; opacity:0.6;">АКТИВНЫЕ КАНАЛЫ:</div>
                                 <div style="display:flex; flex-direction:column; gap:12px;">
                                     ${assigned.length > 0 ? assigned.map(f => `
-                                        <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); padding:10px 16px; border-radius:14px; border:1px solid rgba(255,255,255,0.05);">
-                                            <div style="display:flex; align-items:center; gap:12px;">
+                                        <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); padding:10px 16px; border-radius:14px; border:1px solid rgba(255,255,255,0.05); gap: 10px;">
+                                            <div style="display:flex; align-items:center; gap:12px; flex: 1;">
                                                 <div style="width:28px; height:28px; border-radius:8px; overflow:hidden; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.1); flex-shrink:0;">
                                                     ${f.avatar ? `<img src="${f.avatar}" style="width:100%; height:100%; object-fit:cover;">` : '<span style="font-size:12px; display:flex; align-items:center; justify-content:center; height:100%;">📺</span>'}
                                                 </div>
-                                                <span style="font-size:14px; font-weight:700;">${f.name}</span>
+                                                <span style="font-size:14px; font-weight:700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100px;">${f.name}</span>
                                             </div>
-                                            <button class="btn-del-mini" onclick="unassignFolder(${f.id})" title="Отвязать канал" style="opacity:0.4; transition:opacity 0.2s;" onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0.4'">×</button>
+                                            <div style="display:flex; align-items:center; gap:6px;">
+                                                <div style="position:relative;">
+                                                    <span style="position:absolute; left:6px; top:50%; transform:translateY(-50%); font-size:10px; opacity:0.5;">👁</span>
+                                                    <input type="number" placeholder="0" value="${f.views || 0}" onchange="updateChannelStats(${f.id}, 'views', this.value)" style="width: 70px; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 6px; padding: 4px 4px 4px 20px; font-size: 11px; outline: none;">
+                                                </div>
+                                                <div style="position:relative;">
+                                                    <span style="position:absolute; left:6px; top:50%; transform:translateY(-50%); font-size:10px; opacity:0.5;">$</span>
+                                                    <input type="number" placeholder="0" value="${f.revenue || 0}" onchange="updateChannelStats(${f.id}, 'revenue', this.value)" style="width: 60px; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 6px; padding: 4px 4px 4px 16px; font-size: 11px; outline: none;">
+                                                </div>
+                                                <button class="btn-del-mini" onclick="unassignFolder(${f.id})" title="Отвязать канал" style="opacity:0.4; transition:opacity 0.2s;" onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0.4'">×</button>
+                                            </div>
                                         </div>
                                     `).join('') : '<div style="color:var(--text-dim); font-size:13px; font-style:italic; padding:10px; text-align:center;">Нет назначенных каналов</div>'}
                                 </div>
@@ -1601,6 +1635,16 @@ function renderAccountPage() {
 }
 
 // --- ASSIGNMENT LOGIC ---
+window.updateChannelStats = function(folderId, field, value) {
+    const folder = state.folders.find(f => f.id == folderId);
+    if (folder) {
+        folder[field] = Number(value) || 0;
+        saveState();
+        if (state.activePage === 'account') renderAccountPage();
+        logStatus(`✅ Данные канала "${folder.name}" обновлены.`, "success");
+    }
+};
+
 async function assignFolderToUser(folderId, userLogin) {
     if (!folderId) return;
     const folder = state.folders.find(f => f.id == folderId);
