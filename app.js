@@ -1724,7 +1724,7 @@ function renderProjects() {
     });
 }
 
-function deleteFolder(id) {
+async function deleteFolder(id) {
     if (authState.user.role !== 'owner') {
         alert("🚫 Удалять каналы может только Владелец.");
         return;
@@ -1754,7 +1754,7 @@ function deleteFolder(id) {
     logStatus(`🗑️ Канал "${folder.name}" и все его проекты удалены навсегда.`, "info");
 }
 
-function deleteProject(id) {
+async function deleteProject(id) {
     const project = state.projects.find(p => p.id === id);
     if (!project) return;
     if (!confirm(`Удалить видео-проект "${project.name}" НАВСЕГДА? Это действие необратимо!`)) return;
