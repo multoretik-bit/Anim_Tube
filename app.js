@@ -1914,6 +1914,7 @@ function openProject(id) {
     if (!project) return;
 
     state.activeProjectId = id;
+    state.currentFolderId = project.folderId; // CRITICAL: set folder context for assets sync
     const nameEl = document.getElementById('current-project-name');
     if (nameEl) nameEl.innerText = project.name;
     

@@ -81,9 +81,7 @@
                 <div class="nav-item" id="nav-videos" onclick="showPage('videos')">
                     <span class="nav-icon" style="color: #ef4444;">📺</span> <span class="nav-text">Мои каналы</span>
                 </div>
-                <div class="nav-item" id="nav-assets" onclick="showPage('assets')">
-                    <span class="nav-icon" style="color: #ef4444;">👥</span> <span class="nav-text">Партнёры</span>
-                </div>
+
             </div>
 
 
@@ -282,6 +280,22 @@
                         <div style="display: flex; flex-direction: column; gap: 24px;">
 
                             <!-- Generator -->
+                            <!-- Channel Assets (Moved to top of Frames tab) -->
+                            <div class="glass-panel" id="folder-assets-panel" style="margin-bottom: 24px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                                    <h3 style="margin: 0;">📦 АССЕТЫ КАНАЛА</h3>
+                                    <div style="display: flex; gap: 8px;">
+                                        <input type="text" id="folder-asset-name" placeholder="Имя ассета" style="background: rgba(0,0,0,0.2); border: 1px solid var(--border-glass); border-radius: 8px; padding: 6px 12px; font-size: 12px; color: white; outline: none;">
+                                        <button class="btn btn-primary" onclick="window.triggerFolderAssetUpload()" style="padding: 6px 12px; font-size: 11px;">➕ ДОБАВИТЬ</button>
+                                        <input type="file" id="folder-asset-file" hidden accept="image/*" onchange="window.handleAddFolderAsset(this)">
+                                    </div>
+                                </div>
+                                <div id="folder-assets-list" class="library-grid" style="grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; min-height: 80px;">
+                                    <!-- Assets for current channel injected here -->
+                                </div>
+                            </div>
+
+                            <!-- Generator -->
                             <div class="glass-panel">
                                 <h3 style="margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
                                     🚀 ГЕНЕРАТОР КАДРОВ
@@ -348,20 +362,7 @@
 
 
 
-                            <!-- Channel Assets (Moved from Global) -->
-                            <div class="glass-panel" id="folder-assets-panel">
-                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                                    <h3 style="margin: 0;">📦 АССЕТЫ КАНАЛА</h3>
-                                    <div style="display: flex; gap: 8px;">
-                                        <input type="text" id="folder-asset-name" placeholder="Имя ассета" style="background: rgba(0,0,0,0.2); border: 1px solid var(--border-glass); border-radius: 8px; padding: 6px 12px; font-size: 12px; color: white; outline: none;">
-                                        <button class="btn btn-primary" onclick="window.triggerFolderAssetUpload()" style="padding: 6px 12px; font-size: 11px;">➕ ДОБАВИТЬ</button>
-                                        <input type="file" id="folder-asset-file" hidden accept="image/*" onchange="window.handleAddFolderAsset(this)">
-                                    </div>
-                                </div>
-                                <div id="folder-assets-list" class="library-grid" style="grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; min-height: 80px;">
-                                    <!-- Assets for current channel injected here -->
-                                </div>
-                            </div>
+
                         </div>
                     </div>
                 </div>
@@ -380,29 +381,7 @@
         </section>
 
         <!-- 3. GLOBAL ASSET LIBRARY -->
-        <section id="page-assets" class="page">
-            <div class="section-header">
-                <h2 class="section-title">📦 Партнёры & Ассеты</h2>
-                <p>Управление партнёрами и ассетами.</p>
-            </div>
 
-            <div class="glass-panel" style="margin-bottom: 24px;">
-                <div class="asset-controls" style="display: flex; gap: 15px; align-items: center;">
-                    <input type="text" id="global-asset-name" placeholder="Имя (напр. Пеппа)" style="flex:1; background: var(--bg-glass); border: 1px solid var(--border-glass); border-radius: 12px; padding: 12px; color: white; outline: none;">
-                    <button class="btn btn-primary" onclick="window.triggerGlobalAssetUpload()">
-                        ➕ Добавить в библиотеку
-                    </button>
-                    <input type="file" id="global-asset-file" hidden accept="image/*" onchange="window.handleAddGlobalAsset(this)">
-                </div>
-            </div>
-
-            <div class="glass-panel">
-                <h3 style="margin-bottom: 20px;">Мои персонажи и фоны</h3>
-                <div id="global-assets-list" class="library-grid" style="grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));">
-                    <!-- Global images with remove buttons -->
-                </div>
-            </div>
-        </section>
 
     </main>
 
