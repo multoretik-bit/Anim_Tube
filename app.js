@@ -2121,6 +2121,7 @@ async function loadState() {
 
         renderProjects();
         renderSidebarProfile();
+        if (state.activePage === 'account') renderAccountPage();
         const dot = document.getElementById('sync-status-dot');
         const cDot = document.getElementById('cloud-status-indicator');
         const cText = document.getElementById('cloud-status-text');
