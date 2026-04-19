@@ -1710,8 +1710,8 @@ function renderProjects() {
         backBtn.style.cursor = "pointer";
         backBtn.onclick = exitFolder;
         backBtn.innerHTML = `
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: white;">
-                <path d="M15 18l-6-6 6-6"/>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="color: white;">
+                <polyline points="15 18 9 12 15 6"></polyline>
             </svg>
         `;
         container.appendChild(backBtn);
@@ -1787,7 +1787,7 @@ function renderProjects() {
             addCard.style.borderRadius = "20px";
             addCard.onclick = createNewFolder;
             addCard.title = "Создать новый канал";
-            addCard.innerHTML = `<span style="font-size: 30px; color: #ef4444;">+</span>`;
+            addCard.innerHTML = `<span style="font-size: 30px; color: #ef4444; line-height: 1; display: flex; align-items: center; justify-content: center;">+</span>`;
             container.appendChild(addCard);
         }
     }
