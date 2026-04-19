@@ -1600,9 +1600,26 @@ async function assignFolderToUser(folderId, userLogin) {
     if (!folderId) return;
     const folder = state.folders.find(f => f.id == folderId);
     if (folder) {
+        const oldAssigned = folder.assignedTo;
         folder.assignedTo = userLogin;
+        
         logStatus(`⏳ Синхронизация доступа для ${userLogin}...`, "info");
-        await saveState();
+        
+        if (cloudDB && authState.isLoggedIn) {
+            const { error } = await cloudDB.from('folders')
+                .update({ assignedTo: userLogin })
+                .eq('id', folderId);
+            
+            if (error) {
+                console.error("❌ Assignment Error:", error);
+                folder.assignedTo = oldAssigned; // Rollback
+                alert("🔴 ОШИБКА СИНХРОНИЗАЦИИ: База данных отклонила назначение.\nПричина: " + error.message);
+                logStatus("❌ Ошибка синхронизации: " + error.message, "error");
+                return;
+            }
+        }
+        
+        await saveState(); // Full sync as backup
         renderAccountPage();
         logStatus(`✅ Канал "${folder.name}" успешно привязан к ${userLogin}.`, "success");
     }
@@ -1967,8 +1984,12 @@ async function saveState() {
                     revenue: Number(f.revenue) || 0,
                     created: f.created
                 }));
+                console.log("📤 Syncing Folders to Cloud:", foldersToSync.length);
                 const { error: fSyncErr } = await cloudDB.from('folders').upsert(foldersToSync);
-                if (fSyncErr) throw fSyncErr;
+                if (fSyncErr) {
+                    console.error("❌ Folder Upsert Failed:", fSyncErr);
+                    throw fSyncErr;
+                }
             }
         }
         
