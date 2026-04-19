@@ -1684,7 +1684,6 @@ function renderProjects() {
             container.appendChild(card);
         });
     }
-    }
 
     // 3. Render Projects (filtered by current folder)
     const filteredProjects = state.projects.filter(p => p.folderId === state.currentFolderId);
