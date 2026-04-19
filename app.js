@@ -111,6 +111,8 @@ async function handleLogin() {
         loadState().catch(e => console.error("Initial cloud load failed:", e));
         
         applySecurityUI();
+        renderAccountPage();
+        renderSidebarProfile();
         document.getElementById('auth-overlay').style.opacity = '0';
         setTimeout(() => {
             document.getElementById('auth-overlay').style.display = 'none';
@@ -298,6 +300,8 @@ window.onload = async () => {
     detectIP().catch(e => console.error("IP Detect failed:", e));
 
     if (authState.isLoggedIn) {
+        renderAccountPage();
+        renderSidebarProfile();
         loadState().catch(e => console.error("Initial load failed:", e));
         
         // AUTO-REFRESH for partners/managers every 30s
