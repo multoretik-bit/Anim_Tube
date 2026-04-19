@@ -1382,10 +1382,13 @@ function renderAccountPage() {
     const sessionDate = authState.sessionStart ? new Date(authState.sessionStart).toLocaleDateString() : '—';
 
     // Determine "my" folders:
-    // Owner sees ALL. Partners/managers see only their own (or unowned = owner's)
-    const myFolders = user.role === 'owner'
-        ? state.folders
+    // Owner sees ONLY unassigned. Partners/managers see only their assigned (or owned)
+    let myFolders = user.role === 'owner'
+        ? state.folders.filter(f => !f.assignedTo)
         : state.folders.filter(f => f.assignedTo === user.login || f.ownedBy === user.login);
+
+    // ALWAYS filter to only show channels with avatars
+    myFolders = myFolders.filter(f => f.avatar);
 
     const totalProjects = myFolders.reduce((acc, f) =>
         acc + state.projects.filter(p => p.folderId === f.id).length, 0
