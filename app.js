@@ -1412,8 +1412,20 @@ function renderAccountPage() {
     if (countEl) countEl.innerText = myFolders.length;
 
     // Update main profile avatar/initials
-    const mainImg = document.getElementById('main-profile-img');
-    const mainInitials = document.getElementById('main-profile-initials');
+    // Profile Avatar Access
+    const avatarContainer = document.getElementById('main-profile-avatar-container');
+    if (avatarContainer) {
+        if (user.role === 'owner') {
+            avatarContainer.onclick = () => openAvatarModal();
+            avatarContainer.style.cursor = 'pointer';
+            avatarContainer.title = 'Сменить аватар';
+        } else {
+            avatarContainer.onclick = null;
+            avatarContainer.style.cursor = 'default';
+            avatarContainer.title = '';
+        }
+    }
+
     if (mainImg && mainInitials) {
         const userAvatar = state.userAvatars[user.login];
         if (userAvatar) {

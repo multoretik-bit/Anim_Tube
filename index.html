@@ -124,7 +124,7 @@
         <section id="page-account" class="page active">
             <!-- Profile Overview Header -->
             <div class="profile-overview">
-                <div class="profile-large-avatar" onclick="openAvatarModal()" style="cursor: pointer;" title="Сменить аватар">
+                <div class="profile-large-avatar" id="main-profile-avatar-container" style="cursor: pointer;" title="Сменить аватар">
                     <img id="main-profile-img" src="" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: none;">
                     <div id="main-profile-initials" style="width: 100%; height: 100%; border-radius: 50%; background: var(--accent-primary); color: white; display: flex; align-items: center; justify-content: center; font-size: 32px; font-weight: 900;">...</div>
                 </div>
@@ -158,9 +158,7 @@
                 <div>
                     <h3 class="section-title" style="font-size: 20px;">Мои каналы</h3>
                 </div>
-                <button class="btn btn-primary" onclick="createNewFolderForAccount()" style="padding:10px 20px;">
-                    📁 Создать канал
-                </button>
+                <!-- Create button removed from here, only available in dedicated My Channels page -->
             </div>
 
             <div class="channel-grid-preview" id="profile-projects-preview" style="margin-bottom: 40px;">
