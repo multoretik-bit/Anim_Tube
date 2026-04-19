@@ -2213,16 +2213,15 @@ async function loadState() {
             localArr.forEach(item => {
                 if (map.has(item.id)) {
                     const cloudItem = map.get(item.id);
-                    const merged = { ...item, ...cloudItem };
+                    // Preserve assets from local state during merge
+                    const merged = { ...item, ...cloudItem, assets: item.assets || cloudItem.assets };
                     forceCloudFields.forEach(f => {
                         if (cloudItem[f] !== undefined) merged[f] = cloudItem[f];
                     });
                     map.set(item.id, merged);
                 } else if (!isPartner) {
-                    // If not a partner, keep local-only items (might be new ones not yet synced)
                     map.set(item.id, item);
                 }
-                // If is partner and NOT in cloud, we don't add it to map (it's deleted)
             });
             return Array.from(map.values());
         };
@@ -2366,9 +2365,9 @@ window.handleAddFolderAsset = async (input) => {
         renderFolderAssets();
         logStatus(`📦 Ассет "${name}" добавлен в канал.`, "success");
         
-        // Push update to cloud (v12 Sync)
         if (authState.user.role === 'owner') {
-            updateChannelStats(folder.id, { assets: folder.assets });
+            // Cloud column 'assets' is missing, so we skip cloud sync for now
+            // updateChannelStats(folder.id, { assets: folder.assets });
         }
     };
     reader.readAsDataURL(file);
@@ -2405,7 +2404,8 @@ async function deleteFolderAsset(id) {
     renderFolderAssets();
     
     if (authState.user.role === 'owner') {
-        updateChannelStats(folder.id, { assets: folder.assets });
+        // Skip cloud sync for assets column
+        // updateChannelStats(folder.id, { assets: folder.assets });
     }
 }
 
