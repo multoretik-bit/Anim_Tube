@@ -1388,46 +1388,26 @@ function renderAccountPage() {
     );
 
     // Update greeting name on dashboard
+    // Update greeting name on dashboard
     const greetingEl = document.getElementById('greeting-name');
     if (greetingEl) greetingEl.innerText = user.login;
     
     const countEl = document.getElementById('channel-count-display');
     if (countEl) countEl.innerText = myFolders.length;
 
-    // Render channels in the "Мои проекты" dashboard section
-    const profileProjectsPreview = document.getElementById('profile-projects-preview');
-    if (profileProjectsPreview) {
-        if (myFolders.length === 0) {
-            profileProjectsPreview.innerHTML = '<div style="color:var(--text-dim); padding:20px;">Нет каналов</div>';
+    // Update main profile avatar/initials
+    const mainImg = document.getElementById('main-profile-img');
+    const mainInitials = document.getElementById('main-profile-initials');
+    if (mainImg && mainInitials) {
+        const userAvatar = state.userAvatars[user.login];
+        if (userAvatar) {
+            mainImg.src = userAvatar;
+            mainImg.style.display = 'block';
+            mainInitials.style.display = 'none';
         } else {
-            profileProjectsPreview.innerHTML = myFolders.map(f => {
-                const channelColor = f.color || '#6366f1';
-                const projCount = state.projects.filter(p => p.folderId === f.id).length;
-                const initials = f.name.substring(0, 2).toUpperCase();
-                
-                return `
-                <div class="project-preview-card" style="border-color: ${channelColor};">
-                    <div class="card-bg-glow" style="background: radial-gradient(circle at top left, ${channelColor}33, transparent 70%);"></div>
-                    <div class="card-content">
-                        <div class="card-header">
-                            <div class="card-thumb" style="background: linear-gradient(135deg, ${channelColor}88, ${channelColor}); font-size:24px;">
-                                ${f.avatar ? `<img src="${f.avatar}" style="width:100%; height:100%; object-fit:cover; border-radius:12px;">` : initials}
-                            </div>
-                            <div class="card-info">
-                                <h4>${f.name}</h4>
-                                <span class="subs">${f.niche || 'Общая ниша'}</span>
-                            </div>
-                        </div>
-                        <div class="card-footer">
-                            <div class="card-stats">
-                                <div>Проектов: ${projCount}</div>
-                                <div style="color: #34d399;">Канал активен</div>
-                            </div>
-                            <button class="btn-open-project" onclick="openFolder(${f.id}); showPage('videos')" style="background: linear-gradient(90deg, #1e3a8a, ${channelColor});">Открыть →</button>
-                        </div>
-                    </div>
-                </div>`;
-            }).join('');
+            mainImg.style.display = 'none';
+            mainInitials.style.display = 'flex';
+            mainInitials.innerText = user.login.substring(0, 2).toUpperCase();
         }
     }
 
