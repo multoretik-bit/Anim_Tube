@@ -1395,6 +1395,50 @@ function renderAccountPage() {
         acc + state.projects.filter(p => p.folderId === f.id).length, 0
     );
 
+    // Update greeting name on dashboard
+    const greetingEl = document.getElementById('greeting-name');
+    if (greetingEl) greetingEl.innerText = user.login;
+    
+    const countEl = document.getElementById('channel-count-display');
+    if (countEl) countEl.innerText = myFolders.length;
+
+    // Render channels in the "Мои проекты" dashboard section
+    const profileProjectsPreview = document.getElementById('profile-projects-preview');
+    if (profileProjectsPreview) {
+        if (myFolders.length === 0) {
+            profileProjectsPreview.innerHTML = '<div style="color:var(--text-dim); padding:20px;">Нет каналов</div>';
+        } else {
+            profileProjectsPreview.innerHTML = myFolders.map(f => {
+                const channelColor = f.color || '#6366f1';
+                const projCount = state.projects.filter(p => p.folderId === f.id).length;
+                const initials = f.name.substring(0, 2).toUpperCase();
+                
+                return `
+                <div class="project-preview-card" style="border-color: ${channelColor};">
+                    <div class="card-bg-glow" style="background: radial-gradient(circle at top left, ${channelColor}33, transparent 70%);"></div>
+                    <div class="card-content">
+                        <div class="card-header">
+                            <div class="card-thumb" style="background: linear-gradient(135deg, ${channelColor}88, ${channelColor}); font-size:24px;">
+                                ${f.avatar ? `<img src="${f.avatar}" style="width:100%; height:100%; object-fit:cover; border-radius:12px;">` : initials}
+                            </div>
+                            <div class="card-info">
+                                <h4>${f.name}</h4>
+                                <span class="subs">${f.niche || 'Общая ниша'}</span>
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            <div class="card-stats">
+                                <div>Проектов: ${projCount}</div>
+                                <div style="color: #34d399;">Канал активен</div>
+                            </div>
+                            <button class="btn-open-project" onclick="openFolder(${f.id}); showPage('videos')" style="background: linear-gradient(90deg, #1e3a8a, ${channelColor});">Открыть →</button>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+    }
+
     const folderCards = myFolders.map(f => {
         const projCount = state.projects.filter(p => p.folderId === f.id).length;
         const channelColor = f.color || 'var(--accent-primary)';
@@ -1727,27 +1771,48 @@ function deleteFolder(id) {
     }
     const folder = state.folders.find(f => f.id === id);
     if (!folder) return;
-    if (!confirm(`Удалить канал "${folder.name}"? Проекты внутри НЕ будут удалены, они переместятся в корень.`)) return;
+    if (!confirm(`Удалить канал "${folder.name}" НАВСЕГДА? Проекты внутри также будут удалены.`)) return;
     
-    state.projects.forEach(p => {
-        if (p.folderId === id) p.folderId = null;
-    });
+    // Explicitly delete from Supabase immediately
+    if (cloudDB && authState.isLoggedIn) {
+        cloudDB.from('folders').delete().eq('id', id).then(({error}) => {
+            if (error) console.error("Error deleting folder from cloud:", error);
+        });
+        
+        // Delete all associated projects from Supabase
+        cloudDB.from('projects').delete().eq('folderId', id).then(({error}) => {
+            if (error) console.error("Error deleting associated projects from cloud:", error);
+        });
+    }
+
+    // Remove associated projects locally
+    state.projects = state.projects.filter(p => p.folderId !== id);
     
+    // Remove folder locally
     state.folders = state.folders.filter(f => f.id !== id);
     saveState();
     renderProjects();
-    logStatus(`🗑️ Канал "${folder.name}" удалён.`, "info");
+    if (state.activePage === 'account') renderAccountPage();
+    logStatus(`🗑️ Канал "${folder.name}" и все его проекты удалены навсегда.`, "info");
 }
 
 function deleteProject(id) {
     const project = state.projects.find(p => p.id === id);
     if (!project) return;
-    if (!confirm(`Удалить видео-проект "${project.name}"? Это действие необратимо!`)) return;
+    if (!confirm(`Удалить видео-проект "${project.name}" НАВСЕГДА? Это действие необратимо!`)) return;
+
+    // Explicitly delete from Supabase immediately
+    if (cloudDB && authState.isLoggedIn) {
+        cloudDB.from('projects').delete().eq('id', id).then(({error}) => {
+            if (error) console.error("Error deleting project from cloud:", error);
+        });
+    }
 
     state.projects = state.projects.filter(p => p.id !== id);
     saveState();
     renderProjects();
-    logStatus(`🗑️ Проект "${project.name}" удален.`, "info");
+    if (state.activePage === 'account') renderAccountPage();
+    logStatus(`🗑️ Проект "${project.name}" удален навсегда.`, "info");
 }
 
 
