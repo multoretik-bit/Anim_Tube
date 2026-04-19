@@ -2063,14 +2063,14 @@ async function saveState() {
                     niche: f.niche,
                     color: f.color,
                     avatar: f.avatar,
-                    assets: f.assets || [], // Sync assets here
+                    // assets: f.assets || [], // Disabled until column is added in Supabase
                     assignedTo: f.assignedTo,
                     ownedBy: f.ownedBy || authState.user.login,
                     views: Number(f.views) || 0,
                     revenue: Number(f.revenue) || 0,
-                    prefix: f.prefix || "",
-                    scriptPrefix: f.scriptPrefix || "",
-                    splitPrefix: f.splitPrefix || "",
+                    // prefix: f.prefix || "",
+                    // scriptPrefix: f.scriptPrefix || "",
+                    // splitPrefix: f.splitPrefix || "",
                     created: f.created
                 }));
                 console.log("📤 Syncing Folders to Cloud:", foldersToSync.length);
