@@ -2638,7 +2638,6 @@ async function loadState() {
         let fQuery = cloudDB.from('folders').select('*');
         if (authState.user.role !== 'owner') {
             const login = authState.user.login;
-            // Fetch if user is in the assignedTo list (comma separated)
             fQuery = fQuery.or(`assignedTo.ilike.%${login}%,ownedBy.eq."${login}"`);
         }
         const { data: cloudFolders, error: fErr } = await fQuery;
@@ -2647,15 +2646,13 @@ async function loadState() {
             logStatus("❌ Ошибка загрузки каналов: " + fErr.message, "error");
             throw fErr;
         }
-        console.log("📂 Cloud Folders Loaded:", cloudFolders);
-        if (fErr) throw fErr;
+        console.log("📂 [SYNC] Cloud Folders Loaded:", cloudFolders.length, cloudFolders.map(f => f.name));
         
         // 2. Load Cloud Projects
         let pQuery = cloudDB.from('projects').select('*');
         if (authState.user.role !== 'owner') {
-            const cloudFolderIds = cloudFolders ? cloudFolders.map(f => f.id) : [];
-            const localFolderIds = state.folders.map(f => f.id);
-            const allFolderIds = [...new Set([...cloudFolderIds, ...localFolderIds])];
+            const allFolderIds = cloudFolders ? cloudFolders.map(f => f.id) : [];
+            console.log("🔍 [SYNC] Searching projects for Folder IDs:", allFolderIds);
             if (allFolderIds.length > 0) {
                 pQuery = pQuery.in('folderId', allFolderIds);
             } else {
@@ -2665,9 +2662,14 @@ async function loadState() {
         let cloudProjects = [];
         if (pQuery) {
             const { data: pData, error: pErr } = await pQuery;
-            if (pErr) throw pErr;
+            if (pErr) {
+                console.error("❌ Project Load Error:", pErr);
+                throw pErr;
+            }
             cloudProjects = pData || [];
-            console.log("📽️ Cloud Projects Loaded:", cloudProjects.length);
+            console.log("📽️ [SYNC] Cloud Projects Loaded:", cloudProjects.length);
+        } else {
+            console.warn("⚠️ [SYNC] No accessible folders found, skipping project fetch.");
         }
 
         // v1.9.7: FIXED SMART MERGE (Prioritize local results to prevent ghost frames)
