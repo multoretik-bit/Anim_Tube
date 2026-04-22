@@ -101,25 +101,39 @@ async function setupRealtimeSync() {
     
     console.log("📡 Initializing Realtime Listeners...");
     
-    // Listen for Channel changes (Income/Views)
+    // Listen for Channel changes (Income/Views/Assignments)
     cloudDB.channel('folders-realtime')
-    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'folders' }, payload => {
-        const updatedFolder = payload.new;
-        const oldFolder = state.folders.find(f => f.id == updatedFolder.id);
-        
-        if (oldFolder) {
-            const viewsChanged = updatedFolder.views != oldFolder.views;
-            const revenueChanged = updatedFolder.revenue != oldFolder.revenue;
-            
-            if (viewsChanged || revenueChanged) {
-                Object.assign(oldFolder, updatedFolder);
-                playNotificationSound();
-                flashTitleNotification(revenueChanged ? "💰 ДОХОД +" : "👁️ ПРОСМОТРЫ +");
-                if (state.activePage === 'account') renderAccountPage();
-                renderProjects();
-                logStatus(`📈 Обновлено: ${updatedFolder.name}`, "info");
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'folders' }, payload => {
+        if (payload.eventType === 'INSERT') {
+            if (!state.folders.find(f => f.id == payload.new.id)) {
+                state.folders.push(payload.new);
+                logStatus(`✨ Новый канал: ${payload.new.name}`, "info");
             }
+        } else if (payload.eventType === 'UPDATE') {
+            const updatedFolder = payload.new;
+            const idx = state.folders.findIndex(f => f.id == updatedFolder.id);
+            if (idx !== -1) {
+                const oldFolder = state.folders[idx];
+                const assignmentChanged = updatedFolder.assignedTo !== oldFolder.assignedTo;
+                const viewsChanged = updatedFolder.views != oldFolder.views;
+                const revenueChanged = updatedFolder.revenue != oldFolder.revenue;
+                
+                state.folders[idx] = { ...oldFolder, ...updatedFolder };
+
+                if (viewsChanged || revenueChanged || assignmentChanged) {
+                    playNotificationSound();
+                    if (revenueChanged) flashTitleNotification("💰 ДОХОД +");
+                    else if (viewsChanged) flashTitleNotification("👁️ ПРОСМОТРЫ +");
+                    else if (assignmentChanged) flashTitleNotification("🛰️ КАНАЛ НАЗНАЧЕН");
+                }
+            }
+        } else if (payload.eventType === 'DELETE') {
+            state.folders = state.folders.filter(f => f.id != payload.old.id);
         }
+        
+        if (state.activePage === 'account') renderAccountPage();
+        if (state.activePage === 'partners') renderPartnersPage();
+        renderProjects();
     })
     .subscribe();
 
@@ -1923,23 +1937,21 @@ window.updateChannelStats = async function(folderId, fieldOrData, value) {
         updateData[field] = value;
     }
     
-    logStatus(`⏳ Синхронизация данных в облаке...`, "info");
+    logStatus(`⏳ Облачная синхронизация...`, "info");
     
     if (cloudDB && authState.isLoggedIn) {
-        const { error } = await cloudDB.from('folders')
-            .update(updateData)
-            .eq('id', folderId);
-            
-        if (error) {
-            console.error("❌ Cloud Sync Error:", error);
-            alert("🔴 ОШИБКА: Не удалось обновить статистику в облаке.\n" + error.message);
-            return;
+        try {
+            const { error } = await cloudDB.from('folders')
+                .update(updateData)
+                .eq('id', folderId);
+                
+            if (error) throw error;
+            logStatus(`✅ Данные сохранены навсегда.`, "success");
+        } catch (err) {
+            console.error("❌ Cloud Sync Error:", err);
+            logStatus("🔴 Ошибка сохранения: " + err.message, "error");
         }
     }
-    
-    await saveState(); 
-    if (state.activePage === 'account') renderAccountPage();
-    logStatus(`✅ Данные канала обновлены.`, "success");
 }
 
 async function assignFolderToUser(folderId, userLogin) {
@@ -1947,7 +1959,7 @@ async function assignFolderToUser(folderId, userLogin) {
     const folder = state.folders.find(f => f.id == folderId);
     if (!folder) return;
 
-    logStatus(`⏳ Синхронизация доступа для ${userLogin}...`, "info");
+    logStatus(`⏳ Привязка канала к ${userLogin}...`, "info");
     
     // Manage assignedTo as a comma-separated list
     let userList = (folder.assignedTo || "").split(',').map(s => s.trim()).filter(Boolean);
@@ -1958,35 +1970,46 @@ async function assignFolderToUser(folderId, userLogin) {
     folder.assignedTo = newAssigned;
 
     if (cloudDB && authState.isLoggedIn) {
-        const { error } = await cloudDB.from('folders')
-            .update({ assignedTo: newAssigned })
-            .eq('id', folderId);
-        
-        if (error) {
-            console.error("❌ Assignment Error:", error);
-            logStatus("❌ Ошибка синхронизации: " + error.message, "error");
-            alert("🔴 ОШИБКА СИНХРОНИЗАЦИИ: " + error.message);
-            return;
+        try {
+            const { error } = await cloudDB.from('folders')
+                .update({ assignedTo: newAssigned })
+                .eq('id', folderId);
+            
+            if (error) throw error;
+            logStatus(`✅ Доступ предоставлен ${userLogin}.`, "success");
+        } catch (err) {
+            console.error("❌ Assignment Error:", err);
+            logStatus("❌ Ошибка привязки: " + err.message, "error");
         }
     }
-    
-    await saveState(); 
     renderAccountPage();
-    logStatus(`✅ Доступ к "${folder.name}" предоставлен пользователю ${userLogin}.`, "success");
 }
 
-function unassignFolder(folderId, userLogin) {
+window.unassignFolder = async function(folderId, userLogin) {
     const folder = state.folders.find(f => f.id == folderId);
     if (!folder) return;
 
+    logStatus(`⏳ Отвязка канала от ${userLogin}...`, "info");
+
     let userList = (folder.assignedTo || "").split(',').map(s => s.trim()).filter(Boolean);
-    userList = userList.filter(u => u !== userLogin);
-    const newAssigned = userList.join(',') || null;
+    const newList = userList.filter(u => u !== userLogin);
+    const newAssigned = newList.join(',') || null;
     folder.assignedTo = newAssigned;
 
-    saveState();
+    if (cloudDB && authState.isLoggedIn) {
+        try {
+            const { error } = await cloudDB.from('folders')
+                .update({ assignedTo: newAssigned })
+                .eq('id', folderId);
+            
+            if (error) throw error;
+            logStatus(`✅ Канал отвязан от ${userLogin}.`, "success");
+        } catch (err) {
+            console.error("❌ Unassign Error:", err);
+            logStatus("❌ Ошибка отвязки: " + err.message, "error");
+        }
+    }
     renderAccountPage();
-    logStatus(`ℹ️ Пользователь ${userLogin || ''} отвязан от канала "${folder.name}".`, "info");
 }
 
 window.assignFolderToUser = assignFolderToUser;
@@ -2516,58 +2539,45 @@ async function saveState() {
 
     // 2. Cloud Sync (Optimized v3.0 - No redundant diffing)
     try {
-        // A. Sync Folders (Allow owners, managers and partners to sync their assigned folders)
-        if (state.folders.length > 0) {
-            const foldersToSync = state.folders.map(f => ({
-                id: f.id,
-                name: f.name,
-                niche: f.niche,
-                color: f.color,
-                avatar: f.avatar,
-                assets: f.assets && f.assets.length > 0 ? f.assets : undefined, // Protection: don't overwrite with empty
-                assignedTo: f.assignedTo,
-                ownedBy: f.ownedBy || authState.user.login,
-                views: Number(f.views) || 0,
-                revenue: Number(f.revenue) || 0,
-                prefix: f.prefix || "",
-                scriptPrefix: f.scriptPrefix || "",
-                splitPrefix: f.splitPrefix || "",
-                uploadLink: f.uploadLink || "",
-                created: f.created
-            }));
-            
-            const { error: fSyncErr } = await cloudDB.from('folders').upsert(foldersToSync);
-            if (fSyncErr) throw fSyncErr;
+        // Save Folders
+        for (const folder of state.folders) {
+            if (state.deletedIds && state.deletedIds.has(folder.id)) continue;
+            await cloudDB.from('folders').upsert([{
+                id: folder.id,
+                name: folder.name,
+                ownedBy: folder.ownedBy || authState.user.login,
+                assignedTo: folder.assignedTo,
+                views: Number(folder.views) || 0,
+                revenue: Number(folder.revenue) || 0,
+                niche: folder.niche,
+                avatar: folder.avatar,
+                color: folder.color,
+                prefix: folder.prefix,
+                scriptPrefix: folder.scriptPrefix,
+                splitPrefix: folder.splitPrefix,
+                uploadLink: folder.uploadLink,
+                assets: folder.assets || []
+            }]);
         }
-        
-        // B. Sync Projects (Sync only if user owns them or is assigned to them)
-        if (state.projects.length > 0) {
-            const projectsToSync = state.projects.map(p => {
-                const productionData = {
-                    ...(p.data || {}),
-                    scripts: p.scripts || [],
-                    promptsText: p.promptsText || "",
-                    promptsList: p.promptsList || [],
-                    results: p.results || [],
-                    assets: p.assets || [],
-                    audioId: p.audioId || null,
-                    status: p.status || 0
-                };
-                
-                return {
-                    id: p.id,
-                    folderId: p.folderId,
-                    name: p.name,
-                    status: p.status,
-                    preview: p.preview,
-                    created: p.created,
-                    ownedBy: p.ownedBy || authState.user.login,
-                    data: productionData
-                };
-            });
 
-            const { error: pSyncErr } = await cloudDB.from('projects').upsert(projectsToSync);
-            if (pSyncErr) throw pSyncErr;
+        // Save Projects
+        for (const project of state.projects) {
+            if (state.deletedIds && state.deletedIds.has(project.id)) continue;
+            const dbPayload = {
+                id: project.id,
+                folderId: project.folderId,
+                name: project.name,
+                status: project.status,
+                data: {
+                    scripts: project.scripts || [],
+                    promptsList: project.promptsList || [],
+                    results: project.results || [],
+                    assets: project.assets || [],
+                    audioId: project.audioId || null,
+                    prefix: project.prefix || ""
+                }
+            };
+            await cloudDB.from('projects').upsert([dbPayload]);
         }
 
         // C. Sync Avatars (Self-only)
@@ -3254,7 +3264,7 @@ function renderQueue() {
 async function handleIncomingImage(base64) {
     // Gallery Isolation: Use locked ID if in batch mode
     const targetId = state.assembly.isRunning ? state.assembly.lockedProjectId : state.activeProjectId;
-    const project = state.projects.find(p => p.id === targetId);
+    const project = state.projects.find(p => p.id == targetId);
     if (!project) return;
 
     // Visual Flash & Animation
@@ -4105,6 +4115,23 @@ window.renderPartnersPage = async function() {
     try {
         if (!cloudDB) cloudDB = getDB();
         
+        // Subscribe to changes if channel/folders change
+        if (!chatState.subscription) {
+            chatState.subscription = cloudDB.channel('folders_channel')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'folders' }, (payload) => {
+                if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+                    const idx = state.folders.findIndex(f => f.id == payload.new.id);
+                    if (idx === -1) state.folders.push(payload.new);
+                    else state.folders[idx] = { ...state.folders[idx], ...payload.new };
+                } else if (payload.eventType === 'DELETE') {
+                    state.folders = state.folders.filter(f => f.id != payload.old.id);
+                }
+                renderAccountPage();
+                renderProjects();
+                if (state.activePage === 'partners') renderPartnersPage();
+            }).subscribe();
+        }
+
         // 1. Fetch ALL Folders to calculate views
         const { data: allFolders } = await cloudDB.from('folders').select('ownedBy, assignedTo, views');
         const viewStats = {};
