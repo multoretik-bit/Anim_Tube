@@ -2149,7 +2149,12 @@ function renderProjects() {
     }
 
     // 3. Render Projects (filtered by current folder)
-    const filteredProjects = state.projects.filter(p => p.folderId === state.currentFolderId);
+    const filteredProjects = state.projects.filter(p => p.folderId == state.currentFolderId);
+    console.log(`🎨 [RENDER] Rendering ${filteredProjects.length} projects for folder ${state.currentFolderId}`);
+    if (filteredProjects.length === 0 && state.projects.length > 0) {
+        console.warn("⚠️ [RENDER] Found projects in state, but none match currentFolderId:", 
+            state.projects.map(p => ({ name: p.name, folderId: p.folderId })));
+    }
     
     // Non-owners can't see root projects if they are not in a folder
     if (!state.currentFolderId && authState.user.role !== 'owner') {
