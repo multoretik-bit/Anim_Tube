@@ -2573,7 +2573,8 @@ async function saveState() {
                 id: project.id,
                 folderId: project.folderId,
                 name: project.name,
-                status: project.status,
+                status: Number(project.status || 0),
+                created: project.created || new Date().toLocaleDateString(),
                 data: {
                     scripts: project.scripts || [],
                     promptsList: project.promptsList || [],
