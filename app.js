@@ -99,76 +99,68 @@ function flashTitleNotification(message = "💰 ОБНОВЛЕНИЕ") {
 async function setupRealtimeSync() {
     if (!cloudDB) return;
     
-    console.log("📡 Initializing Realtime Listeners...");
+    console.log("📡 Initializing Full Realtime Sync (Folders & Projects)...");
     
-    // Listen for Channel changes (Income/Views)
-    cloudDB.channel('folders-realtime')
-    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'folders' }, payload => {
-        const updatedFolder = payload.new;
-        const oldFolder = state.folders.find(f => f.id == updatedFolder.id);
+    // 1. Listen for FOLDERS (Channels) - ALL EVENTS
+    cloudDB.channel('folders-all-events')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'folders' }, payload => {
+        console.log("📡 [REALTIME] Folder event:", payload.eventType);
         
-        if (oldFolder) {
-            const viewsChanged = updatedFolder.views != oldFolder.views;
-            const revenueChanged = updatedFolder.revenue != oldFolder.revenue;
-            
-            if (viewsChanged || revenueChanged) {
-                Object.assign(oldFolder, updatedFolder);
-                playNotificationSound();
-                flashTitleNotification(revenueChanged ? "💰 ДОХОД +" : "👁️ ПРОСМОТРЫ +");
-                if (state.activePage === 'account') renderAccountPage();
-                renderProjects();
-                logStatus(`📈 Обновлено: ${updatedFolder.name}`, "info");
+        if (payload.eventType === 'INSERT') {
+            const newFolder = payload.new;
+            if (!state.folders.find(f => f.id == newFolder.id)) {
+                state.folders.push(newFolder);
+                logStatus(`🆕 Новый канал: ${newFolder.name}`, "success");
             }
+        } else if (payload.eventType === 'UPDATE') {
+            const updatedFolder = payload.new;
+            const idx = state.folders.findIndex(f => f.id == updatedFolder.id);
+            if (idx !== -1) {
+                state.folders[idx] = { ...state.folders[idx], ...updatedFolder };
+            }
+        } else if (payload.eventType === 'DELETE') {
+            const oldId = payload.old.id;
+            state.folders = state.folders.filter(f => f.id != oldId);
         }
+        
+        // Refresh UI
+        if (state.activePage === 'account') renderAccountPage();
+        renderProjects();
+        playNotificationSound();
     })
     .subscribe();
 
-    // Listen for Project changes (Checkboxes, Status, Audio, etc.)
-    cloudDB.channel('projects-realtime')
-    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'projects' }, payload => {
-        const updatedProj = payload.new;
-        const existingIdx = state.projects.findIndex(p => p.id == updatedProj.id);
-        
-        if (existingIdx !== -1) {
-            const oldProj = state.projects[existingIdx];
-            
-            // Unpack data from JSON
-            const newData = updatedProj.data || {};
-            const oldData = oldProj.data || {};
-            
-            // Check for critical changes
-            const statusChanged = updatedProj.status != oldProj.status;
-            const audioChanged = newData.audioId !== oldData.audioId;
-            const scriptsChanged = JSON.stringify(newData.scripts) !== JSON.stringify(oldData.scripts);
+    // 2. Listen for PROJECTS - ALL EVENTS
+    cloudDB.channel('projects-all-events')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, payload => {
+        console.log("📡 [REALTIME] Project event:", payload.eventType);
 
-            if (statusChanged || audioChanged || scriptsChanged) {
-                console.log(`📡 [REALTIME] Project "${updatedProj.name}" updated (Audio: ${audioChanged})`);
-                
-                // Update local state
-                state.projects[existingIdx] = { 
-                    ...oldProj, 
-                    ...updatedProj, 
-                    audioId: newData.audioId, 
-                    scripts: newData.scripts,
-                    promptsList: newData.promptsList,
-                    results: newData.results,
-                    assets: newData.assets
-                };
-                
-                playNotificationSound();
-                flashTitleNotification(audioChanged ? "🎙️ ОЗВУЧКА ОБНОВЛЕНА" : "✅ ПРОЕКТ ОБНОВЛЕН");
-                
-                // Refresh UI if needed
-                if (state.activeProjectId == updatedProj.id) {
-                    if (state.activeProjectTab === 'voice') renderProjectVoice();
-                    if (state.activeProjectTab === 'script') renderProjectScripts();
-                    if (state.activeProjectTab === 'frames') renderProjectPrompts();
-                }
-                
-                renderProjects();
-                logStatus(`📡 Обновлено: ${updatedProj.name}`, "success");
+        if (payload.eventType === 'INSERT') {
+            const newProj = payload.new;
+            const unpacked = newProj.data ? { ...newProj, ...newProj.data } : newProj;
+            if (!state.projects.find(p => p.id == unpacked.id)) {
+                state.projects.push(unpacked);
+                logStatus(`🆕 Новый проект: ${unpacked.name}`, "success");
             }
+        } else if (payload.eventType === 'UPDATE') {
+            const updatedProj = payload.new;
+            const idx = state.projects.findIndex(p => p.id == updatedProj.id);
+            if (idx !== -1) {
+                const unpacked = updatedProj.data ? { ...updatedProj, ...updatedProj.data } : updatedProj;
+                state.projects[idx] = { ...state.projects[idx], ...unpacked };
+            }
+        } else if (payload.eventType === 'DELETE') {
+            const oldId = payload.old.id;
+            state.projects = state.projects.filter(p => p.id != oldId);
         }
+
+        // Refresh UI
+        renderProjects();
+        if (state.activePage === 'workspace') {
+            renderProjectScripts();
+            renderProjectLibrary();
+        }
+        playNotificationSound();
     })
     .subscribe();
 }
@@ -1699,8 +1691,11 @@ function renderAccountPage() {
     // Determine "my" folders:
     // Owner sees ONLY unassigned. Partners/managers see only their assigned (or owned)
     let myFolders = user.role === 'owner'
-        ? state.folders.filter(f => !f.assignedTo)
-        : state.folders.filter(f => f.assignedTo === user.login || f.ownedBy === user.login);
+        ? state.folders.filter(f => !f.assignedTo || f.assignedTo.trim() === "")
+        : state.folders.filter(f => {
+            const assignedUsers = (f.assignedTo || "").split(',').map(s => s.trim().toLowerCase());
+            return assignedUsers.includes(user.login.toLowerCase()) || (f.ownedBy && f.ownedBy.toLowerCase() === user.login.toLowerCase());
+        });
 
     // No longer filtering by avatar to prevent data loss
     // myFolders = myFolders.filter(f => f.avatar);
@@ -2065,8 +2060,11 @@ function renderProjects() {
     // 2. Render Folders (only at root)
     if (!state.currentFolderId) {
         let visibleFolders = authState.user.role === 'owner' 
-            ? state.folders.filter(f => !f.assignedTo) // Owner sees only unassigned channels
-            : state.folders.filter(f => f.assignedTo === authState.user.login || f.ownedBy === authState.user.login);
+            ? state.folders.filter(f => !f.assignedTo || f.assignedTo.trim() === "")
+            : state.folders.filter(f => {
+                const assignedUsers = (f.assignedTo || "").split(',').map(s => s.trim().toLowerCase());
+                return assignedUsers.includes(authState.user.login.toLowerCase()) || (f.ownedBy && f.ownedBy.toLowerCase() === authState.user.login.toLowerCase());
+            });
 
         // No longer filtering by avatar to prevent data loss
         // visibleFolders = visibleFolders.filter(f => f.avatar);
