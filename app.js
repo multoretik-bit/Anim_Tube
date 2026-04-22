@@ -139,26 +139,29 @@ async function setupRealtimeSync() {
 
     // Listen for Project changes (Checkboxes, Status, Audio, etc.)
     cloudDB.channel('projects-realtime')
-    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'projects' }, payload => {
-        const updatedProj = payload.new;
-        const existingIdx = state.projects.findIndex(p => p.id == updatedProj.id);
-        
-        if (existingIdx !== -1) {
-            const oldProj = state.projects[existingIdx];
-            
-            // Unpack data from JSON
-            const newData = updatedProj.data || {};
-            const oldData = oldProj.data || {};
-            
-            // Check for critical changes
-            const statusChanged = updatedProj.status != oldProj.status;
-            const audioChanged = newData.audioId !== oldData.audioId;
-            const scriptsChanged = JSON.stringify(newData.scripts) !== JSON.stringify(oldData.scripts);
-
-            if (statusChanged || audioChanged || scriptsChanged) {
-                console.log(`📡 [REALTIME] Project "${updatedProj.name}" updated (Audio: ${audioChanged})`);
-                
-                // Update local state
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, payload => {
+        if (payload.eventType === 'INSERT') {
+            if (!state.projects.find(p => p.id == payload.new.id)) {
+                const p = payload.new;
+                const data = p.data || {};
+                state.projects.push({
+                    ...p,
+                    audioId: data.audioId,
+                    scripts: data.scripts,
+                    promptsList: data.promptsList,
+                    results: data.results,
+                    assets: data.assets
+                });
+                playNotificationSound();
+                renderProjects();
+                logStatus(`🆕 Новый проект: ${p.name}`, "success");
+            }
+        } else if (payload.eventType === 'UPDATE') {
+            const updatedProj = payload.new;
+            const existingIdx = state.projects.findIndex(p => p.id == updatedProj.id);
+            if (existingIdx !== -1) {
+                const oldProj = state.projects[existingIdx];
+                const newData = updatedProj.data || {};
                 state.projects[existingIdx] = { 
                     ...oldProj, 
                     ...updatedProj, 
@@ -168,23 +171,21 @@ async function setupRealtimeSync() {
                     results: newData.results,
                     assets: newData.assets
                 };
-                
-                playNotificationSound();
-                flashTitleNotification(audioChanged ? "🎙️ ОЗВУЧКА ОБНОВЛЕНА" : "✅ ПРОЕКТ ОБНОВЛЕН");
-                
-                // Refresh UI if needed
+                if (updatedProj.status != oldProj.status) playNotificationSound();
                 if (state.activeProjectId == updatedProj.id) {
                     if (state.activeProjectTab === 'voice') renderProjectVoice();
                     if (state.activeProjectTab === 'script') renderProjectScripts();
                     if (state.activeProjectTab === 'frames') renderProjectPrompts();
                 }
-                
                 renderProjects();
-                logStatus(`📡 Обновлено: ${updatedProj.name}`, "success");
             }
+        } else if (payload.eventType === 'DELETE') {
+            state.projects = state.projects.filter(p => p.id != payload.old.id);
+            renderProjects();
         }
     })
     .subscribe();
+
 }
 
 let authState = JSON.parse(localStorage.getItem('animtube_auth') || '{"isLoggedIn": false, "user": null, "sessionStart": null, "lastActivity": null}');
