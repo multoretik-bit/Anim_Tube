@@ -1,4 +1,4 @@
-import { state, saveDeletedIds } from './config.js';
+import { state, saveDeletedIds, SUPABASE_URL, SUPABASE_KEY } from './config.js';
 
 let db = null;
 let cloudDB = null;
@@ -10,8 +10,6 @@ export function getDB() {
         return null;
     }
     const { createClient } = supabase;
-    const SUPABASE_URL = 'https://ovhujpuzklytpsstqxyw.supabase.co';
-    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im92aHVqcHV6a2x5dHBzc3RxeXl3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MTMyNDY4NjksImV4cCI6MjAyODgyMjg2OX0.99H_V_H_V_H_V_H_V_H_V_H_V_H_V_H_V_H_V_H_V_H';
     cloudDB = createClient(SUPABASE_URL, SUPABASE_KEY);
     return cloudDB;
 }

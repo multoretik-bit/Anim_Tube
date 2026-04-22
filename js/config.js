@@ -1,4 +1,7 @@
 // === AnimTube Studio v2.0 - Configuration & State ===
+export const SUPABASE_URL = "https://qyumcgwotdzalbsfdumh.supabase.co";
+export const SUPABASE_KEY = "sb_publishable_rMHUQggerdk7ixtXGSCvgA_0_SGQA8e";
+
 
 export const WHITELIST = [
     { login: "Denis", pass: "8888", code: "X-777-X", role: "owner", ip: "*" },
