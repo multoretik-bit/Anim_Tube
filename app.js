@@ -211,9 +211,6 @@ function checkSecurity() {
     } else {
         overlay.style.display = 'none';
         applySecurityUI();
-        if (authState.user.role === 'partner') {
-            startPartnerTimer();
-        }
     }
 }
 
@@ -255,7 +252,6 @@ async function handleLogin() {
         document.getElementById('auth-overlay').style.opacity = '0';
         setTimeout(() => {
             document.getElementById('auth-overlay').style.display = 'none';
-            if (user.role === 'partner') startPartnerTimer();
         }, 500);
         logStatus(`👋 Добро пожаловать, ${user.login}!`, "success");
         
@@ -276,11 +272,7 @@ function applySecurityUI() {
     
     renderSidebarProfile();
     
-    if (authState.user.role === 'partner' || authState.user.role === 'manager') {
-        document.getElementById('partner-hud').style.display = 'flex';
-    } else {
-        document.getElementById('partner-hud').style.display = 'none';
-    }
+    document.getElementById('partner-hud').style.display = 'none';
 }
 
 function renderSidebarProfile() {
@@ -307,7 +299,7 @@ function renderSidebarProfile() {
 }
 
 function startPartnerTimer() {
-    if (authState.user.role !== 'partner' && authState.user.role !== 'manager') return;
+    return; // Time limit removed per user request
     
     const today = new Date().toLocaleDateString();
     let usage = JSON.parse(localStorage.getItem('animtube_usage') || '{}');
