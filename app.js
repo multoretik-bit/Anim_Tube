@@ -620,7 +620,7 @@ function setupGlobalListeners() {
 }
 
 // --- SCRIPT MANAGEMENT ---
-async function startScriptGeneration(isAutomatic = false) {
+function startScriptGeneration(isAutomatic = false) {
     const project = getCurrentProject();
     if (!project) return;
 
@@ -648,9 +648,7 @@ async function startScriptGeneration(isAutomatic = false) {
     
     project.scripts.unshift(pendingScript);
     if (project.status < 1) project.status = 1;
-    
-    // v1.3.4: Await targeted sync to Supabase before UI/Bridge
-    await saveProject(project.id);
+    saveState();
     
     // v1.3.3: Small timeout to ensure tab switch DOM is ready
     setTimeout(() => {
@@ -687,7 +685,7 @@ function handleIncomingScript(text) {
     }
     
     if (project.status < 1) project.status = 1;
-    await saveProject(project.id);
+    saveState();
     renderProjectScripts();
     logStatus("✅ Сценарий успешно вставлен в слот!", "success");
 
@@ -4444,35 +4442,7 @@ async function loadConversations() {
         
         renderConversations();
     } catch (err) {
-        console.warn("Cloud Sync Error (Background):", err);
-    }
-}
-
-async function saveProject(projectId) {
-    const project = state.projects.find(p => p.id == projectId);
-    if (!project || !cloudDB || !authState.isLoggedIn) return;
-
-    try {
-        const payload = {
-            id: project.id,
-            folderId: project.folderId,
-            name: project.name,
-            status: Number(project.status || 0),
-            created: project.created || new Date().toLocaleDateString(),
-            data: {
-                scripts: project.scripts || [],
-                promptsList: project.promptsList || [],
-                results: project.results || [],
-                assets: project.assets || [],
-                audioId: project.audioId || null,
-                prefix: project.prefix || ""
-            }
-        };
-        const { error } = await cloudDB.from('projects').upsert([payload]);
-        if (error) throw error;
-        console.log(`✅ Проект ${project.name} синхронизирован.`);
-    } catch (err) {
-        console.error("❌ Save Project Error:", err);
+        console.error("Load Conversations Error:", err);
     }
 }
 
