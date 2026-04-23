@@ -1786,9 +1786,9 @@ function renderAccountPage() {
     const sessionDate = authState.sessionStart ? new Date(authState.sessionStart).toLocaleDateString() : '—';
 
     // Determine "my" folders:
-    // Owner sees ALL. Partners/managers see only their assigned (or owned)
+    // Owner sees ONLY unassigned. Partners/managers see only their assigned (or owned)
     let myFolders = user.role === 'owner'
-        ? state.folders
+        ? state.folders.filter(f => !f.assignedTo)
         : state.folders.filter(f => f.assignedTo === user.login || f.ownedBy === user.login);
 
     // No longer filtering by avatar to prevent data loss
@@ -2160,9 +2160,10 @@ function renderProjects() {
         if (description) description.innerText = "Управляйте своими анимационными каналами и проектами.";
     }
 
+    // 2. Render Folders (only at root)
     if (!state.currentFolderId) {
         let visibleFolders = authState.user.role === 'owner' 
-            ? state.folders // Owner sees everything
+            ? state.folders.filter(f => !f.assignedTo) // Owner sees only unassigned channels
             : state.folders.filter(f => (f.assignedTo || "").includes(authState.user.login) || f.ownedBy === authState.user.login);
 
         // No longer filtering by avatar to prevent data loss
