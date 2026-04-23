@@ -41,6 +41,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         }, 1500); 
     } else if (request.type === "FROM_CHATGPT") {
         relayToStudio(request);
+    } else if (request.type === "FROM_GEMINI_PROMPTS") {
+        console.log("🛰️ [BACKGROUND] Prompts received from Gemini. Focusing Studio...");
+        relayToStudio(request);
+        setTimeout(() => {
+            focusStudio();
+            setTimeout(() => {
+                relayToStudio({ type: "ANIMTUBE_CMD_PASTE_GEMINI_AUTO" });
+                console.log("✅ [BACKGROUND] Gemini Paste triggered.");
+            }, 2000); 
+        }, 1500); 
     } else if (request.type === "FROM_GROK_AUTO_DONE") {
         relayToStudio(request);
     }
@@ -343,11 +353,13 @@ async function executeSplitCycle(scriptText, customPrefix) {
     await chrome.scripting.executeScript({
         target: { tabId: geminiTab.id },
         func: async () => {
-            const responses = document.querySelectorAll('.model-response-text, .message-content');
+            const responses = document.querySelectorAll('.model-response-text, .message-content, [data-message-author-role="assistant"]');
             if (responses.length > 0) {
                 const lastResponse = responses[responses.length - 1];
                 const text = lastResponse.innerText || lastResponse.textContent;
-                chrome.runtime.sendMessage({ type: "FROM_CHATGPT_SCRIPT", text: text });
+                if (text && text.length > 20) {
+                    chrome.runtime.sendMessage({ type: "FROM_GEMINI_PROMPTS", text: text });
+                }
             }
         }
     });

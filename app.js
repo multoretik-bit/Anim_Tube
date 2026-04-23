@@ -599,6 +599,37 @@ function setupGlobalListeners() {
             }
         }
 
+        // 3.2 GEMINI PROMPTS AUTO-PASTE SIGNAL (v1.3.6)
+        if (event.data.type === "ANIMTUBE_CMD_PASTE_GEMINI_AUTO") {
+            logStatus("🤖 [РОБОТ]: Авто-вставка промптов из Gemini...", "info");
+            const scriptId = state.assembly.activeSplittingScriptId;
+            if (scriptId) {
+                const pasteBtn = document.getElementById(`btn-paste-split-${scriptId}`);
+                const sendBtn = document.getElementById(`btn-distribute-split-${scriptId}`);
+                
+                if (pasteBtn) {
+                    pasteBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    pasteBtn.classList.add('flash-active');
+                    setTimeout(() => {
+                        pasteBtn.click();
+                        pasteBtn.classList.remove('flash-active');
+                        
+                        // Step 2: Send to Generator
+                        setTimeout(() => {
+                            if (sendBtn) {
+                                logStatus("🤖 [РОБОТ]: Отправка промптов в генератор...", "info");
+                                sendBtn.classList.add('flash-active');
+                                setTimeout(() => {
+                                    sendBtn.click();
+                                    sendBtn.classList.remove('flash-active');
+                                }, 800);
+                            }
+                        }, 1500);
+                    }, 1000);
+                }
+            }
+        }
+
         // 4. VISUAL COPY REQUEST (v11.15)
         if (event.data.type === "ANIMTUBE_CMD_VISUAL_COPY") {
             runVisualCopyAnimation(event.data.assetIds);
