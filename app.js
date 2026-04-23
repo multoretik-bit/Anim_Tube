@@ -1649,28 +1649,30 @@ async function saveFolderSettings() {
     const folder = state.folders.find(f => f.id == id);
     
     if (folder) {
+        folder.prefix = document.getElementById('folder-prompt-prefix').value;
+        folder.scriptPrefix = document.getElementById('folder-script-prefix').value;
+        folder.splitPrefix = document.getElementById('folder-split-prefix').value;
+        
+        const uploadInput = document.getElementById('folder-upload-link');
+        if (uploadInput) folder.uploadLink = uploadInput.value;
+        
+        // Instant UI feedback: close panel first
+        closeFolderSettings();
+        renderProjects();
+        
+        logStatus(`🛰️ Сохранение настроек канала "${folder.name}"...`, "info");
+        
         try {
-            folder.prefix = document.getElementById('folder-prompt-prefix').value;
-            folder.scriptPrefix = document.getElementById('folder-script-prefix').value;
-            folder.splitPrefix = document.getElementById('folder-split-prefix').value;
-            
-            const uploadInput = document.getElementById('folder-upload-link');
-            if (uploadInput) folder.uploadLink = uploadInput.value;
-            
-            logStatus(`🛰️ Сохранение настроек канала "${folder.name}"...`, "info");
             await saveState();
             logStatus(`✅ Настройки канала "${folder.name}" сохранены!`, "success");
-            closeFolderSettings();
         } catch (e) {
             console.error("Save Folder Settings Error:", e);
-            alert("❌ Ошибка при сохранении настроек: " + e.message);
+            logStatus("❌ Ошибка синхронизации: " + e.message, "error");
         }
     } else {
         console.error("Active folder not found for saving:", id);
         closeFolderSettings();
     }
-    
-    renderProjects();
 }
 
 // --- PROJECT MANAGEMENT ---
