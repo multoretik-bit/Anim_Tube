@@ -1785,14 +1785,19 @@ function renderAccountPage() {
     const sessionTime = authState.sessionStart ? new Date(authState.sessionStart).toLocaleTimeString() : '—';
     const sessionDate = authState.sessionStart ? new Date(authState.sessionStart).toLocaleDateString() : '—';
 
-    // Determine "my" folders:
-    // Owner sees ONLY unassigned. Partners/managers see only their assigned (or owned)
-    let myFolders = user.role === 'owner'
-        ? state.folders.filter(f => !f.assignedTo)
-        : state.folders.filter(f => f.assignedTo === user.login || f.ownedBy === user.login);
+    // v1.9.9: Clearer ownership logic
+    const isOwner = user.role === 'owner';
+    
+    // Total Stats: Owner sees the grand total of all their channels
+    // Partners see only their assigned ones
+    const statsFolders = isOwner 
+        ? state.folders.filter(f => f.ownedBy === user.login)
+        : state.folders.filter(f => (f.assignedTo || "").includes(user.login));
 
-    // No longer filtering by avatar to prevent data loss
-    // myFolders = myFolders.filter(f => f.avatar);
+    // Dashboard "My Active Projects": Only what the user is personally working on
+    const myFolders = isOwner
+        ? state.folders.filter(f => !f.assignedTo && f.ownedBy === user.login)
+        : state.folders.filter(f => (f.assignedTo || "").includes(user.login));
 
     const totalProjects = myFolders.reduce((acc, f) =>
         acc + state.projects.filter(p => p.folderId === f.id).length, 0
@@ -1873,10 +1878,10 @@ function renderAccountPage() {
         }
     }
 
-    // 1. Calculate totals for current user's channels
+    // 1. Calculate totals for current user's network
     let totalViews = 0;
     let totalRevenue = 0;
-    myFolders.forEach(f => {
+    statsFolders.forEach(f => {
         totalViews += Number(f.views) || 0;
         totalRevenue += Number(f.revenue) || 0;
     });
@@ -2852,7 +2857,7 @@ async function loadState() {
 
         renderProjects();
         renderSidebarProfile();
-        if (state.activePage === 'account') renderAccountPage();
+        renderAccountPage(); // Always update stats/dashboard if cloud state changes
         const dot = document.getElementById('sync-status-dot');
         const cDot = document.getElementById('cloud-status-indicator');
         const cText = document.getElementById('cloud-status-text');
