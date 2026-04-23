@@ -654,12 +654,12 @@ function startScriptGeneration(isAutomatic = false) {
     setTimeout(() => {
         renderProjectScripts();
         logStatus("📝 Запуск генерации сценария в ChatGPT...", "info");
-    }, 100);
-    
-    sendToBridge({ 
-        type: "ANIMTUBE_CMD_SCRIPT", 
-        prefix: prefix 
-    });
+        
+        sendToBridge({ 
+            type: "ANIMTUBE_CMD_SCRIPT", 
+            prefix: prefix 
+        });
+    }, 200);
 }
 
 function handleIncomingScript(text) {
