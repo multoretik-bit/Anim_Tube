@@ -892,13 +892,16 @@ function distributePromptsToGenerator(scriptId, rawText) {
 
     if (!project.promptsList) project.promptsList = [];
     
+    const folder = getFolderForProject(project.id);
+    const prefix = (folder && folder.prefix) ? folder.prefix : DEFAULT_PREFIX;
+
     // Add new lines to the project's prompt list
     lines.forEach(line => {
         // Clean up markdown/noise
         const clean = line.replace(/^[:\s\-*]+/, '').trim();
         if (clean) {
             project.promptsList.push({
-                text: clean,
+                text: (prefix.trim() + "\n\n" + clean).trim(),
                 isGeminiDone: false,
                 isGrokDone: false,
                 resultId: null
@@ -1037,13 +1040,11 @@ function handleIncomingPrompts(rawText) {
     const project = getCurrentProject();
     if (!project) return;
 
-    const lines = rawText.split('\n')
-        .map(l => l.trim())
-        .filter(l => l.length > 5)
-        .map(l => l.replace(/^(Prompt|Промт|Кадр)\s*\d*[:\s]*/i, '').trim());
+    const folder = getFolderForProject(project.id);
+    const prefix = (folder && folder.prefix) ? folder.prefix : DEFAULT_PREFIX;
 
     const newObjects = lines.map(l => ({
-        text: l,
+        text: (prefix.trim() + "\n\n" + l.trim()).trim(),
         isGeminiDone: false,
         isGrokDone: false,
         resultId: null
@@ -1605,8 +1606,11 @@ function exitFolder() {
 
 // --- FOLDER SETTINGS (v1.3.8) ---
 function openFolderSettings(id) {
-    const folder = state.folders.find(f => f.id === id);
-    if (!folder) return;
+    const folder = state.folders.find(f => f.id == id);
+    if (!folder) {
+        console.error("Folder not found for settings:", id);
+        return;
+    }
 
     state.activeFolderIdForSettings = id;
     
@@ -1642,22 +1646,30 @@ function closeFolderSettings() {
 
 async function saveFolderSettings() {
     const id = state.activeFolderIdForSettings;
-    const folder = state.folders.find(f => f.id === id);
+    const folder = state.folders.find(f => f.id == id);
     
     if (folder) {
-        folder.prefix = document.getElementById('folder-prompt-prefix').value;
-        folder.scriptPrefix = document.getElementById('folder-script-prefix').value;
-        folder.splitPrefix = document.getElementById('folder-split-prefix').value;
-        
-        const uploadInput = document.getElementById('folder-upload-link');
-        if (uploadInput) folder.uploadLink = uploadInput.value;
-        
-        logStatus(`🛰️ Сохранение настроек канала "${folder.name}"...`, "info");
-        await saveState();
-        logStatus(`✅ Настройки канала "${folder.name}" сохранены в облаке!`, "success");
+        try {
+            folder.prefix = document.getElementById('folder-prompt-prefix').value;
+            folder.scriptPrefix = document.getElementById('folder-script-prefix').value;
+            folder.splitPrefix = document.getElementById('folder-split-prefix').value;
+            
+            const uploadInput = document.getElementById('folder-upload-link');
+            if (uploadInput) folder.uploadLink = uploadInput.value;
+            
+            logStatus(`🛰️ Сохранение настроек канала "${folder.name}"...`, "info");
+            await saveState();
+            logStatus(`✅ Настройки канала "${folder.name}" сохранены!`, "success");
+            closeFolderSettings();
+        } catch (e) {
+            console.error("Save Folder Settings Error:", e);
+            alert("❌ Ошибка при сохранении настроек: " + e.message);
+        }
+    } else {
+        console.error("Active folder not found for saving:", id);
+        closeFolderSettings();
     }
     
-    closeFolderSettings();
     renderProjects();
 }
 
@@ -2535,48 +2547,51 @@ async function saveState() {
     if (!cloudDB) cloudDB = getDB();
     if (!cloudDB || !authState.isLoggedIn) return;
 
-    // 2. Cloud Sync (Optimized v3.0 - No redundant diffing)
+    // 2. Cloud Sync (Optimized v4.0 - Batch Upserts)
     try {
-        // Save Folders
-        for (const folder of state.folders) {
-            if (state.deletedIds && state.deletedIds.has(folder.id)) continue;
-            await cloudDB.from('folders').upsert([{
-                id: folder.id,
-                name: folder.name,
-                ownedBy: folder.ownedBy || authState.user.login,
-                assignedTo: folder.assignedTo,
-                views: Number(folder.views) || 0,
-                revenue: Number(folder.revenue) || 0,
-                niche: folder.niche,
-                avatar: folder.avatar,
-                color: folder.color,
-                prefix: folder.prefix,
-                scriptPrefix: folder.scriptPrefix,
-                splitPrefix: folder.splitPrefix,
-                uploadLink: folder.uploadLink,
-                assets: folder.assets || []
-            }]);
+        // A. Batch Save Folders
+        const foldersToSave = state.folders.map(f => ({
+            id: f.id,
+            name: f.name,
+            ownedBy: f.ownedBy || authState.user.login,
+            assignedTo: f.assignedTo,
+            views: Number(f.views) || 0,
+            revenue: Number(f.revenue) || 0,
+            niche: f.niche,
+            avatar: f.avatar,
+            color: f.color,
+            prefix: f.prefix,
+            scriptPrefix: f.scriptPrefix,
+            splitPrefix: f.splitPrefix,
+            uploadLink: f.uploadLink,
+            assets: f.assets || []
+        }));
+        
+        if (foldersToSave.length > 0) {
+            const { error: fErr } = await cloudDB.from('folders').upsert(foldersToSave);
+            if (fErr) throw fErr;
         }
 
-        // Save Projects
-        for (const project of state.projects) {
-            if (state.deletedIds && state.deletedIds.has(project.id)) continue;
-            const dbPayload = {
-                id: project.id,
-                folderId: project.folderId,
-                name: project.name,
-                status: Number(project.status || 0),
-                created: project.created || new Date().toLocaleDateString(),
-                data: {
-                    scripts: project.scripts || [],
-                    promptsList: project.promptsList || [],
-                    results: project.results || [],
-                    assets: project.assets || [],
-                    audioId: project.audioId || null,
-                    prefix: project.prefix || ""
-                }
-            };
-            await cloudDB.from('projects').upsert([dbPayload]);
+        // B. Batch Save Projects
+        const projectsToSave = state.projects.map(p => ({
+            id: p.id,
+            folderId: p.folderId,
+            name: p.name,
+            status: Number(p.status || 0),
+            created: p.created || new Date().toLocaleDateString(),
+            data: {
+                scripts: p.scripts || [],
+                promptsList: p.promptsList || [],
+                results: p.results || [],
+                assets: p.assets || [],
+                audioId: p.audioId || null,
+                prefix: p.prefix || ""
+            }
+        }));
+        
+        if (projectsToSave.length > 0) {
+            const { error: pErr } = await cloudDB.from('projects').upsert(projectsToSave);
+            if (pErr) throw pErr;
         }
 
         // C. Sync Avatars (Self-only)
@@ -3087,7 +3102,12 @@ async function processNextItem() {
     const folder = getFolderForProject(project.id);
     const prefix = (folder && folder.prefix) ? folder.prefix : DEFAULT_PREFIX;
     
-    const fullPrompt = rawPrompt.includes(prefix) ? rawPrompt : (prefix.trim() + "\n\n" + rawPrompt.trim()).trim();
+    // v1.9.8: Improved prefix detection - check if start of text matches prefix (ignoring whitespace)
+    const cleanRaw = rawPrompt.trim();
+    const cleanPrefix = prefix.trim();
+    const hasPrefix = cleanRaw.toLowerCase().startsWith(cleanPrefix.toLowerCase()) || cleanRaw.includes(cleanPrefix);
+    
+    const fullPrompt = hasPrefix ? rawPrompt : (prefix.trim() + "\n\n" + rawPrompt.trim()).trim();
     
     // EXPLICIT CLIPBOARD COPY (v1.3.2 - Zero-Click Fix)
     copyTextToClipboard(fullPrompt); // No await to prevent hanging
@@ -3974,10 +3994,11 @@ function recreateSinglePrompt(index) {
 function addPromptToProject() {
     const project = getCurrentProject();
     if (!project) return;
-    if (!project.promptsList) project.promptsList = [];
+    const folder = getFolderForProject(project.id);
+    const prefix = (folder && folder.prefix) ? folder.prefix : DEFAULT_PREFIX;
     
     project.promptsList.push({
-        text: "",
+        text: prefix,
         isGeminiDone: false,
         isGrokDone: false,
         resultId: null
