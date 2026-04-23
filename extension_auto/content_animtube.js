@@ -3,8 +3,8 @@ console.log("🛰️ AnimTube Bridge (SUPER AUTO) Ready.");
 window.addEventListener("message", (event) => {
     if (!event.data || !event.data.type) return;
     
-    // Auto extension version ONLY handles AUTO commands
-    if (!event.data.type.includes("AUTO")) return;
+    // Auto extension version handles AUTO commands and Script/Split commands
+    if (!event.data.type.includes("AUTO") && !event.data.type.includes("CMD_SCRIPT") && !event.data.type.includes("CMD_SPLIT")) return;
     
     console.log("🛰️ [BRIDGE] Received AUTO message in Content Script:", event.data.type);
 

@@ -46,65 +46,101 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
 });
 
+let isScriptCycleRunning = false;
+
 async function executeScriptCycle(prefix) {
+    if (isScriptCycleRunning) return;
+    isScriptCycleRunning = true;
+    
     const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     const report = (msg) => relayToStudio({ type: "ANIMTUBE_STATUS", text: msg });
-    const tabs = await chrome.tabs.query({});
-    const aiTab = tabs.find(t => t.url && (t.url.includes("chatgpt.com") || t.url.includes("chat.openai.com")));
     
-    if (!aiTab) {
-        report("❌ ChatGPT не найден. Откройте chatgpt.com");
-        return;
-    }
-
-    report("🤖 [АВТО]: Переход в ChatGPT для создания сценария...");
-    await chrome.windows.update(aiTab.windowId, { focused: true });
-    await chrome.tabs.update(aiTab.id, { active: true });
-    await sleep(1500); 
-
-    // 1. Insert and Send
-    await chrome.scripting.executeScript({
-        target: { tabId: aiTab.id },
-        func: async (text) => {
-            const editor = document.querySelector('#prompt-textarea');
-            if (editor) {
-                editor.focus();
-                document.execCommand('insertText', false, text);
-                setTimeout(() => {
-                    const btn = document.querySelector('[data-testid="send-button"]');
-                    if (btn) btn.click();
-                }, 500);
-            }
-        },
-        args: [prefix]
-    });
-
-    // 2. WAIT 50 SECONDS (Reliable timer requested by user)
-    report("⌛ [АВТО]: Ожидание генерации сценария (50 сек)...");
-    await sleep(50000);
-
-    // 3. Scrape and Send
-    await chrome.scripting.executeScript({
-        target: { tabId: aiTab.id },
-        func: async () => {
-            // Attempt to click the official "Copy" button if it exists for the last message
-            const articles = document.querySelectorAll('article');
-            if (articles.length > 0) {
-                const lastArticle = articles[articles.length - 1];
-                const copyBtn = lastArticle.querySelector('button[aria-label*="Copy"], button[aria-label*="Копировать"]');
-                if (copyBtn) {
-                    copyBtn.click();
-                    // Even if we click it, we still scrape to send the text directly for reliability
-                }
-                const text = lastArticle.innerText || lastArticle.textContent;
-                chrome.runtime.sendMessage({ type: "FROM_CHATGPT_SCRIPT", text: text });
-            }
+    try {
+        const tabs = await chrome.tabs.query({});
+        const aiTab = tabs.find(t => t.url && (t.url.includes("chatgpt.com") || t.url.includes("chat.openai.com")));
+        
+        if (!aiTab) {
+            report("❌ ChatGPT не найден. Откройте chatgpt.com");
+            return;
         }
-    });
 
-    // 4. Return Focus
-    report("✅ [АВТО]: Сценарий готов! Возврат в Студию...");
-    focusStudio();
+        report("🤖 [АВТО]: Переход в ChatGPT для создания сценария...");
+        await chrome.windows.update(aiTab.windowId, { focused: true });
+        await chrome.tabs.update(aiTab.id, { active: true });
+        await sleep(1500); 
+
+        // 1. Insert and Send
+        report("✏️ [АВТО]: Вставка промпта в ChatGPT...");
+        await chrome.scripting.executeScript({
+            target: { tabId: aiTab.id },
+            func: async (text) => {
+                const editor = document.querySelector('#prompt-textarea') || document.querySelector('div[contenteditable="true"]');
+                if (editor) {
+                    editor.focus();
+                    document.execCommand('insertText', false, text);
+                    setTimeout(() => {
+                        const btn = document.querySelector('[data-testid="send-button"]') || 
+                                    document.querySelector('button[aria-label*="Send"]') ||
+                                    Array.from(document.querySelectorAll('button')).find(b => b.querySelector('svg path[d*="M2.01 21L23 12 2.01 3"]'));
+                        if (btn) btn.click();
+                    }, 500);
+                }
+            },
+            args: [prefix]
+        });
+
+        // 2. WAIT 50 SECONDS
+        report("⌛ [АВТО]: Ожидание генерации сценария (50 сек)...");
+        await sleep(50000);
+
+        // 3. Scrape and Send
+        report("📸 [АВТО]: Считывание сценария...");
+        await chrome.scripting.executeScript({
+            target: { tabId: aiTab.id },
+            func: async () => {
+                // Try multiple selectors for the last message
+                const selectors = [
+                    'article',
+                    '[data-testid*="conversation-turn"]',
+                    '.markdown.prose'
+                ];
+                
+                let lastMessage = null;
+                for (const sel of selectors) {
+                    const elements = document.querySelectorAll(sel);
+                    if (elements.length > 0) {
+                        lastMessage = elements[elements.length - 1];
+                        break;
+                    }
+                }
+
+                if (lastMessage) {
+                    // Try to find copy button
+                    const copyBtn = lastMessage.querySelector('button[aria-label*="Copy"], button[aria-label*="Копировать"]');
+                    if (copyBtn) {
+                        copyBtn.click();
+                    }
+                    
+                    const text = lastMessage.innerText || lastMessage.textContent;
+                    if (text && text.trim().length > 10) {
+                        chrome.runtime.sendMessage({ type: "FROM_CHATGPT_SCRIPT", text: text });
+                    } else {
+                        console.error("ChatGPT script too short or empty");
+                    }
+                } else {
+                    console.error("ChatGPT last message not found");
+                }
+            }
+        });
+
+        // 4. Return Focus (Backup focus, primary is handled in message listener)
+        setTimeout(() => focusStudio(), 2000);
+
+    } catch (e) {
+        report("❌ Ошибка в цикле ChatGPT: " + e.message);
+    } finally {
+        isScriptCycleRunning = false;
+    }
 }
 
 async function executeSplitCycle(scriptText, customPrefix) {
