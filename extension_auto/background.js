@@ -26,13 +26,164 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         }, 3000); 
     } else if (request.type === "FROM_CHATGPT") {
         relayToStudio(request);
+    } else if (request.type === "ANIMTUBE_CMD_SCRIPT") {
+        executeScriptCycle(request.prefix);
+    } else if (request.type === "ANIMTUBE_CMD_SPLIT") {
+        executeSplitCycle(request.script, request.prefix);
     } else if (request.type === "FROM_GROK_AUTO_DONE") {
         relayToStudio(request);
     }
     return true;
 });
 
+async function executeScriptCycle(prefix) {
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+    const report = (msg) => relayToStudio({ type: "ANIMTUBE_STATUS", text: msg });
+    const tabs = await chrome.tabs.query({});
+    const aiTab = tabs.find(t => t.url && (t.url.includes("chatgpt.com") || t.url.includes("chat.openai.com")));
+    
+    if (!aiTab) {
+        report("❌ ChatGPT не найден. Откройте chatgpt.com");
+        return;
+    }
+
+    report("🤖 [АВТО]: Переход в ChatGPT для создания сценария...");
+    await chrome.windows.update(aiTab.windowId, { focused: true });
+    await chrome.tabs.update(aiTab.id, { active: true });
+    await sleep(1500); 
+
+    // 1. Insert and Send
+    await chrome.scripting.executeScript({
+        target: { tabId: aiTab.id },
+        func: async (text) => {
+            const editor = document.querySelector('#prompt-textarea');
+            if (editor) {
+                editor.focus();
+                document.execCommand('insertText', false, text);
+                setTimeout(() => {
+                    const btn = document.querySelector('[data-testid="send-button"]');
+                    if (btn) btn.click();
+                }, 500);
+            }
+        },
+        args: [prefix]
+    });
+
+    // 2. Wait for completion (Watch for the 'Stop' button to disappear or 'Copy' to appear)
+    report("⌛ [АВТО]: Ожидание завершения написания сценария...");
+    
+    await chrome.scripting.executeScript({
+        target: { tabId: aiTab.id },
+        func: async () => {
+            const poll = () => new Promise(resolve => {
+                const interval = setInterval(() => {
+                    // ChatGPT completion indicator: Send button is visible again and Stop button is gone
+                    const sendBtn = document.querySelector('[data-testid="send-button"]');
+                    const stopBtn = document.querySelector('[data-testid="stop-button"]');
+                    if (sendBtn && !stopBtn) {
+                        clearInterval(interval);
+                        resolve();
+                    }
+                }, 2000);
+            });
+            await poll();
+
+            // 3. Scrape the last response
+            const articles = document.querySelectorAll('article');
+            if (articles.length > 0) {
+                const lastResponse = articles[articles.length - 1];
+                const text = lastResponse.innerText || lastResponse.textContent;
+                chrome.runtime.sendMessage({ type: "FROM_CHATGPT_SCRIPT", text: text });
+            }
+        }
+    });
+
+    // 4. Return Focus
+    setTimeout(() => {
+        report("✅ [АВТО]: Сценарий готов! Возврат в Студию...");
+        focusStudio();
+    }, 2000);
+}
+
+async function executeSplitCycle(scriptText, customPrefix) {
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+    const report = (msg) => relayToStudio({ type: "ANIMTUBE_STATUS", text: msg });
+    const tabs = await chrome.tabs.query({});
+    const geminiTab = tabs.find(t => t.url && t.url.includes("gemini.google.com"));
+    
+    if (!geminiTab) {
+        report("❌ Gemini не найден. Откройте gemini.google.com");
+        return;
+    }
+
+    report("🤖 [АВТО]: Переход в Gemini для разделения сценария...");
+    await chrome.windows.update(geminiTab.windowId, { focused: true });
+    await chrome.tabs.update(geminiTab.id, { active: true });
+    await sleep(1500);
+
+    // 1. Insert and Send
+    await chrome.scripting.executeScript({
+        target: { tabId: geminiTab.id },
+        func: (text, prefix) => {
+            const editor = document.querySelector('div[contenteditable="true"]') || document.querySelector('.ql-editor') || document.querySelector('textarea');
+            if (editor) {
+                const finalInstruction = (prefix && prefix.trim()) ? prefix : "Please split this script into a chronological list of detailed image prompts for an animation. Format each line as 'Prompt N: [Description]'.";
+                const fullPrompt = finalInstruction + "\n\n" + text;
+                
+                editor.focus();
+                document.execCommand('insertText', false, fullPrompt);
+                if (editor.tagName === "TEXTAREA" || editor.tagName === "INPUT") {
+                    editor.value = fullPrompt;
+                }
+                ['input', 'change', 'blur'].forEach(e => editor.dispatchEvent(new Event(e, { bubbles: true })));
+
+                setTimeout(() => {
+                    const sendBtn = document.querySelector('button[aria-label*="Send"], button[aria-label*="Отправить"], .send-button');
+                    if (sendBtn) sendBtn.click();
+                }, 800);
+            }
+        },
+        args: [scriptText, customPrefix]
+    });
+
+    // 2. Wait for completion
+    report("⌛ [АВТО]: Ожидание разделения сценария в Gemini...");
+    
+    await chrome.scripting.executeScript({
+        target: { tabId: geminiTab.id },
+        func: async () => {
+            const poll = () => new Promise(resolve => {
+                const interval = setInterval(() => {
+                    // Gemini completion indicator: 'Stop' button becomes 'Send' button or similar
+                    // or checking for the latest response element
+                    const stopBtn = document.querySelector('button[aria-label*="Stop"], button[aria-label*="Остановить"]');
+                    if (!stopBtn) {
+                        clearInterval(interval);
+                        resolve();
+                    }
+                }, 2000);
+            });
+            await poll();
+
+            // 3. Scrape the response
+            const responses = document.querySelectorAll('.model-response-text, .message-content');
+            if (responses.length > 0) {
+                const lastResponse = responses[responses.length - 1];
+                const text = lastResponse.innerText || lastResponse.textContent;
+                chrome.runtime.sendMessage({ type: "FROM_CHATGPT_SCRIPT", text: text }); // We use the same message type for consistency in app.js
+            }
+        }
+    });
+
+    // 4. Return Focus
+    setTimeout(() => {
+        report("✅ [АВТО]: Разделение завершено! Возврат в Студию...");
+        focusStudio();
+    }, 2000);
+}
+
 async function executeGrokCycle(promptText, assets, assetIds) {
+... (keep existing functions) ...
     if (isRunningGrokCycle) return;
     isRunningGrokCycle = true;
     try {

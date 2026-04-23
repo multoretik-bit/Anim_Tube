@@ -286,14 +286,21 @@ function focusStudio() {
 
 async function executeSplitCycle(scriptText, customPrefix) {
     const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+    const report = (msg) => relayToStudio({ type: "ANIMTUBE_STATUS", text: msg });
     const tabs = await chrome.tabs.query({});
     const geminiTab = tabs.find(t => t.url && t.url.includes("gemini.google.com"));
-    if (!geminiTab) return;
+    
+    if (!geminiTab) {
+        report("❌ Gemini не найден. Откройте gemini.google.com");
+        return;
+    }
 
+    report("🛰️ Переход в Gemini для разделения сценария...");
     await chrome.windows.update(geminiTab.windowId, { focused: true });
     await chrome.tabs.update(geminiTab.id, { active: true });
     await sleep(1500);
 
+    // 1. Insert and Send
     await chrome.scripting.executeScript({
         target: { tabId: geminiTab.id },
         func: (text, prefix) => {
@@ -303,15 +310,10 @@ async function executeSplitCycle(scriptText, customPrefix) {
                 const fullPrompt = finalInstruction + "\n\n" + text;
                 
                 editor.focus();
-                // Standard command for contenteditable
                 document.execCommand('insertText', false, fullPrompt);
-                
-                // Backup for regular inputs
                 if (editor.tagName === "TEXTAREA" || editor.tagName === "INPUT") {
                     editor.value = fullPrompt;
                 }
-                
-                // Trigger events
                 ['input', 'change', 'blur'].forEach(e => editor.dispatchEvent(new Event(e, { bubbles: true })));
 
                 setTimeout(() => {
@@ -322,16 +324,58 @@ async function executeSplitCycle(scriptText, customPrefix) {
         },
         args: [scriptText, customPrefix]
     });
+
+    // 2. Wait for completion
+    report("⌛ Ожидание разделения в Gemini...");
+    
+    await chrome.scripting.executeScript({
+        target: { tabId: geminiTab.id },
+        func: async () => {
+            const poll = () => new Promise(resolve => {
+                const interval = setInterval(() => {
+                    const stopBtn = document.querySelector('button[aria-label*="Stop"], button[aria-label*="Остановить"]');
+                    if (!stopBtn) {
+                        clearInterval(interval);
+                        resolve();
+                    }
+                }, 2000);
+            });
+            await poll();
+
+            // 3. Scrape the response
+            const responses = document.querySelectorAll('.model-response-text, .message-content');
+            if (responses.length > 0) {
+                const lastResponse = responses[responses.length - 1];
+                const text = lastResponse.innerText || lastResponse.textContent;
+                chrome.runtime.sendMessage({ type: "FROM_CHATGPT_SCRIPT", text: text });
+            }
+        }
+    });
+
+    // 4. Return Focus
+    setTimeout(() => {
+        report("✅ Разделение завершено! Возврат в Студию...");
+        focusStudio();
+    }, 2000);
 }
 
 async function executeScriptCycle(prefix) {
     const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+    const report = (msg) => relayToStudio({ type: "ANIMTUBE_STATUS", text: msg });
     const tabs = await chrome.tabs.query({});
     const aiTab = tabs.find(t => t.url && (t.url.includes("chatgpt.com") || t.url.includes("chat.openai.com")));
-    if (!aiTab) return;
+    
+    if (!aiTab) {
+        report("❌ ChatGPT не найден. Откройте chatgpt.com");
+        return;
+    }
+
+    report("🛰️ Переход в ChatGPT для создания сценария...");
     await chrome.windows.update(aiTab.windowId, { focused: true });
     await chrome.tabs.update(aiTab.id, { active: true });
     await sleep(1500); 
+
+    // 1. Insert and Send
     await chrome.scripting.executeScript({
         target: { tabId: aiTab.id },
         func: async (text) => {
@@ -347,6 +391,40 @@ async function executeScriptCycle(prefix) {
         },
         args: [prefix]
     });
+
+    // 2. Wait for completion
+    report("⌛ Ожидание завершения в ChatGPT...");
+    
+    await chrome.scripting.executeScript({
+        target: { tabId: aiTab.id },
+        func: async () => {
+            const poll = () => new Promise(resolve => {
+                const interval = setInterval(() => {
+                    const sendBtn = document.querySelector('[data-testid="send-button"]');
+                    const stopBtn = document.querySelector('[data-testid="stop-button"]');
+                    if (sendBtn && !stopBtn) {
+                        clearInterval(interval);
+                        resolve();
+                    }
+                }, 2000);
+            });
+            await poll();
+
+            // 3. Scrape the last response
+            const articles = document.querySelectorAll('article');
+            if (articles.length > 0) {
+                const lastResponse = articles[articles.length - 1];
+                const text = lastResponse.innerText || lastResponse.textContent;
+                chrome.runtime.sendMessage({ type: "FROM_CHATGPT_SCRIPT", text: text });
+            }
+        }
+    });
+
+    // 4. Return Focus
+    setTimeout(() => {
+        report("✅ Сценарий готов! Возврат в Студию...");
+        focusStudio();
+    }, 2000);
 }
 
 async function executeFeedbackCycle(imageData) {

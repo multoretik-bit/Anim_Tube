@@ -702,14 +702,14 @@ function handleIncomingScript(text) {
 
     // --- SUPER AUTOMATION: Transition to Phase 2 (Splitting) ---
     if (state.assembly.superAuto.active && state.assembly.superAuto.phase === 'scripts') {
-        logStatus("🤖 [СУПЕР-АВТО]: Все сценарии готовы! Перехожу к разделению...", "success");
+        logStatus("🤖 [СУПЕР-АВТО]: Сценарий получен! Перехожу к разделению...", "success");
         state.assembly.superAuto.phase = 'splitting';
         state.assembly.superAuto.splittingIdx = 0;
         
         setTimeout(() => {
             switchProjectTab('prompts');
             processSuperAutoSplitting();
-        }, 2000);
+        }, 3000);
     }
 }
 
@@ -1028,10 +1028,23 @@ function handleIncomingPrompts(rawText) {
                 state.assembly.activeSplittingScriptId = null;
                 state.assembly.pendingPrompts = null;
                 
-                // End any automated splitting chains to avoid tab-jumping
-                state.assembly.superAuto.active = false;
-                state.assembly.superAuto.phase = 'idle';
-            }, 1000);
+                // --- SUPER AUTOMATION: Continue Loop or Finish ---
+                if (state.assembly.superAuto.active && state.assembly.superAuto.phase === 'splitting') {
+                    state.assembly.superAuto.splittingIdx++;
+                    const project = getCurrentProject();
+                    if (project && project.scripts && state.assembly.superAuto.splittingIdx < project.scripts.length) {
+                        logStatus(`🤖 [СУПЕР-АВТО]: Перехожу к следующему сценарию (#${state.assembly.superAuto.splittingIdx + 1})...`, "info");
+                        setTimeout(processSuperAutoSplitting, 2000);
+                    } else {
+                        logStatus("🤖 [СУПЕР-АВТО]: Все сценарии разделены! Перехожу к генерации кадров...", "success");
+                        state.assembly.superAuto.phase = 'frames';
+                        // Transition to Phase 4 (Frames) is already triggered by distributePromptsToGenerator -> triggerVisualAssemblyStart
+                    }
+                } else {
+                    state.assembly.superAuto.active = false;
+                    state.assembly.superAuto.phase = 'idle';
+                }
+            }, 1500);
         }, 500);
         return;
     }
@@ -3626,7 +3639,6 @@ window.toggleGeminiDone = (index, isDone) => {
 async function renderProjectVoice() {
     const project = getCurrentProject();
     const container = document.getElementById('voice-content-container');
-    const uploadBtn = document.getElementById('btn-upload-audio');
     if (!project || !container) return;
 
     // v1.6.2: Link Detection logic (same as in openProject)
@@ -3646,22 +3658,27 @@ async function renderProjectVoice() {
                 <div style="font-size: 56px; opacity: 0.3;">🎵</div>
                 <div>
                     <p style="margin: 0; font-size: 16px; color: white; font-weight: 700;">Озвучка еще не загружена</p>
-                    <p style="margin: 5px 0 0 0; font-size: 13px;">Загрузите аудиофайл, чтобы привязать его к проекту.</p>
+                    <p style="margin: 5px 0 0 0; font-size: 13px;">Используйте кнопку ниже, чтобы перейти в папку или загрузить файл вручную.</p>
                 </div>
                 
-                ${link ? `
-                    <button class="btn btn-primary" onclick="window.open('${link}', '_blank')" 
-                            style="background: linear-gradient(135deg, #10b981, #059669); padding: 16px 32px; border-radius: 16px; font-weight: 800; font-size: 14px; box-shadow: 0 10px 20px rgba(16, 185, 129, 0.2); border: none; cursor: pointer; display: flex; align-items: center; gap: 10px; color: white;">
-                        <span>🔗</span> ВЗЯТЬ ОЗВУЧКУ
+                <div style="display: flex; gap: 16px; align-items: center;">
+                    ${link ? `
+                        <button class="btn btn-primary" onclick="window.open('${link}', '_blank')" 
+                                style="background: linear-gradient(135deg, #10b981, #059669); padding: 16px 32px; border-radius: 16px; font-weight: 800; font-size: 14px; box-shadow: 0 10px 20px rgba(16, 185, 129, 0.2); border: none; cursor: pointer; display: flex; align-items: center; gap: 10px; color: white;">
+                            <span>🔗</span> ВЗЯТЬ ОЗВУЧКУ
+                        </button>
+                    ` : ''}
+                    
+                    <button class="btn btn-secondary" onclick="document.getElementById('audio-file-input').click()" 
+                            style="padding: 16px 32px; border-radius: 16px; font-weight: 700; font-size: 14px; border: 1px solid var(--border-glass); background: rgba(255,255,255,0.05); color: white; cursor: pointer; display: flex; align-items: center; gap: 10px;">
+                        <span>🎙️</span> ЗАГРУЗИТЬ ФАЙЛ
                     </button>
-                ` : ''}
+                </div>
             </div>
         `;
-        if (uploadBtn) uploadBtn.style.display = 'block';
         return;
     }
 
-    if (uploadBtn) uploadBtn.style.display = 'none';
     container.innerHTML = `<div style="text-align: center; padding: 40px;"><div class="spinner"></div><p>Загрузка аудио...</p></div>`;
 
     const base64 = await getAudioFromDB(project.audioId);
