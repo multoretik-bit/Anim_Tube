@@ -107,9 +107,6 @@
                 <h2 id="page-title-display" class="page-title-display">Профиль</h2>
             </div>
             <div class="header-right">
-                <button class="btn btn-chat" onclick="openChat()">
-                    <span class="icon">✈️</span> ЧАТ
-                </button>
                 <button class="btn btn-logout" onclick="logout()" title="Выйти из системы">
                     <span class="icon">🚪</span> ВЫХОД
                 </button>
@@ -470,7 +467,6 @@
                             <span id="partner-total-views" style="font-weight: 600; color: white;">👁️ 0 views</span>
                         </div>
                     </div>
-                    <button class="btn btn-primary" id="partner-profile-chat-btn" style="margin-bottom: 15px; padding: 12px 24px; border-radius: 14px;">✉️ Написать</button>
                 </div>
 
                 <div style="border-top: 1px solid var(--border-glass); padding-top: 30px;">
@@ -568,56 +564,6 @@
         </div>
     </div>
 
-    <!-- MODAL: Chat / Messenger -->
-    <div id="chat-overlay" class="modal-overlay chat-overlay">
-        <div class="chat-modal">
-            <!-- Sidebar: Conversations -->
-            <div class="chat-sidebar">
-                <div class="chat-sidebar-header">
-                    <h3>Мессенджер</h3>
-                    <div class="chat-search">
-                        <input type="text" id="chat-user-search" placeholder="Поиск партнёра..." oninput="searchChatUsers()">
-                    </div>
-                </div>
-                <div id="chat-conversations-list" class="conversations-list">
-                    <!-- Chats will be injected here -->
-                </div>
-            </div>
-
-            <!-- Main: Message Area -->
-            <div class="chat-main">
-                <div id="chat-welcome" class="chat-welcome">
-                    <div class="welcome-icon">💬</div>
-                    <h3>Выберите, кому хотите написать</h3>
-                    <p>Начните общение с вашими партнёрами в реальном времени</p>
-                </div>
-
-                <div id="chat-active-area" class="chat-active-area" style="display: none;">
-                    <div class="chat-header-active">
-                        <div class="active-user-info" id="chat-active-user-info" style="cursor: pointer;" title="Посмотреть профиль">
-                            <div class="active-avatar" id="chat-active-avatar">...</div>
-                            <div>
-                                <div class="active-name" id="chat-active-name">...</div>
-                                <div class="active-status" id="chat-active-status">в сети</div>
-                            </div>
-                        </div>
-                        <button class="chat-close-btn" onclick="closeChat()">×</button>
-                    </div>
-
-                    <div id="chat-messages-container" class="messages-container">
-                        <!-- Messages will be injected here -->
-                    </div>
-
-                    <div class="chat-input-area">
-                        <textarea id="chat-input" placeholder="Введите сообщение..." onkeydown="handleChatKeydown(event)"></textarea>
-                        <button class="chat-send-btn" onclick="sendMessage()">
-                            <span class="icon">🚀</span>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
 
     <!-- SUPABASE CLIENT -->
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
