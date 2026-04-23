@@ -3629,11 +3629,32 @@ async function renderProjectVoice() {
     const uploadBtn = document.getElementById('btn-upload-audio');
     if (!project || !container) return;
 
+    // v1.6.2: Link Detection logic (same as in openProject)
+    const folder = getFolderForProject(project.id);
+    let link = (folder && folder.uploadLink) ? folder.uploadLink : null;
+    if (folder && (!link || link.trim() === "")) {
+         const clean = (s) => s.toString().toUpperCase().replace(/[^A-ZА-Я0-9]/g, "");
+         const target = clean(folder.name);
+         for (const [key, hLink] of Object.entries(HARDCODED_LINKS)) {
+             if (clean(key) === target) { link = hLink; break; }
+         }
+    }
+
     if (!project.audioId) {
         container.innerHTML = `
-            <div style="text-align: center; padding: 60px; color: var(--text-dim);">
-                <div style="font-size: 48px; opacity: 0.3; margin-bottom: 20px;">🎵</div>
-                <p>Озвучка еще не загружена. <br> Загрузите аудиофайл, чтобы привязать его к проекту.</p>
+            <div style="text-align: center; padding: 60px; color: var(--text-dim); display: flex; flex-direction: column; align-items: center; gap: 24px;">
+                <div style="font-size: 56px; opacity: 0.3;">🎵</div>
+                <div>
+                    <p style="margin: 0; font-size: 16px; color: white; font-weight: 700;">Озвучка еще не загружена</p>
+                    <p style="margin: 5px 0 0 0; font-size: 13px;">Загрузите аудиофайл, чтобы привязать его к проекту.</p>
+                </div>
+                
+                ${link ? `
+                    <button class="btn btn-primary" onclick="window.open('${link}', '_blank')" 
+                            style="background: linear-gradient(135deg, #10b981, #059669); padding: 16px 32px; border-radius: 16px; font-weight: 800; font-size: 14px; box-shadow: 0 10px 20px rgba(16, 185, 129, 0.2); border: none; cursor: pointer; display: flex; align-items: center; gap: 10px; color: white;">
+                        <span>🔗</span> ВЗЯТЬ ОЗВУЧКУ
+                    </button>
+                ` : ''}
             </div>
         `;
         if (uploadBtn) uploadBtn.style.display = 'block';
@@ -3672,6 +3693,13 @@ async function renderProjectVoice() {
                     🗑️ Удалить
                 </button>
             </div>
+            
+            ${link ? `
+                <button class="btn btn-primary" onclick="window.open('${link}', '_blank')" 
+                        style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); padding: 12px 20px; border-radius: 12px; font-size: 12px; color: var(--text-secondary); cursor: pointer; margin-top: 10px;">
+                    📂 Открыть папку с озвучкой
+                </button>
+            ` : ''}
         </div>
     `;
 }
