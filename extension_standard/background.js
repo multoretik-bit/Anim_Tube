@@ -136,12 +136,42 @@ async function executeGrokCycle(promptText, assets, assetIds) {
             }
         });
 
-        // 4. Wait for generation and auto-trigger next (Simulated or via UI check)
-        report("⌛ Генерация анимации... (60 сек)");
-        for (let i = 60; i > 0; i--) {
+        // 4. Wait for generation (90 seconds)
+        report("⌛ Генерация анимации... (90 сек)");
+        for (let i = 90; i > 0; i--) {
             if (i % 10 === 0) report(`⌛ Ожидание Grok... ${i} сек`);
             await sleep(1000);
         }
+
+        // 5. Download the result
+        report("💾 Скачивание результата...");
+        await chrome.scripting.executeScript({
+            target: { tabId: grokTab.id },
+            func: () => {
+                const videos = document.querySelectorAll('video');
+                if (videos.length > 0) {
+                    const lastVideo = videos[videos.length - 1];
+                    const downloadBtn = lastVideo.closest('div').querySelector('button[aria-label*="Download"]') || 
+                                       lastVideo.closest('div').querySelector('button[aria-label*="Скачать"]') ||
+                                       document.querySelector('button[aria-label*="Download"]');
+                    if (downloadBtn) {
+                        downloadBtn.click();
+                    } else {
+                        const allBtns = Array.from(document.querySelectorAll('button'));
+                        const dl = allBtns.find(b => b.getAttribute('aria-label')?.toLowerCase().includes('download') || 
+                                                     b.innerText.toLowerCase().includes('download') ||
+                                                     b.innerHTML.includes('download'));
+                        if (dl) dl.click();
+                    }
+                }
+            }
+        });
+        await sleep(4000); // Wait for download to start
+
+        // 6. Redirect to /imagine/saved
+        report("🔄 Возврат в историю...");
+        await chrome.tabs.update(grokTab.id, { url: "https://grok.com/imagine/saved" });
+        await sleep(5000); // Wait for history to load
 
         report("✅ Анимация готова! Перехожу к следующему...");
         relayToStudio({ type: "FROM_GROK_AUTO_DONE" });

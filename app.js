@@ -53,7 +53,7 @@ let cloudDB = null;
 
 // --- SECURITY CONFIG & STATE ---
 const WHITELIST = [
-    { login: "Denis", pass: "Ub1dFnfCFUzVRDv", code: "529952203893", role: "owner", ip: "*" }, // Owner allows all IPs for testing
+    { login: "Denis", pass: "Ub1dFnfCFUzVRDv", code: "529952203893", role: "owner", ip: "184.22.77.0" }, // Owner allows all IPs for testing
 	{ login: "Alexander Evie", pass: "0gX1t39fZMA2HY7", code: "984377574594", role: "partner", ip: "*" }, // Example partner
 	{ login: "Alexander George", pass: "k8ocT1wRnkhMQij", code: "681523913214", role: "partner", ip: "91.132.162.219" }, // Example partner
     { login: "Alexey", pass: "JAh92C36h3MkiMk", code: "255681851403", role: "partner", ip: "188.18.20.182" }, // Example partner
