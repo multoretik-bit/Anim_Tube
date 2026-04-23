@@ -24,6 +24,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 console.log("✅ [BACKGROUND] Paste triggered.");
             }, 3000); 
         }, 3000); 
+    } else if (request.type === "FROM_CHATGPT_SCRIPT") {
+        console.log("📝 [BACKGROUND] Script received. Focusing Studio...");
+        relayToStudio(request);
+        setTimeout(() => {
+            focusStudio();
+            setTimeout(() => {
+                relayToStudio({ type: "ANIMTUBE_CMD_PASTE_SCRIPT_AUTO" });
+                console.log("✅ [BACKGROUND] Script Paste triggered.");
+            }, 2000); 
+        }, 1500); 
     } else if (request.type === "FROM_CHATGPT") {
         relayToStudio(request);
     } else if (request.type === "ANIMTUBE_CMD_SCRIPT") {

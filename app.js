@@ -576,6 +576,29 @@ function setupGlobalListeners() {
             if (btn) btn.click();
         }
 
+        // 3.1 SCRIPT AUTO-PASTE SIGNAL (v1.3.5)
+        if (event.data.type === "ANIMTUBE_CMD_PASTE_SCRIPT_AUTO") {
+            logStatus("🤖 [РОБОТ]: Авто-вставка сценария...", "info");
+            const pasteBtns = document.querySelectorAll('.script-btn-paste');
+            // Try to find the one that belongs to a pending script first
+            let targetBtn = null;
+            const pendingCard = document.querySelector('.script-card.pending'); 
+            if (pendingCard) {
+                targetBtn = pendingCard.querySelector('.script-btn-paste');
+            } else if (pasteBtns.length > 0) {
+                targetBtn = pasteBtns[0]; // Fallback to first one
+            }
+            
+            if (targetBtn) {
+                targetBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                targetBtn.classList.add('flash-active');
+                setTimeout(() => {
+                    targetBtn.click();
+                    targetBtn.classList.remove('flash-active');
+                }, 1000);
+            }
+        }
+
         // 4. VISUAL COPY REQUEST (v11.15)
         if (event.data.type === "ANIMTUBE_CMD_VISUAL_COPY") {
             runVisualCopyAnimation(event.data.assetIds);
