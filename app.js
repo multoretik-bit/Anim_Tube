@@ -1786,9 +1786,9 @@ function renderAccountPage() {
     const sessionDate = authState.sessionStart ? new Date(authState.sessionStart).toLocaleDateString() : '—';
 
     // Determine "my" folders:
-    // Owner sees ONLY unassigned. Partners/managers see only their assigned (or owned)
+    // Owner sees ALL. Partners/managers see only their assigned (or owned)
     let myFolders = user.role === 'owner'
-        ? state.folders.filter(f => !f.assignedTo)
+        ? state.folders
         : state.folders.filter(f => f.assignedTo === user.login || f.ownedBy === user.login);
 
     // No longer filtering by avatar to prevent data loss
@@ -2160,11 +2160,10 @@ function renderProjects() {
         if (description) description.innerText = "Управляйте своими анимационными каналами и проектами.";
     }
 
-    // 2. Render Folders (only at root)
     if (!state.currentFolderId) {
         let visibleFolders = authState.user.role === 'owner' 
-            ? state.folders.filter(f => !f.assignedTo) // Owner sees only unassigned channels
-            : state.folders.filter(f => f.assignedTo === authState.user.login || f.ownedBy === authState.user.login);
+            ? state.folders // Owner sees everything
+            : state.folders.filter(f => (f.assignedTo || "").includes(authState.user.login) || f.ownedBy === authState.user.login);
 
         // No longer filtering by avatar to prevent data loss
         // visibleFolders = visibleFolders.filter(f => f.avatar);
@@ -2755,25 +2754,29 @@ async function loadState() {
             console.warn("⚠️ [SYNC] No accessible folders found, skipping project fetch.");
         }
 
-        // v1.9.7: FIXED SMART MERGE (Prioritize local results to prevent ghost frames)
+        // v1.9.8: SOURCE OF TRUTH SYNC (Cloud is priority for existence)
         const mergeData = (localArr, cloudArr, forceCloudFields = [], isPartner = false) => {
             const map = new Map();
             
-            // 1. Priority: Existing local items stay. 
-            localArr.forEach(item => map.set(item.id, item));
-            
-            // 2. Process cloud items
+            // 1. First, populate from Cloud (Source of Truth for what exists)
             cloudArr.forEach(cloudItem => {
-                if (map.has(cloudItem.id)) {
-                    const localItem = map.get(cloudItem.id);
+                // Unpack 'data' column if it's a project
+                const unpacked = cloudItem.data ? { ...cloudItem, ...cloudItem.data } : cloudItem;
+                map.set(cloudItem.id, unpacked);
+            });
+            
+            // 2. Merge with Local (Source of Truth for latest session changes)
+            localArr.forEach(localItem => {
+                if (map.has(localItem.id)) {
+                    const cloudItem = map.get(localItem.id);
                     
-                    // Special Handling for Results (Frames): Local wins if it's shorter or different
-                    // to respect deletions made in the current session.
-                    const finalResults = (localItem.results !== undefined) ? localItem.results : (cloudItem.results || []);
-                    const finalAssets = (localItem.assets && localItem.assets.length > 0) ? localItem.assets : (cloudItem.assets || []);
+                    // Merge: Local wins for state, but cloud can override specific fields
+                    const merged = { ...cloudItem, ...localItem };
                     
-                    const merged = { ...cloudItem, ...localItem, results: finalResults, assets: finalAssets };
-                    
+                    // Respect results/assets deletions in local session
+                    if (localItem.results !== undefined) merged.results = localItem.results;
+                    if (localItem.assets !== undefined) merged.assets = localItem.assets;
+
                     forceCloudFields.forEach(f => {
                         const cloudVal = cloudItem[f];
                         if (cloudVal !== undefined && cloudVal !== null && cloudVal !== "") {
@@ -2784,9 +2787,14 @@ async function loadState() {
                             }
                         }
                     });
-                    map.set(cloudItem.id, merged);
+                    map.set(localItem.id, merged);
                 } else {
-                    map.set(cloudItem.id, cloudItem);
+                    // Local item doesn't exist in cloud - it was either deleted or is brand new (not yet synced)
+                    // If it has a numeric ID, it's likely an old deleted item. If it's very recent, keep it.
+                    const isNew = (Date.now() - (localItem.id || 0)) < 60000; // 1 minute grace period for new local items
+                    if (isNew) {
+                        map.set(localItem.id, localItem);
+                    }
                 }
             });
             
