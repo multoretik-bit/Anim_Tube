@@ -325,24 +325,14 @@ async function executeSplitCycle(scriptText, customPrefix) {
         args: [scriptText, customPrefix]
     });
 
-    // 2. Wait for completion
-    report("⌛ Ожидание разделения в Gemini...");
-    
+    // 2. WAIT 30 SECONDS (Reliable timer for splitting)
+    report("⌛ Ожидание разделения в Gemini (30 сек)...");
+    await sleep(30000);
+
+    // 3. Scrape and Send
     await chrome.scripting.executeScript({
         target: { tabId: geminiTab.id },
         func: async () => {
-            const poll = () => new Promise(resolve => {
-                const interval = setInterval(() => {
-                    const stopBtn = document.querySelector('button[aria-label*="Stop"], button[aria-label*="Остановить"]');
-                    if (!stopBtn) {
-                        clearInterval(interval);
-                        resolve();
-                    }
-                }, 2000);
-            });
-            await poll();
-
-            // 3. Scrape the response
             const responses = document.querySelectorAll('.model-response-text, .message-content');
             if (responses.length > 0) {
                 const lastResponse = responses[responses.length - 1];
@@ -353,10 +343,8 @@ async function executeSplitCycle(scriptText, customPrefix) {
     });
 
     // 4. Return Focus
-    setTimeout(() => {
-        report("✅ Разделение завершено! Возврат в Студию...");
-        focusStudio();
-    }, 2000);
+    report("✅ Разделение завершено! Возврат в Студию...");
+    focusStudio();
 }
 
 async function executeScriptCycle(prefix) {
@@ -392,25 +380,14 @@ async function executeScriptCycle(prefix) {
         args: [prefix]
     });
 
-    // 2. Wait for completion
-    report("⌛ Ожидание завершения в ChatGPT...");
-    
+    // 2. WAIT 50 SECONDS (Reliable timer requested by user)
+    report("⌛ Ожидание генерации сценария (50 сек)...");
+    await sleep(50000);
+
+    // 3. Scrape and Send
     await chrome.scripting.executeScript({
         target: { tabId: aiTab.id },
         func: async () => {
-            const poll = () => new Promise(resolve => {
-                const interval = setInterval(() => {
-                    const sendBtn = document.querySelector('[data-testid="send-button"]');
-                    const stopBtn = document.querySelector('[data-testid="stop-button"]');
-                    if (sendBtn && !stopBtn) {
-                        clearInterval(interval);
-                        resolve();
-                    }
-                }, 2000);
-            });
-            await poll();
-
-            // 3. Scrape the last response
             const articles = document.querySelectorAll('article');
             if (articles.length > 0) {
                 const lastResponse = articles[articles.length - 1];
@@ -421,10 +398,8 @@ async function executeScriptCycle(prefix) {
     });
 
     // 4. Return Focus
-    setTimeout(() => {
-        report("✅ Сценарий готов! Возврат в Студию...");
-        focusStudio();
-    }, 2000);
+    report("✅ Сценарий готов! Возврат в Студию...");
+    focusStudio();
 }
 
 async function executeFeedbackCycle(imageData) {

@@ -69,26 +69,14 @@ async function executeScriptCycle(prefix) {
         args: [prefix]
     });
 
-    // 2. Wait for completion (Watch for the 'Stop' button to disappear or 'Copy' to appear)
-    report("⌛ [АВТО]: Ожидание завершения написания сценария...");
-    
+    // 2. WAIT 50 SECONDS (Reliable timer requested by user)
+    report("⌛ [АВТО]: Ожидание генерации сценария (50 сек)...");
+    await sleep(50000);
+
+    // 3. Scrape and Send
     await chrome.scripting.executeScript({
         target: { tabId: aiTab.id },
         func: async () => {
-            const poll = () => new Promise(resolve => {
-                const interval = setInterval(() => {
-                    // ChatGPT completion indicator: Send button is visible again and Stop button is gone
-                    const sendBtn = document.querySelector('[data-testid="send-button"]');
-                    const stopBtn = document.querySelector('[data-testid="stop-button"]');
-                    if (sendBtn && !stopBtn) {
-                        clearInterval(interval);
-                        resolve();
-                    }
-                }, 2000);
-            });
-            await poll();
-
-            // 3. Scrape the last response
             const articles = document.querySelectorAll('article');
             if (articles.length > 0) {
                 const lastResponse = articles[articles.length - 1];
@@ -99,10 +87,8 @@ async function executeScriptCycle(prefix) {
     });
 
     // 4. Return Focus
-    setTimeout(() => {
-        report("✅ [АВТО]: Сценарий готов! Возврат в Студию...");
-        focusStudio();
-    }, 2000);
+    report("✅ [АВТО]: Сценарий готов! Возврат в Студию...");
+    focusStudio();
 }
 
 async function executeSplitCycle(scriptText, customPrefix) {
@@ -146,40 +132,26 @@ async function executeSplitCycle(scriptText, customPrefix) {
         args: [scriptText, customPrefix]
     });
 
-    // 2. Wait for completion
-    report("⌛ [АВТО]: Ожидание разделения сценария в Gemini...");
-    
+    // 2. WAIT 30 SECONDS (Reliable timer for splitting)
+    report("⌛ [АВТО]: Ожидание разделения сценария (30 сек)...");
+    await sleep(30000);
+
+    // 3. Scrape and Send
     await chrome.scripting.executeScript({
         target: { tabId: geminiTab.id },
         func: async () => {
-            const poll = () => new Promise(resolve => {
-                const interval = setInterval(() => {
-                    // Gemini completion indicator: 'Stop' button becomes 'Send' button or similar
-                    // or checking for the latest response element
-                    const stopBtn = document.querySelector('button[aria-label*="Stop"], button[aria-label*="Остановить"]');
-                    if (!stopBtn) {
-                        clearInterval(interval);
-                        resolve();
-                    }
-                }, 2000);
-            });
-            await poll();
-
-            // 3. Scrape the response
             const responses = document.querySelectorAll('.model-response-text, .message-content');
             if (responses.length > 0) {
                 const lastResponse = responses[responses.length - 1];
                 const text = lastResponse.innerText || lastResponse.textContent;
-                chrome.runtime.sendMessage({ type: "FROM_CHATGPT_SCRIPT", text: text }); // We use the same message type for consistency in app.js
+                chrome.runtime.sendMessage({ type: "FROM_CHATGPT_SCRIPT", text: text });
             }
         }
     });
 
     // 4. Return Focus
-    setTimeout(() => {
-        report("✅ [АВТО]: Разделение завершено! Возврат в Студию...");
-        focusStudio();
-    }, 2000);
+    report("✅ [АВТО]: Разделение завершено! Возврат в Студию...");
+    focusStudio();
 }
 
 async function executeGrokCycle(promptText, assets, assetIds) {
