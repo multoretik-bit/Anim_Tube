@@ -649,9 +649,13 @@ function startScriptGeneration(isAutomatic = false) {
     project.scripts.unshift(pendingScript);
     if (project.status < 1) project.status = 1;
     saveState();
-    renderProjectScripts();
-
-    logStatus("📝 Запуск генерации сценария в ChatGPT...", "info");
+    
+    // v1.3.3: Small timeout to ensure tab switch DOM is ready
+    setTimeout(() => {
+        renderProjectScripts();
+        logStatus("📝 Запуск генерации сценария в ChatGPT...", "info");
+    }, 100);
+    
     sendToBridge({ 
         type: "ANIMTUBE_CMD_SCRIPT", 
         prefix: prefix 
@@ -4096,11 +4100,16 @@ function startSuperAutomation() {
     logStatus(`🚀 ЗАПУСК СУПЕР-АВТОМАТИЗАЦИИ: ${count} видеороликов.`, "success");
     
     // Phase 1: Generated Scripts
+    showPage('workspace');
     switchProjectTab('script');
+    
     const scriptCountInput = document.getElementById('script-count');
     if (scriptCountInput) scriptCountInput.value = count;
     
-    startScriptGeneration();
+    // Explicitly trigger generation
+    setTimeout(() => {
+        startScriptGeneration();
+    }, 300);
 }
 
 function stopSuperAutomation() {
