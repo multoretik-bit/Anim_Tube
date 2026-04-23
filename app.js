@@ -687,7 +687,7 @@ function handleIncomingScript(text) {
     }
     
     if (project.status < 1) project.status = 1;
-    saveState();
+    await saveProject(project.id);
     renderProjectScripts();
     logStatus("✅ Сценарий успешно вставлен в слот!", "success");
 

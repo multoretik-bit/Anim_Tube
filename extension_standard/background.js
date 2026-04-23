@@ -390,8 +390,12 @@ async function executeScriptCycle(prefix) {
         func: async () => {
             const articles = document.querySelectorAll('article');
             if (articles.length > 0) {
-                const lastResponse = articles[articles.length - 1];
-                const text = lastResponse.innerText || lastResponse.textContent;
+                const lastArticle = articles[articles.length - 1];
+                const copyBtn = lastArticle.querySelector('button[aria-label*="Copy"], button[aria-label*="Копировать"]');
+                if (copyBtn) {
+                    copyBtn.click();
+                }
+                const text = lastArticle.innerText || lastArticle.textContent;
                 chrome.runtime.sendMessage({ type: "FROM_CHATGPT_SCRIPT", text: text });
             }
         }
