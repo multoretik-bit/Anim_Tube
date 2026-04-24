@@ -2025,8 +2025,12 @@ window.updateChannelStats = async function(folderId, fieldOrData, value) {
     
     logStatus(`⏳ Синхронизация ${fieldOrData}...`, "info");
     
-    // Save to localStorage immediately
-    localStorage.setItem('animtube_folders', JSON.stringify(state.folders));
+    // Save to localStorage safely (don't let quota errors block the cloud sync)
+    try {
+        localStorage.setItem('animtube_folders', JSON.stringify(state.folders));
+    } catch (e) {
+        console.warn("⚠️ Local storage full, saving only to Cloud.");
+    }
 
     if (cloudDB && authState.isLoggedIn) {
         try {
@@ -2039,10 +2043,12 @@ window.updateChannelStats = async function(folderId, fieldOrData, value) {
             
             console.log("✅ Supabase Update Success:", data);
             logStatus(`✅ Статистика сохранена в облаке.`, "success");
-            
-            // Optionally refresh UI if needed, but carefully
-            // if (state.activePage === 'account') renderAccountPage();
         } catch (err) {
+            console.error("Supabase Update Error:", err);
+            logStatus("❌ Ошибка облачного сохранения: " + err.message, "error");
+        }
+    }
+};
             console.error("❌ Cloud Sync Error:", err);
             logStatus("🔴 Ошибка сохранения: " + (err.message || "Неизвестная ошибка"), "error");
             alert("Ошибка сохранения в Supabase: " + err.message);
@@ -2534,192 +2540,87 @@ function deleteCurrentProject() {
     showPage('videos');
 }
 
-async function base64ToBlob(base64) {
-    const res = await fetch(base64);
-    return await res.blob();
-}
-
-async function downloadProjectFiles() {
-    const project = getCurrentProject();
-    if (!project) return alert("Проект не найден!");
-    if ((!project.results || project.results.length === 0) && (!project.scripts || project.scripts.length === 0)) {
-        return alert("Нет файлов (кадров или сценариев) для скачивания!");
-    }
-
-    try {
-        // 1. Request directory
-        const dirHandle = await window.showDirectoryPicker();
-        logStatus("📁 Папка выбрана. Начинаю сохранение...", "info");
-
-        // 2. Save Frames
-        if (project.results && project.results.length > 0) {
-            logStatus(`🖼️ Сохраняю кадры (${project.results.length})...`, "info");
-            for (let i = 0; i < project.results.length; i++) {
-                try {
-                    const res = project.results[project.results.length - 1 - i]; 
-                    const base64 = await getImageFromDB(res.id);
-                    if (base64) {
-                        const blob = await base64ToBlob(base64);
-                        const fileName = `frame_${project.id}_${i+1}.png`;
-                        const fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
-                        const writable = await fileHandle.createWritable();
-                        await writable.write(blob);
-                        await writable.close();
-                    }
-                } catch (e) {
-                    console.warn(`Frame ${i} save failed:`, e);
-                }
-            }
-        }
-
-        // 3. Save Scripts/Scenarios
-        if (project.scripts && project.scripts.length > 0) {
-            logStatus(`📝 Сохраняю сценарии (${project.scripts.length})...`, "info");
-            for (let i = 0; i < project.scripts.length; i++) {
-                try {
-                    const s = project.scripts[i];
-                    const fileName = `Scenario_${project.name}_${s.scriptNum || (project.scripts.length - i)}.txt`;
-                    const fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
-                    const writable = await fileHandle.createWritable();
-                    await writable.write(s.text);
-                    await writable.close();
-                } catch (e) {
-                    console.warn(`Script ${i} save failed:`, e);
-                }
-            }
-        }
-
-        // 4. Save Animations (v1.4)
-        if (project.promptsList && project.promptsList.length > 0) {
-            logStatus("🎬 Проверка наличия анимаций...", "info");
-            let animCount = 0;
-            for (let i = 0; i < project.promptsList.length; i++) {
-                try {
-                    const item = project.promptsList[i];
-                    if (item.isGrokDone && item.resultId) {
-                        const animBase64 = await getAnimationFromDB(item.resultId);
-                        if (animBase64) {
-                            const blob = await base64ToBlob(animBase64);
-                            const fileName = `animation_${project.id}_frame_${i+1}.mp4`;
-                            const fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
-                            const writable = await fileHandle.createWritable();
-                            await writable.write(blob);
-                            await writable.close();
-                            animCount++;
-                        }
-                    }
-                } catch (err) {
-                    console.warn(`Failed to save animation ${i}:`, err);
-                }
-            }
-            if (animCount > 0) logStatus(`✅ Сохранено ${animCount} анимаций!`, "success");
-        }
-
-        logStatus("✅ Все файлы успешно сохранены в выбранную папку!", "success");
-    } catch (err) {
-        if (err.name === 'AbortError') {
-            logStatus("⚠️ Сохранение отменено пользователем.", "info");
-        } else {
-            console.error("Download error:", err);
-            logStatus("❌ Ошибка при сохранении файлов: " + err.message, "error");
-            alert("Не удалось сохранить файлы. Убедитесь, что браузер поддерживает File System Access API.");
-        }
-    }
-}
-
-
 async function saveState() {
-    // 1. Local Backup
-    localStorage.setItem('animtube_projects', JSON.stringify(state.projects));
-    localStorage.setItem('animtube_folders', JSON.stringify(state.folders));
-    localStorage.setItem('animtube_user_avatars', JSON.stringify(state.userAvatars));
-
-    // Lazy DB Init
+    // 1. Cloud Sync FIRST (Priority v5.0)
     if (!cloudDB) cloudDB = getDB();
-    if (!cloudDB || !authState.isLoggedIn) return;
-
-    // 2. Cloud Sync (Optimized v4.0 - Batch Upserts)
-    try {
-        // A. Batch Save Folders
-        const foldersToSave = state.folders.map(f => ({
-            id: f.id,
-            name: f.name,
-            ownedBy: (f.ownedBy || authState.user.login).toLowerCase(),
-            assignedTo: (f.assignedTo || "").toLowerCase(),
-            views: Number(f.views) || 0,
-            revenue: Number(f.revenue) || 0,
-            niche: f.niche,
-            avatar: f.avatar,
-            color: f.color,
-            prefix: f.prefix,
-            scriptPrefix: f.scriptPrefix,
-            splitPrefix: f.splitPrefix,
-            uploadLink: f.uploadLink,
-            assets: f.assets || []
-        }));
-        
-        if (foldersToSave.length > 0) {
-            const { error: fErr } = await cloudDB.from('folders').upsert(foldersToSave);
-            if (fErr) throw fErr;
-        }
-
-        // B. Batch Save Projects
-        const projectsToSave = state.projects.map(p => ({
-            id: p.id,
-            folderId: p.folderId,
-            name: p.name,
-            status: Number(p.status || 0),
-            created: p.created || new Date().toLocaleDateString(),
-            data: {
-                scripts: p.scripts || [],
-                promptsList: p.promptsList || [],
-                results: p.results || [],
-                assets: p.assets || [],
-                audioId: p.audioId || null,
-                prefix: p.prefix || ""
+    if (cloudDB && authState.isLoggedIn) {
+        try {
+            // A. Batch Save Folders
+            const foldersToSave = state.folders.map(f => ({
+                id: f.id,
+                name: f.name,
+                ownedBy: (f.ownedBy || authState.user.login).toLowerCase(),
+                ownedby: (f.ownedBy || authState.user.login).toLowerCase(), 
+                assignedTo: (f.assignedTo || "").toLowerCase(),
+                assignedto: (f.assignedTo || "").toLowerCase(), 
+                views: Number(f.views) || 0,
+                revenue: Number(f.revenue) || 0,
+                niche: f.niche,
+                avatar: f.avatar,
+                color: f.color,
+                prefix: f.prefix,
+                scriptPrefix: f.scriptPrefix,
+                splitPrefix: f.splitPrefix,
+                uploadLink: f.uploadLink,
+                assets: f.assets || []
+            }));
+            
+            if (foldersToSave.length > 0) {
+                await cloudDB.from('folders').upsert(foldersToSave);
             }
-        }));
-        
-        if (projectsToSave.length > 0) {
-            const { error: pErr } = await cloudDB.from('projects').upsert(projectsToSave);
-            if (pErr) throw pErr;
+
+            // B. Batch Save Projects
+            const projectsToSave = state.projects.map(p => ({
+                id: p.id,
+                folderId: p.folderId,
+                name: p.name,
+                status: Number(p.status || 0),
+                created: p.created || new Date().toLocaleDateString(),
+                data: {
+                    scripts: p.scripts || [],
+                    promptsList: p.promptsList || [],
+                    results: p.results || [],
+                    assets: p.assets || [],
+                    audioId: p.audioId || null,
+                    prefix: p.prefix || ""
+                }
+            }));
+            
+            if (projectsToSave.length > 0) {
+                await cloudDB.from('projects').upsert(projectsToSave);
+            }
+
+            // C. Sync User Avatar
+            const userAvatar = state.userAvatars[authState.user.login];
+            if (userAvatar) {
+                await cloudDB.from('user_avatars').upsert([{ login: authState.user.login, avatar: userAvatar }]);
+            }
+
+            console.log("☁️ Cloud State Saved Successfully.");
+            
+            // UI Indicators
+            const dot = document.getElementById('sync-status-dot');
+            if (dot) dot.style.background = '#10b981';
+        } catch (e) {
+            console.error("☁️ Cloud Sync Failed:", e);
+            const dot = document.getElementById('sync-status-dot');
+            if (dot) dot.style.background = '#ef4444';
         }
-
-        // C. Sync Avatars (Self-only)
-        const userAvatar = state.userAvatars[authState.user.login];
-        if (userAvatar) {
-            await cloudDB.from('user_avatars').upsert([{ login: authState.user.login, avatar: userAvatar }]);
-        }
-
-        // UI Indicators
-        const dot = document.getElementById('sync-status-dot');
-        const cDot = document.getElementById('cloud-status-indicator');
-        const cText = document.getElementById('cloud-status-text');
-        const cError = document.getElementById('cloud-error-box');
-
-        if (dot) dot.style.background = '#10b981';
-        if (cDot) cDot.style.background = '#10b981';
-        if (cText) cText.innerText = 'Синхронизировано';
-        if (cError) cError.innerText = '';
-
-        // Trigger UI Refresh if we are on account page to show latest views/revenue
-        if (state.activePage === 'account') renderAccountPage();
-
-    } catch (err) {
-        console.error("Supabase Sync Error:", err);
-        const dot = document.getElementById('sync-status-dot');
-        const cDot = document.getElementById('cloud-status-indicator');
-        const cText = document.getElementById('cloud-status-text');
-        const cError = document.getElementById('cloud-error-box');
-
-        if (dot) dot.style.background = '#ef4444';
-        if (cDot) cDot.style.background = '#ef4444';
-        if (cText) cText.innerText = 'Ошибка сохранения';
-        
-        const errorMsg = err.message || "Ошибка соединения с облаком";
-        if (cError) cError.innerText = errorMsg;
-        logStatus("⚠️ Ошибка сохранения: " + errorMsg, "error");
     }
+
+    // 2. Local Backup (Safe Mode - Lite)
+    try {
+        // Strip heavy avatars from local storage to prevent QuotaExceededError
+        const liteFolders = state.folders.map(f => ({ ...f, avatar: null }));
+        localStorage.setItem('animtube_projects', JSON.stringify(state.projects));
+        localStorage.setItem('animtube_folders', JSON.stringify(liteFolders));
+        localStorage.setItem('animtube_user_avatars', JSON.stringify(state.userAvatars));
+    } catch (e) {
+        if (e.name === 'QuotaExceededError') {
+            console.warn("💾 Local storage full! Saving only to Cloud.");
+        }
+    }
+}
 }
 
 async function loadState() {
@@ -2745,6 +2646,29 @@ async function loadState() {
             fQuery = fQuery.or(`assignedTo.ilike.%${login}%,ownedBy.eq."${login}"`);
         }
         const { data: cloudFolders, error: fErr } = await fQuery;
+        if (fErr) throw fErr;
+
+        if (cloudFolders) {
+            // Update local state with cloud data (Cloud Wins for Stats & Avatars)
+            cloudFolders.forEach(cf => {
+                const idx = state.folders.findIndex(f => f.id == cf.id);
+                const normalizedCloud = {
+                    ...cf,
+                    ownedBy: cf.ownedBy || cf.ownedby,
+                    assignedTo: cf.assignedTo || cf.assignedto,
+                    views: Number(cf.views) || 0,
+                    revenue: Number(cf.revenue) || 0
+                };
+
+                if (idx === -1) {
+                    state.folders.push(normalizedCloud);
+                } else {
+                    // Update existing folder with fresh cloud data
+                    state.folders[idx] = { ...state.folders[idx], ...normalizedCloud };
+                }
+            });
+            localStorage.setItem('animtube_folders', JSON.stringify(state.folders.map(f => ({...f, avatar: null}))));
+        }
         if (fErr) {
             console.error("❌ Folder Load Error:", fErr);
             logStatus("❌ Ошибка загрузки каналов: " + fErr.message, "error");
