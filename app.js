@@ -2434,7 +2434,7 @@ async function deleteFolder(id) {
     if (cloudDB && authState.isLoggedIn) {
         try {
             await cloudDB.from('folders').delete().eq('id', id);
-            await cloudDB.from('projects').delete().eq('folderId', id);
+            await cloudDB.from('projects').delete().eq('folderid', id);
         } catch (e) {
             console.warn("Cloud delete background error:", e);
         }
@@ -2861,7 +2861,7 @@ async function loadState() {
             const allFolderIds = cloudFolders ? cloudFolders.map(f => f.id) : [];
             console.log("🔍 [SYNC] Searching projects for Folder IDs:", allFolderIds);
             if (allFolderIds.length > 0) {
-                pQuery = pQuery.in('folderId', allFolderIds);
+                pQuery = pQuery.in('folderid', allFolderIds);
             } else {
                 pQuery = null;
             }
@@ -2891,6 +2891,7 @@ async function loadState() {
 
                 // Unpack 'data' column if it's a project
                 const unpacked = cloudItem.data ? { ...cloudItem, ...cloudItem.data } : cloudItem;
+                if (unpacked.folderid !== undefined && unpacked.folderId === undefined) unpacked.folderId = unpacked.folderid;
                 map.set(String(cloudItem.id), unpacked);
             });
             
@@ -2939,7 +2940,7 @@ async function loadState() {
             // v3.0: AUTOMATIC INDIVIDUAL ASSET FETCH (Reliable & Permanent)
             for (const folder of state.folders) {
                 try {
-                    const { data: cloudAssets } = await cloudDB.from('folder_assets').select('*').eq('folderId', folder.id);
+                    const { data: cloudAssets } = await cloudDB.from('folder_assets').select('*').eq('folderid', folder.id);
                     if (cloudAssets && cloudAssets.length > 0) {
                         folder.assets = cloudAssets; // Cloud is the source of truth for assets
                         console.log(`🛡️ [Asset Shield]: Restored ${cloudAssets.length} assets for ${folder.name}`);
@@ -2954,10 +2955,9 @@ async function loadState() {
             
             // Unpack 'data' column for all cloud projects
             const unpackedProjects = cloudProjects.map(p => {
-                if (p.data) {
-                    return { ...p, ...p.data };
-                }
-                return p;
+                const item = p.data ? { ...p, ...p.data } : p;
+                if (item.folderid !== undefined && item.folderId === undefined) item.folderId = item.folderid;
+                return item;
             });
 
             if (isPartner) {
@@ -4559,7 +4559,7 @@ async function enterChannel(folderId) {
         else state.folders[fIdx] = folder;
         
         // 2. Fetch all projects belonging to this folder
-        const { data: projects, error: pErr } = await cloudDB.from('projects').select('*').eq('folderId', folderId);
+        const { data: projects, error: pErr } = await cloudDB.from('projects').select('*').eq('folderid', folderId);
         if (pErr) throw pErr;
         
         // 3. Merge projects into local state (Cloud Priority)
