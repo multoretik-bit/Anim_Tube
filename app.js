@@ -3558,8 +3558,9 @@ async function handleIncomingImage(base64) {
     }
 
     const imgId = "img_" + Date.now();
-    await saveImageToDB(imgId, base64);
-    await saveImageToCloud(imgId, base64); 
+    const compressedBase64 = await compressImage(base64);
+    await saveImageToDB(imgId, compressedBase64);
+    await saveImageToCloud(imgId, compressedBase64); 
 
     const result = {
         id: imgId,
