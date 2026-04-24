@@ -238,14 +238,10 @@ async function handleLogin() {
         };
         localStorage.setItem('animtube_auth', JSON.stringify(authState));
         
-        // BLOCKING Cloud Sync (Ensures fresh data before UI transition)
-        try {
-            logStatus("☁️ Синхронизация профиля...", "info");
-            await loadState();
+        // Non-blocking Cloud Sync
+        loadState().then(() => {
             setupRealtimeSync(); // Start listening after first load
-        } catch (e) {
-            console.error("Initial cloud load failed:", e);
-        }
+        }).catch(e => console.error("Initial cloud load failed:", e));
         
         applySecurityUI();
         renderAccountPage();
@@ -454,32 +450,23 @@ function sendToBridge(msg) {
 // --- INITIALIZE ---
 window.onload = async () => {
     console.log("🚀 [SYSTEM]: AnimTube Initializing...");
-    
-    // 1. Core UI setup (Sync)
-    setupGlobalListeners();
-    updateAutoModeUI();
-    checkSecurity(); 
-
-    // 2. Database & Data Init (Async)
     try {
         await initDB();
-        cloudDB = getDB(); // Ensure client is ready
-        
-        if (authState.isLoggedIn) {
-            logStatus("☁️ Первичная синхронизация...", "info");
-            await loadState(); // AWAIT here prevents local data flashing
-            setupRealtimeSync(); 
-        }
-    } catch (e) { 
-        console.error("Initialization failed:", e);
-        logStatus("⚠️ Ошибка инициализации: " + e.message, "error");
-    }
+    } catch (e) { console.error("DB Init failed:", e); }
     
-    // 3. Final Render
+    // 1. Render UI immediately
+    checkSecurity();
     renderProjects();
+    setupGlobalListeners();
+    updateAutoModeUI();
+
+    // 2. Background tasks
+    detectIP().catch(e => console.error("IP Detect failed:", e));
+
     if (authState.isLoggedIn) {
         renderAccountPage();
         renderSidebarProfile();
+        loadState().catch(e => console.error("Initial load failed:", e));
         
         // AUTO-REFRESH for partners/managers every 30s
         if (authState.user.role !== 'owner') {
@@ -488,14 +475,11 @@ window.onload = async () => {
             }, 30000);
         }
 
-        // Initialize Chat Subscription
+        // 3. Initialize Chat Subscription
         if (typeof subscribeToGlobalMessages === 'function') subscribeToGlobalMessages();
     }
-
-    // 4. Background tasks
-    detectIP().catch(e => console.error("IP Detect failed:", e));
     
-    console.log("🚀 AnimTube v1.2.3 loaded and synchronized.");
+    console.log("🚀 AnimTube v1.2.3 loaded.");
 };
 
 function setupGlobalListeners() {
@@ -1807,13 +1791,13 @@ function renderAccountPage() {
     // Total Stats: Owner sees the grand total of all their channels
     // Partners see only their assigned ones
     const statsFolders = isOwner 
-        ? state.folders.filter(f => (!f.assignedTo || f.assignedTo === 'null') && f.ownedBy === user.login)
-        : state.folders.filter(f => (f.assignedTo && f.assignedTo !== 'null' && f.assignedTo.includes(user.login)));
+        ? state.folders.filter(f => f.ownedBy === user.login)
+        : state.folders.filter(f => (f.assignedTo || "").includes(user.login));
 
     // Dashboard "My Active Projects": For owners, show only unassigned channels.
     const myFolders = isOwner
-        ? state.folders.filter(f => (!f.assignedTo || f.assignedTo === 'null') && f.ownedBy === user.login)
-        : state.folders.filter(f => (f.assignedTo && f.assignedTo !== 'null' && f.assignedTo.includes(user.login)));
+        ? state.folders.filter(f => !f.assignedTo && f.ownedBy === user.login)
+        : state.folders.filter(f => (f.assignedTo || "").includes(user.login));
 
     const totalProjects = myFolders.reduce((acc, f) =>
         acc + state.projects.filter(p => p.folderId == f.id).length, 0
@@ -2032,20 +2016,8 @@ window.updateChannelStats = async function(folderId, fieldOrData, value) {
         Object.assign(folder, updateData);
     } else {
         const field = fieldOrData;
-        
-        // v2.3: Sanitize numeric values (handles commas, spaces, etc.)
-        let finalValue = value;
-        if (field === 'views' || field === 'revenue') {
-            if (typeof value === 'string') {
-                const sanitized = value.replace(/\s/g, '').replace(',', '.');
-                finalValue = parseFloat(sanitized) || 0;
-            } else {
-                finalValue = Number(value) || 0;
-            }
-        }
-        
-        folder[field] = finalValue;
-        updateData[field] = finalValue;
+        folder[field] = value;
+        updateData[field] = value;
     }
     
     logStatus(`⏳ Облачная синхронизация...`, "info");
@@ -2057,10 +2029,6 @@ window.updateChannelStats = async function(folderId, fieldOrData, value) {
                 .eq('id', folderId);
                 
             if (error) throw error;
-            
-            // v2.5: Force local storage update to prevent "data flashing" on reload
-            await saveState(); 
-            
             logStatus(`✅ Данные сохранены навсегда.`, "success");
         } catch (err) {
             console.error("❌ Cloud Sync Error:", err);
@@ -2203,7 +2171,7 @@ function renderProjects() {
     // 2. Render Folders (only at root)
     if (!state.currentFolderId) {
         let visibleFolders = authState.user.role === 'owner' 
-            ? state.folders.filter(f => !f.assignedTo || f.assignedTo === 'null') // Owner sees only unassigned channels
+            ? state.folders.filter(f => !f.assignedTo) // Owner sees only unassigned channels
             : state.folders.filter(f => (f.assignedTo || "").includes(authState.user.login) || f.ownedBy === authState.user.login);
 
         // No longer filtering by avatar to prevent data loss
@@ -4506,12 +4474,13 @@ let chatState = {
 };
 
 
-// Initialize Cloud Sync if already logged in
+// Initialize Real-time if already logged in
 if (authState.isLoggedIn) {
-    // v2.4: Remove timeout for instant cloud priority
-    (async () => {
+    // v2.1: CRITICAL STARTUP SYNC
+    // Always load fresh cloud state and then start listening
+    setTimeout(async () => {
         await loadState();
         setupRealtimeSync();
-    })();
+    }, 500);
 }
 
