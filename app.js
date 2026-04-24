@@ -1800,7 +1800,7 @@ function renderAccountPage() {
         : state.folders.filter(f => (f.assignedTo || "").includes(user.login));
 
     const totalProjects = myFolders.reduce((acc, f) =>
-        acc + state.projects.filter(p => p.folderId === f.id).length, 0
+        acc + state.projects.filter(p => p.folderId == f.id).length, 0
     );
 
     // Update greeting name on dashboard
@@ -1849,7 +1849,7 @@ function renderAccountPage() {
         } else {
             profileProjectsPreview.innerHTML = myFolders.map(f => {
                 const channelColor = f.color || '#6366f1';
-                const projCount = state.projects.filter(p => p.folderId === f.id).length;
+                const projCount = state.projects.filter(p => p.folderId == f.id).length;
                 const initials = f.name.substring(0, 2).toUpperCase();
                 
                 return `
@@ -1903,7 +1903,7 @@ function renderAccountPage() {
     }
 
     const folderCards = myFolders.map(f => {
-        const projCount = state.projects.filter(p => p.folderId === f.id).length;
+        const projCount = state.projects.filter(p => p.folderId == f.id).length;
         const channelColor = f.color || 'var(--accent-primary)';
         return `
                 <div class="project-card folder-card" onclick="exitFolder(); openFolder(${f.id}); showPage('videos');" style="cursor:pointer; position:relative; border-color: ${channelColor}44; padding: 24px; border-radius: 24px;">
@@ -1940,7 +1940,10 @@ function renderAccountPage() {
                 ${WHITELIST.map(u => {
                     const assigned = state.folders.filter(f => {
                         const users = (f.assignedTo || "").split(',').map(s => s.trim()).filter(Boolean);
-                        return users.includes(u.login) || (u.role === 'owner' && f.ownedBy === u.login && users.length === 0);
+                        // For owners: show all their owned channels in their management list
+                        if (u.role === 'owner') return f.ownedBy === u.login;
+                        // For partners: show only what is assigned to them
+                        return users.includes(u.login);
                     });
                     const userAvatar = state.userAvatars[u.login];
                     return `
@@ -1988,8 +1991,8 @@ function renderAccountPage() {
                             <div style="margin-top:24px;">
                                 <select onchange="assignFolderToUser(this.value, '${u.login}')" style="width:100%; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.1); border-radius:16px; padding:14px; color:white; font-size:12px; font-weight:700; outline:none; cursor:pointer; transition:all 0.2s; appearance:none;" onfocus="this.style.borderColor='var(--accent-primary)'; this.style.background='rgba(255,255,255,0.05)';" onblur="this.style.borderColor='rgba(255,255,255,0.1)'; this.style.background='rgba(255,255,255,0.03)';">
                                     <option value="" style="background:#0a0a0c;">+ ПРИВЯЗАТЬ НОВЫЙ КАНАЛ...</option>
-                                    ${state.folders.filter(f => !f.assignedTo).map(f => `
-                                        <option value="${f.id}">${f.name}</option>
+                                    ${state.folders.filter(f => f.ownedBy === authState.user.login).map(f => `
+                                        <option value="${f.id}">${f.name} ${f.assignedTo ? '(Уже назначен)' : ''}</option>
                                     `).join('')}
                                 </select>
                             </div>
@@ -2175,7 +2178,7 @@ function renderProjects() {
         // visibleFolders = visibleFolders.filter(f => f.avatar);
 
         visibleFolders.forEach(f => {
-            const projectCount = state.projects.filter(p => p.folderId === f.id).length;
+            const projectCount = state.projects.filter(p => p.folderId == f.id).length;
             const channelColor = f.color || 'var(--accent-primary)';
             const card = document.createElement('div');
             card.className = "featured-channel-card";
@@ -4472,6 +4475,11 @@ let chatState = {
 
 // Initialize Real-time if already logged in
 if (authState.isLoggedIn) {
-    setTimeout(() => setupRealtimeSync(), 2000);
+    // v2.1: CRITICAL STARTUP SYNC
+    // Always load fresh cloud state and then start listening
+    setTimeout(async () => {
+        await loadState();
+        setupRealtimeSync();
+    }, 500);
 }
 
