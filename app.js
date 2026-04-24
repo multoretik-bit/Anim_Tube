@@ -2884,14 +2884,6 @@ async function loadState() {
                         if (cloudVal !== undefined && cloudVal !== null && cloudVal !== "") {
                             if (f === 'status') {
                                 if (Number(cloudVal) > Number(localItem.status || 0)) merged[f] = cloudVal;
-                            } else if (f === 'views' || f === 'revenue') {
-                                // v4.1: STAT GUARD - Never overwrite with a lower value from cloud
-                                // This prevents "forgetting" stats if cloud update failed or was slow
-                                if (Number(cloudVal) > Number(localItem[f] || 0)) {
-                                    merged[f] = cloudVal;
-                                } else {
-                                    merged[f] = localItem[f];
-                                }
                             } else {
                                 merged[f] = cloudVal;
                             }
