@@ -2708,19 +2708,14 @@ async function downloadProjectFiles() {
 
 
 async function saveState() {
-    if (!state.isInitialLoadComplete) {
-        console.warn("⚠️ [Sync Shield]: Save postponed - initial load not complete.");
-        return;
-    }
-
     // 0. High-Capacity Local Backup (IndexedDB - prevents data loss if cloud fails)
     await saveProjectsToLocalDB(state.projects);
     
-    // 1. Local Backup (Safe Mode - prevent QuotaExceededError)
+    // 1. Local Backup (Safe Mode - prevent QuotaExceededError, but keep old behavior)
     try {
+        localStorage.setItem('animtube_projects', JSON.stringify(state.projects));
         localStorage.setItem('animtube_folders', JSON.stringify(state.folders));
-        // v4.5: Removed animtube_projects and animtube_user_avatars from localStorage
-        // because they are now stored in Cloud (Supabase) and exceed the 5MB quota.
+        localStorage.setItem('animtube_user_avatars', JSON.stringify(state.userAvatars));
     } catch (e) {
         console.warn("⚠️ [Storage Shield]: Local storage full, relying on Cloud sync.", e);
     }
