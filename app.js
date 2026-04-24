@@ -2699,8 +2699,8 @@ async function downloadProjectFiles() {
 
 
 async function saveState() {
-    if (state.isSyncInProgress || !state.isInitialLoadComplete) {
-        console.warn("⚠️ [Sync Shield]: Save postponed - sync in progress or not initialized.");
+    if (!state.isInitialLoadComplete) {
+        console.warn("⚠️ [Sync Shield]: Save postponed - initial load not complete.");
         return;
     }
     // 1. Local Backup
@@ -3672,30 +3672,32 @@ async function _deleteFrame(id) {
     // 2. Remove from results list
     project.results = project.results.filter(r => String(r.id) !== String(id));
     
-    // 3. HARD CLOUD CLEANUP
+    // 3. HARD CLOUD CLEANUP (Wait for it)
     if (cloudDB && authState.isLoggedIn) {
-        // Delete image row
-        cloudDB.from('project_images').delete().eq('id', id).catch(e => console.error(e));
-        
-        // Immediate project update
-        const projectData = {
-            promptsList: project.promptsList || [],
-            results: project.results || []
-        };
-        
-        cloudDB.from('projects').update({ data: projectData }).eq('id', project.id).then(() => {
-            console.log("☁️ Cloud Project Results Updated.");
-        });
+        try {
+            // Delete image row from cloud
+            const { error: imgErr } = await cloudDB.from('project_images').delete().eq('id', id);
+            if (imgErr) console.error("Cloud Image Delete Error:", imgErr);
+            
+            // Delete from projects table (metadata)
+            // Instead of manual update, we'll let saveState() handle the batch upsert 
+            // which includes all project fields (scripts, assets, results, etc.)
+            await saveState(); 
+            
+            console.log("☁️ Cloud Cleanup Sync Complete.");
+        } catch (e) {
+            console.error("Cloud Sync Error during delete:", e);
+        }
     }
     
     // 4. Local DB cleanup
     try {
         const transaction = db.transaction(["images"], "readwrite");
-        transaction.objectStore("images").delete(id);
-    } catch (e) { console.warn(e); }
+        const store = transaction.objectStore("images");
+        store.delete(id);
+    } catch (e) { console.warn("Local DB Delete Warning:", e); }
     
-    saveState();
-    logStatus("✅ Кадр удален из облака и памяти.", "success");
+    logStatus("✅ Кадр удален навсегда.", "success");
 }
 
 // --- UTILS ---
