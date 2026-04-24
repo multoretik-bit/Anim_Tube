@@ -1,4 +1,4 @@
-﻿/**
+/**
  * AnimTube v1.1 - BULK & DELETE Support
  * Sequence: Text First -> Website Return -> Visual Copy -> ChatGPT Send
  */
@@ -2836,9 +2836,10 @@ async function loadState() {
         const login = authState.user.login;
         let fQuery = cloudDB.from('folders').select('*');
         if (authState.user.role === 'owner') {
-            fQuery = fQuery.eq('ownedby', login);
+            // ilike = case-insensitive: 'Denis' matches 'denis' in DB
+            fQuery = fQuery.ilike('ownedby', login);
         } else {
-            fQuery = fQuery.or(`assignedto.ilike.%${login}%,ownedby.eq."${login}"`);
+            fQuery = fQuery.or(`assignedto.ilike.%${login}%,ownedby.ilike.${login}`);
         }
         const { data: cloudFolders, error: fErr } = await fQuery;
         if (fErr) {
