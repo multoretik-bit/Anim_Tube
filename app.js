@@ -1794,9 +1794,9 @@ function renderAccountPage() {
         ? state.folders.filter(f => f.ownedBy === user.login)
         : state.folders.filter(f => (f.assignedTo || "").includes(user.login));
 
-    // Dashboard "My Active Projects": For owners, show only unassigned channels.
+    // Dashboard "My Active Projects": For owners, show all their channels.
     const myFolders = isOwner
-        ? state.folders.filter(f => !f.assignedTo && f.ownedBy === user.login)
+        ? state.folders.filter(f => f.ownedBy === user.login)
         : state.folders.filter(f => (f.assignedTo || "").includes(user.login));
 
     const totalProjects = myFolders.reduce((acc, f) =>
@@ -2016,12 +2016,17 @@ window.updateChannelStats = async function(folderId, fieldOrData, value) {
         Object.assign(folder, updateData);
     } else {
         const field = fieldOrData;
-        folder[field] = value;
-        updateData[field] = value;
+        // Ensure numeric fields are stored as numbers to avoid type conflicts
+        const numericValue = (field === 'views' || field === 'revenue') ? Number(value) : value;
+        folder[field] = numericValue;
+        updateData[field] = numericValue;
     }
     
     logStatus(`⏳ Облачная синхронизация...`, "info");
     
+    // Save to localStorage immediately
+    saveState();
+
     if (cloudDB && authState.isLoggedIn) {
         try {
             const { error } = await cloudDB.from('folders')
@@ -2171,7 +2176,7 @@ function renderProjects() {
     // 2. Render Folders (only at root)
     if (!state.currentFolderId) {
         let visibleFolders = authState.user.role === 'owner' 
-            ? state.folders.filter(f => !f.assignedTo) // Owner sees only unassigned channels
+            ? state.folders.filter(f => f.ownedBy === authState.user.login) // Owner sees all their channels
             : state.folders.filter(f => (f.assignedTo || "").includes(authState.user.login) || f.ownedBy === authState.user.login);
 
         // No longer filtering by avatar to prevent data loss
@@ -2811,7 +2816,8 @@ async function loadState() {
         };
 
         if (cloudFolders) {
-            state.folders = mergeData(state.folders, cloudFolders, ['views', 'revenue', 'assignedTo', 'niche', 'prefix', 'scriptPrefix', 'splitPrefix', 'uploadLink'], false);
+            // Remove 'views' and 'revenue' from forceCloudFields to prevent local edits from being overwritten by stale cloud data
+            state.folders = mergeData(state.folders, cloudFolders, ['assignedTo', 'niche', 'prefix', 'scriptPrefix', 'splitPrefix', 'uploadLink'], false);
             
             // v3.0: AUTOMATIC INDIVIDUAL ASSET FETCH (Reliable & Permanent)
             for (const folder of state.folders) {
