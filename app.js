@@ -2621,7 +2621,6 @@ async function saveState() {
         }
     }
 }
-}
 
 async function loadState() {
     // Force re-init if current DB is broken
