@@ -148,19 +148,6 @@ async function setupRealtimeSync() {
     })
     .subscribe();
 
-    // Listen for Avatar changes
-    cloudDB.channel('avatars-realtime')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'user_avatars' }, payload => {
-        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-            state.userAvatars[payload.new.login] = payload.new.avatar;
-            if (state.activePage === 'account') renderAccountPage();
-            if (state.activePage === 'partners') renderPartnersPage();
-            renderSidebarProfile();
-            console.log(`👤 [REALTIME] Avatar updated for: ${payload.new.login}`);
-        }
-    })
-    .subscribe();
-
     // Listen for Project changes (Checkboxes, Status, Audio, etc.)
     cloudDB.channel('projects-realtime')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, payload => {
