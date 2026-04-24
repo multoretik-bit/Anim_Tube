@@ -2703,10 +2703,15 @@ async function saveState() {
         console.warn("⚠️ [Sync Shield]: Save postponed - initial load not complete.");
         return;
     }
-    // 1. Local Backup
-    localStorage.setItem('animtube_projects', JSON.stringify(state.projects));
-    localStorage.setItem('animtube_folders', JSON.stringify(state.folders));
-    localStorage.setItem('animtube_user_avatars', JSON.stringify(state.userAvatars));
+    
+    // 1. Local Backup (Safe Mode - prevent QuotaExceededError)
+    try {
+        localStorage.setItem('animtube_folders', JSON.stringify(state.folders));
+        // v4.5: Removed animtube_projects and animtube_user_avatars from localStorage
+        // because they are now stored in Cloud (Supabase) and exceed the 5MB quota.
+    } catch (e) {
+        console.warn("⚠️ [Storage Shield]: Local storage full, relying on Cloud sync.", e);
+    }
 
     // Lazy DB Init
     if (!cloudDB) cloudDB = getDB();
