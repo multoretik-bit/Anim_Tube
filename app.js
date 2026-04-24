@@ -1791,13 +1791,13 @@ function renderAccountPage() {
     // Total Stats: Owner sees the grand total of all their channels
     // Partners see only their assigned ones
     const statsFolders = isOwner 
-        ? state.folders.filter(f => f.ownedBy === user.login)
-        : state.folders.filter(f => (f.assignedTo || "").includes(user.login));
+        ? state.folders.filter(f => (!f.assignedTo || f.assignedTo === 'null') && f.ownedBy === user.login)
+        : state.folders.filter(f => (f.assignedTo && f.assignedTo !== 'null' && f.assignedTo.includes(user.login)));
 
     // Dashboard "My Active Projects": For owners, show only unassigned channels.
     const myFolders = isOwner
-        ? state.folders.filter(f => !f.assignedTo && f.ownedBy === user.login)
-        : state.folders.filter(f => (f.assignedTo || "").includes(user.login));
+        ? state.folders.filter(f => (!f.assignedTo || f.assignedTo === 'null') && f.ownedBy === user.login)
+        : state.folders.filter(f => (f.assignedTo && f.assignedTo !== 'null' && f.assignedTo.includes(user.login)));
 
     const totalProjects = myFolders.reduce((acc, f) =>
         acc + state.projects.filter(p => p.folderId == f.id).length, 0
@@ -2016,8 +2016,20 @@ window.updateChannelStats = async function(folderId, fieldOrData, value) {
         Object.assign(folder, updateData);
     } else {
         const field = fieldOrData;
-        folder[field] = value;
-        updateData[field] = value;
+        
+        // v2.3: Sanitize numeric values (handles commas, spaces, etc.)
+        let finalValue = value;
+        if (field === 'views' || field === 'revenue') {
+            if (typeof value === 'string') {
+                const sanitized = value.replace(/\s/g, '').replace(',', '.');
+                finalValue = parseFloat(sanitized) || 0;
+            } else {
+                finalValue = Number(value) || 0;
+            }
+        }
+        
+        folder[field] = finalValue;
+        updateData[field] = finalValue;
     }
     
     logStatus(`⏳ Облачная синхронизация...`, "info");
@@ -2171,7 +2183,7 @@ function renderProjects() {
     // 2. Render Folders (only at root)
     if (!state.currentFolderId) {
         let visibleFolders = authState.user.role === 'owner' 
-            ? state.folders.filter(f => !f.assignedTo) // Owner sees only unassigned channels
+            ? state.folders.filter(f => !f.assignedTo || f.assignedTo === 'null') // Owner sees only unassigned channels
             : state.folders.filter(f => (f.assignedTo || "").includes(authState.user.login) || f.ownedBy === authState.user.login);
 
         // No longer filtering by avatar to prevent data loss
