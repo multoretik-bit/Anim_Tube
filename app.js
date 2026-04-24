@@ -1789,15 +1789,14 @@ function renderAccountPage() {
     const isOwner = user.role === 'owner';
     
     // Total Stats: Owner sees the grand total of all their channels
-    // Partners see only their assigned ones
     const statsFolders = isOwner 
-        ? state.folders.filter(f => f.ownedBy === user.login)
-        : state.folders.filter(f => (f.assignedTo || "").includes(user.login));
+        ? state.folders.filter(f => (f.ownedBy || "").toLowerCase() === user.login.toLowerCase())
+        : state.folders.filter(f => (f.assignedTo || "").toLowerCase().includes(user.login.toLowerCase()));
 
-    // Dashboard "My Active Projects": For owners, show all their channels.
+    // Dashboard "My Active Projects": For owners, show ONLY UNASSIGNED channels.
     const myFolders = isOwner
-        ? state.folders.filter(f => f.ownedBy === user.login)
-        : state.folders.filter(f => (f.assignedTo || "").includes(user.login));
+        ? state.folders.filter(f => (f.ownedBy || "").toLowerCase() === user.login.toLowerCase() && (!f.assignedTo || f.assignedTo.trim() === ""))
+        : state.folders.filter(f => (f.assignedTo || "").toLowerCase().includes(user.login.toLowerCase()));
 
     const totalProjects = myFolders.reduce((acc, f) =>
         acc + state.projects.filter(p => p.folderId == f.id).length, 0
@@ -2185,8 +2184,8 @@ function renderProjects() {
     // 2. Render Folders (only at root)
     if (!state.currentFolderId) {
         let visibleFolders = authState.user.role === 'owner' 
-            ? state.folders.filter(f => (f.ownedBy || "").toLowerCase() === authState.user.login.toLowerCase()) // Owner sees all their channels
-            : state.folders.filter(f => (f.assignedTo || "").toLowerCase().includes(authState.user.login.toLowerCase()) || (f.ownedBy || "").toLowerCase() === authState.user.login.toLowerCase());
+            ? state.folders.filter(f => (f.ownedBy || "").toLowerCase() === authState.user.login.toLowerCase() && (!f.assignedTo || f.assignedTo.trim() === "")) // Owner sees only UNASSIGNED channels
+            : state.folders.filter(f => (f.assignedTo || "").toLowerCase().includes(authState.user.login.toLowerCase()));
 
         // No longer filtering by avatar to prevent data loss
         // visibleFolders = visibleFolders.filter(f => f.avatar);
