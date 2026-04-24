@@ -1940,9 +1940,9 @@ function renderAccountPage() {
                 ${WHITELIST.map(u => {
                     const assigned = state.folders.filter(f => {
                         const users = (f.assignedTo || "").split(',').map(s => s.trim()).filter(Boolean);
-                        // For owners: show all their owned channels in their management list
-                        if (u.role === 'owner') return f.ownedBy === u.login;
-                        // For partners: show only what is assigned to them
+                        // For Owner's card in this list: show only what is NOT yet assigned to anyone
+                        if (u.role === 'owner') return f.ownedBy === u.login && users.length === 0;
+                        // For Partner's card: show what they are working on
                         return users.includes(u.login);
                     });
                     const userAvatar = state.userAvatars[u.login];
