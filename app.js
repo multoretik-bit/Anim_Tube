@@ -50,6 +50,7 @@ function getDB() {
 }
 
 let cloudDB = null;
+let activeAvatarTarget = null;
 
 // --- SECURITY CONFIG & STATE ---
 const WHITELIST = [
@@ -1844,6 +1845,12 @@ function renderAccountPage() {
     // Dashboard "My Active Projects": Same logic as above
     const myFolders = statsFolders;
 
+    // Update labels to be explicit about what is being counted
+    const viewsLabel = document.getElementById('stats-label-views');
+    const revLabel = document.getElementById('stats-label-revenue');
+    if (viewsLabel) viewsLabel.innerText = isOwner ? 'Личные каналы (без партнёров)' : 'Ваши назначенные каналы';
+    if (revLabel) revLabel.innerText = isOwner ? 'Личные каналы (без партнёров)' : 'Ваши назначенные каналы';
+
     const totalProjects = myFolders.reduce((acc, f) =>
         acc + state.projects.filter(p => p.folderId == f.id).length, 0
     );
@@ -2937,7 +2944,8 @@ async function loadState() {
         const { data: aData } = await cloudDB.from('user_avatars').select('*');
         if (aData) {
             aData.forEach(row => {
-                if (!state.userAvatars[row.login]) state.userAvatars[row.login] = row.avatar;
+                // v3.2: Always prioritize cloud avatar for sync
+                state.userAvatars[row.login] = row.avatar;
             });
         }
 
