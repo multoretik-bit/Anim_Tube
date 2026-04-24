@@ -3819,10 +3819,13 @@ function renderProjectPrompts() {
                           onchange="updatePromptValue(${index}, this.value)" 
                           placeholder="Опишите, что происходит в этом кадре...">${p.text}</textarea>
                 <div class="prompt-actions">
-                    <button class="prompt-btn prompt-btn-recreate" onclick="recreateSinglePrompt(${index})">
-                        <span>🔄</span> Пересоздать
+                    <button class="prompt-btn prompt-btn-recreate" onclick="recreateSinglePrompt(${index})" title="Пересоздать">
+                        <span>🔄</span>
                     </button>
-                    <button class="prompt-btn prompt-btn-del" onclick="deletePromptFromProject(${index})">
+                    <button class="prompt-btn prompt-btn-upload" onclick="uploadFrameForPrompt(${index})" title="Загрузить кадр с устройства">
+                        <span>📁</span>
+                    </button>
+                    <button class="prompt-btn prompt-btn-del" onclick="deletePromptFromProject(${index})" title="Удалить промт">
                         <span>🗑️</span>
                     </button>
                 </div>
@@ -3830,6 +3833,51 @@ function renderProjectPrompts() {
         `;
     }).join('');
 }
+
+window.uploadFrameForPrompt = function(index) {
+    const project = getCurrentProject();
+    if (!project) return;
+    
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    
+    input.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        logStatus(`⌛ Загрузка кадра для промта #${index + 1}...`, "info");
+        
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            const rawBase64 = event.target.result;
+            const base64 = await compressImage(rawBase64);
+            
+            const imgId = "img_manual_" + Date.now();
+            await saveImageToDB(imgId, base64);
+            await saveImageToCloud(imgId, base64);
+            
+            const prompt = project.promptsList[index];
+            const result = {
+                id: imgId,
+                promptSnippet: prompt ? prompt.text.substring(0, 30) + "..." : "Manual Upload",
+                time: new Date().toLocaleTimeString()
+            };
+            
+            project.results.unshift(result);
+            if (prompt) prompt.isGeminiDone = true;
+            
+            saveState();
+            renderProjectPrompts();
+            renderProjectLibrary();
+            
+            logStatus("✅ Кадр успешно загружен и привязан к промту.", "success");
+        };
+        reader.readAsDataURL(file);
+    };
+    
+    input.click();
+};
 
 window.toggleGeminiDone = (index, isDone) => {
     const project = getCurrentProject();
