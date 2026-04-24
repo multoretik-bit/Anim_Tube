@@ -2709,27 +2709,31 @@ async function saveState() {
 
     // 2. Cloud Sync (Optimized v4.0 - Batch Upserts)
     try {
-        // A. Batch Save Folders
-        const foldersToSave = state.folders.map(f => ({
-            id: f.id,
-            name: f.name,
-            ownedBy: (f.ownedBy || authState.user.login).toLowerCase(),
-            assignedTo: (f.assignedTo || "").toLowerCase(),
-            views: Number(f.views) || 0,
-            revenue: Number(f.revenue) || 0,
-            niche: f.niche,
-            avatar: f.avatar,
-            color: f.color,
-            prefix: f.prefix,
-            scriptPrefix: f.scriptPrefix,
-            splitPrefix: f.splitPrefix,
-            uploadLink: f.uploadLink,
-            assets: f.assets || []
-        }));
-        
-        if (foldersToSave.length > 0) {
-            const { error: fErr } = await cloudDB.from('folders').upsert(foldersToSave);
-            if (fErr) throw fErr;
+        // A. Batch Save Folders (Owner ONLY - Source of Truth for metadata)
+        if (authState.user.role === 'owner') {
+            const foldersToSave = state.folders.map(f => ({
+                id: f.id,
+                name: f.name,
+                ownedBy: (f.ownedBy || authState.user.login).toLowerCase(),
+                assignedTo: (f.assignedTo || "").toLowerCase(),
+                views: Number(f.views) || 0,
+                revenue: Number(f.revenue) || 0,
+                niche: f.niche,
+                avatar: f.avatar,
+                color: f.color,
+                prefix: f.prefix,
+                scriptPrefix: f.scriptPrefix,
+                splitPrefix: f.splitPrefix,
+                uploadLink: f.uploadLink,
+                assets: f.assets || []
+            }));
+            
+            if (foldersToSave.length > 0) {
+                const { error: fErr } = await cloudDB.from('folders').upsert(foldersToSave);
+                if (fErr) throw fErr;
+            }
+        } else {
+            console.log("🛡️ [Sync Shield]: Skipping global folder save (Non-owner user).");
         }
 
         // B. Batch Save Projects
