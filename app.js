@@ -1794,9 +1794,9 @@ function renderAccountPage() {
         ? state.folders.filter(f => f.ownedBy === user.login)
         : state.folders.filter(f => (f.assignedTo || "").includes(user.login));
 
-    // Dashboard "My Active Projects": Only what the user is personally working on
+    // Dashboard "My Active Projects": For owners, show everything they own. For partners, show assigned.
     const myFolders = isOwner
-        ? state.folders.filter(f => !f.assignedTo && f.ownedBy === user.login)
+        ? state.folders.filter(f => f.ownedBy === user.login)
         : state.folders.filter(f => (f.assignedTo || "").includes(user.login));
 
     const totalProjects = myFolders.reduce((acc, f) =>
@@ -2168,7 +2168,7 @@ function renderProjects() {
     // 2. Render Folders (only at root)
     if (!state.currentFolderId) {
         let visibleFolders = authState.user.role === 'owner' 
-            ? state.folders.filter(f => !f.assignedTo) // Owner sees only unassigned channels
+            ? state.folders.filter(f => f.ownedBy === authState.user.login) // Owner sees all their owned channels
             : state.folders.filter(f => (f.assignedTo || "").includes(authState.user.login) || f.ownedBy === authState.user.login);
 
         // No longer filtering by avatar to prevent data loss
@@ -4340,9 +4340,17 @@ window.openPartnerProfile = async function(login) {
         if (!cloudDB) cloudDB = getDB();
         
         // 1. Load Stats
-        const { data: userFolders } = await cloudDB.from('folders')
-            .select('*')
-            .or(`assignedTo.ilike.%${login}%,and(ownedBy.eq."${login}",assignedTo.is.null)`);
+        const targetUser = WHITELIST.find(u => u.login === login);
+        const isTargetOwner = targetUser && targetUser.role === 'owner';
+        
+        let query = cloudDB.from('folders').select('*');
+        if (isTargetOwner) {
+            query = query.eq('ownedBy', login);
+        } else {
+            query = query.or(`assignedTo.ilike.%${login}%,ownedBy.eq."${login}"`);
+        }
+        
+        const { data: userFolders } = await query;
         const totalViews = userFolders ? userFolders.reduce((sum, f) => sum + (Number(f.views) || 0), 0) : 0;
         viewsEl.innerText = `👁️ ${totalViews.toLocaleString()} просмотров`;
 
