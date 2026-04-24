@@ -2879,24 +2879,18 @@ async function loadState() {
                     if (localItem.results !== undefined) merged.results = localItem.results;
                     if (localItem.assets !== undefined) merged.assets = localItem.assets;
 
-                    forceCloudFields.forEach(f => {
-                        const cloudVal = cloudItem[f];
-                        if (cloudVal !== undefined && cloudVal !== null && cloudVal !== "") {
-                            if (f === 'status') {
-                                if (Number(cloudVal) > Number(localItem.status || 0)) merged[f] = cloudVal;
-                            } else if (f === 'views' || f === 'revenue') {
-                                // v4.1: STAT GUARD - Never overwrite with a lower value from cloud
-                                // This prevents "forgetting" stats if cloud update failed or was slow
-                                if (Number(cloudVal) > Number(localItem[f] || 0)) {
-                                    merged[f] = cloudVal;
+                        forceCloudFields.forEach(f => {
+                            const cloudVal = cloudItem[f];
+                            if (cloudVal !== undefined && cloudVal !== null && cloudVal !== "") {
+                                if (f === 'status') {
+                                    if (Number(cloudVal) > Number(localItem.status || 0)) merged[f] = cloudVal;
                                 } else {
-                                    merged[f] = localItem[f];
+                                    // v4.2: Owner Control - Cloud is absolute truth for stats (views, revenue, assignments)
+                                    // This allows correcting values downwards if needed.
+                                    merged[f] = cloudVal;
                                 }
-                            } else {
-                                merged[f] = cloudVal;
                             }
-                        }
-                    });
+                        });
                     map.set(localId, merged);
                 } else {
                     // Local item doesn't exist in cloud - it was either deleted or is brand new (not yet synced)
