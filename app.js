@@ -409,7 +409,9 @@ let state = {
         queue: [],
         lockedProjectId: null
     },
-    isAutoMode: JSON.parse(localStorage.getItem('animtube_auto_mode') || 'false')
+    isAutoMode: JSON.parse(localStorage.getItem('animtube_auto_mode') || 'false'),
+    isInitialLoadComplete: false,
+    isSyncInProgress: false
 };
 
 // --- GLOBAL EXPORTS (v1.4.0 Consolidated) ---
@@ -1686,8 +1688,7 @@ async function handleUserAvatarUpload(input) {
                 try {
                     await cloudDB.from('user_avatars').upsert([{ 
                         login: targetLogin, 
-                        avatar: base64,
-                        updated_at: new Date().toISOString()
+                        avatar: base64
                     }]);
                     logStatus(`✅ Аватар ${targetLogin} сохранен в облаке!`, "success");
                 } catch (err) {
@@ -2698,6 +2699,10 @@ async function downloadProjectFiles() {
 
 
 async function saveState() {
+    if (state.isSyncInProgress || !state.isInitialLoadComplete) {
+        console.warn("⚠️ [Sync Shield]: Save postponed - sync in progress or not initialized.");
+        return;
+    }
     // 1. Local Backup
     localStorage.setItem('animtube_projects', JSON.stringify(state.projects));
     localStorage.setItem('animtube_folders', JSON.stringify(state.folders));
@@ -2761,7 +2766,7 @@ async function saveState() {
         // C. Sync All Changed Avatars (v2.0 - Comprehensive)
         const avatarsToSync = [];
         for (const [login, avatar] of Object.entries(state.userAvatars)) {
-            avatarsToSync.push({ login, avatar, updated_at: new Date().toISOString() });
+            avatarsToSync.push({ login, avatar });
         }
         
         if (avatarsToSync.length > 0) {
@@ -2808,6 +2813,7 @@ async function loadState() {
     }
     
     if (!cloudDB || !authState.isLoggedIn) return;
+    state.isSyncInProgress = true;
 
     try {
         // Double check .from before calling
@@ -2829,6 +2835,24 @@ async function loadState() {
             logStatus("❌ Ошибка загрузки каналов: " + fErr.message, "error");
             throw fErr;
         }
+
+        // v4.3: IMMEDIATE SYNC GUARD - Apply critical fields BEFORE long-running project/asset fetch
+        if (cloudFolders && cloudFolders.length > 0) {
+            cloudFolders.forEach(cloudItem => {
+                const localIdx = state.folders.findIndex(f => String(f.id) === String(cloudItem.id));
+                if (localIdx !== -1) {
+                    // Update ONLY the absolute truth fields immediately
+                    const f = state.folders[localIdx];
+                    f.views = cloudItem.views;
+                    f.revenue = cloudItem.revenue;
+                    f.assignedTo = cloudItem.assignedTo || cloudItem.assignedto;
+                } else {
+                    state.folders.push(cloudItem);
+                }
+            });
+            console.log("📂 [SYNC] Critical Folder Fields Updated (Immediate).");
+        }
+        
         console.log("📂 [SYNC] Cloud Folders Loaded:", cloudFolders.length, cloudFolders.map(f => f.name));
         
         // 2. Load Cloud Projects
@@ -2946,16 +2970,22 @@ async function loadState() {
             }
         }
 
-        // 4. Load Avatars
-        const { data: aData } = await cloudDB.from('user_avatars').select('*');
-        if (aData) {
-            aData.forEach(row => {
-                // v3.2: Always prioritize cloud avatar for sync
-                state.userAvatars[row.login] = row.avatar;
-            });
+        // 4. Load Avatars (Soft Fetch - Don't break sync if this fails)
+        try {
+            const { data: aData } = await cloudDB.from('user_avatars').select('*');
+            if (aData) {
+                aData.forEach(row => {
+                    // v3.2: Always prioritize cloud avatar for sync
+                    state.userAvatars[row.login] = row.avatar;
+                });
+            }
+        } catch (e) {
+            console.warn("⚠️ [Sync Shield]: Avatars failed to load, continuing...", e);
         }
 
         // 5. Initial Sync Back (Upload local data to cloud if it was just merged)
+        state.isInitialLoadComplete = true;
+        state.isSyncInProgress = false;
         saveState(); 
 
         renderProjects();
