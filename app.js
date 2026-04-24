@@ -54,7 +54,7 @@ let activeAvatarTarget = null;
 
 // --- SECURITY CONFIG & STATE ---
 const WHITELIST = [
-    { login: "Denis", pass: "Ub1dFnfCFUzVRDv", code: "529952203893", role: "owner", ip: "184.22.77.0" }, // Owner allows all IPs for testing
+    { login: "Denis", pass: "Ub1dFnfCFUzVRDv", code: "529952203893", role: "owner", ip: "*" }, // Owner allows all IPs for testing
 	{ login: "Alexander Evie", pass: "0gX1t39fZMA2HY7", code: "984377574594", role: "partner", ip: "*" }, // Example partner
 	{ login: "Alexander George", pass: "k8ocT1wRnkhMQij", code: "681523913214", role: "partner", ip: "91.132.162.219" }, // Example partner
     { login: "Alexey", pass: "JAh92C36h3MkiMk", code: "255681851403", role: "partner", ip: "127.0.0.1" }, // Example partner
@@ -1656,7 +1656,7 @@ function submitCreateChannel() {
 }
 
 // --- USER AVATAR MANAGEMENT (v1.5) ---
-let activeAvatarTarget = null; // null for self, or login for partner
+activeAvatarTarget = null; // null for self, or login for partner
 
 function openAvatarModal(targetLogin = null) {
     activeAvatarTarget = targetLogin;
@@ -2884,6 +2884,14 @@ async function loadState() {
                         if (cloudVal !== undefined && cloudVal !== null && cloudVal !== "") {
                             if (f === 'status') {
                                 if (Number(cloudVal) > Number(localItem.status || 0)) merged[f] = cloudVal;
+                            } else if (f === 'views' || f === 'revenue') {
+                                // v4.1: STAT GUARD - Never overwrite with a lower value from cloud
+                                // This prevents "forgetting" stats if cloud update failed or was slow
+                                if (Number(cloudVal) > Number(localItem[f] || 0)) {
+                                    merged[f] = cloudVal;
+                                } else {
+                                    merged[f] = localItem[f];
+                                }
                             } else {
                                 merged[f] = cloudVal;
                             }
