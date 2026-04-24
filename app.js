@@ -1940,10 +1940,13 @@ function renderAccountPage() {
                 ${WHITELIST.map(u => {
                     const assigned = state.folders.filter(f => {
                         const users = (f.assignedTo || "").split(',').map(s => s.trim()).filter(Boolean);
+                        const ownerLogin = (f.ownedBy || "").toLowerCase();
+                        const currentLogin = u.login.toLowerCase();
+                        
                         // For Owner's card in this list: show only what is NOT yet assigned to anyone
-                        if (u.role === 'owner') return f.ownedBy === u.login && users.length === 0;
+                        if (u.role === 'owner') return ownerLogin === currentLogin && users.length === 0;
                         // For Partner's card: show what they are working on
-                        return users.includes(u.login);
+                        return users.some(user => user.toLowerCase() === currentLogin);
                     });
                     const userAvatar = state.userAvatars[u.login];
                     return `
@@ -2642,8 +2645,8 @@ async function saveState() {
         const foldersToSave = state.folders.map(f => ({
             id: f.id,
             name: f.name,
-            ownedBy: f.ownedBy || authState.user.login,
-            assignedTo: f.assignedTo,
+            ownedBy: (f.ownedBy || authState.user.login).toLowerCase(),
+            assignedTo: (f.assignedTo || "").toLowerCase(),
             views: Number(f.views) || 0,
             revenue: Number(f.revenue) || 0,
             niche: f.niche,
@@ -2786,13 +2789,14 @@ async function loadState() {
 
                 // Unpack 'data' column if it's a project
                 const unpacked = cloudItem.data ? { ...cloudItem, ...cloudItem.data } : cloudItem;
-                map.set(cloudItem.id, unpacked);
+                map.set(String(cloudItem.id), unpacked);
             });
             
             // 2. Merge with Local (Source of Truth for latest session changes)
             localArr.forEach(localItem => {
-                if (map.has(localItem.id)) {
-                    const cloudItem = map.get(localItem.id);
+                const localId = String(localItem.id);
+                if (map.has(localId)) {
+                    const cloudItem = map.get(localId);
                     
                     // Merge: Local wins for state, but cloud can override specific fields
                     const merged = { ...cloudItem, ...localItem };
@@ -2811,13 +2815,12 @@ async function loadState() {
                             }
                         }
                     });
-                    map.set(localItem.id, merged);
+                    map.set(localId, merged);
                 } else {
                     // Local item doesn't exist in cloud - it was either deleted or is brand new (not yet synced)
-                    // If it has a numeric ID, it's likely an old deleted item. If it's very recent, keep it.
-                    const isNew = (Date.now() - (localItem.id || 0)) < 60000; // 1 minute grace period for new local items
+                    const isNew = (Date.now() - Number(localItem.id || 0)) < 60000; 
                     if (isNew) {
-                        map.set(localItem.id, localItem);
+                        map.set(localId, localItem);
                     }
                 }
             });
