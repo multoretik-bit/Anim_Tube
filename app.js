@@ -2135,7 +2135,7 @@ async function assignFolderToUser(folderId, userLogin) {
     if (cloudDB && authState.isLoggedIn) {
         try {
             const { error } = await cloudDB.from('folders')
-                .update({ assignedTo: newAssigned })
+                .update({ assignedto: newAssigned })
                 .eq('id', folderId);
             
             if (error) throw error;
@@ -2162,7 +2162,7 @@ window.unassignFolder = async function(folderId, userLogin) {
     if (cloudDB && authState.isLoggedIn) {
         try {
             const { error } = await cloudDB.from('folders')
-                .update({ assignedTo: newAssigned })
+                .update({ assignedto: newAssigned })
                 .eq('id', folderId);
             
             if (error) throw error;
@@ -2719,8 +2719,8 @@ async function saveState() {
             const foldersToSave = state.folders.map(f => ({
                 id: f.id,
                 name: f.name,
-                ownedBy: (f.ownedBy || authState.user.login).toLowerCase(),
-                assignedTo: (f.assignedTo || "").toLowerCase(),
+                ownedby: f.ownedBy || authState.user.login,
+                assignedto: f.assignedTo || "",
                 views: Number(f.views) || 0,
                 revenue: Number(f.revenue) || 0,
                 niche: f.niche,
@@ -2744,7 +2744,7 @@ async function saveState() {
         // B. Batch Save Projects
         const projectsToSave = state.projects.map(p => ({
             id: p.id,
-            folderId: p.folderId,
+            folderid: p.folderId,
             name: p.name,
             status: Number(p.status || 0),
             created: p.created || new Date().toLocaleDateString(),
