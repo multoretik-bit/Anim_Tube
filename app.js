@@ -1,4 +1,4 @@
-/**
+﻿/**
  * AnimTube v1.1 - BULK & DELETE Support
  * Sequence: Text First -> Website Return -> Visual Copy -> ChatGPT Send
  */
@@ -2708,9 +2708,6 @@ async function downloadProjectFiles() {
 
 
 async function saveState() {
-    // 0. High-Capacity Local Backup (IndexedDB - prevents data loss if cloud fails)
-    await saveProjectsToLocalDB(state.projects);
-    
     // 1. Local Backup (Safe Mode - prevent QuotaExceededError, but keep old behavior)
     try {
         localStorage.setItem('animtube_projects', JSON.stringify(state.projects));
@@ -2836,15 +2833,17 @@ async function loadState() {
         logStatus("☁️ Синхронизация с облаком...", "info");
 
         // 1. Load Cloud Folders
+        const login = authState.user.login;
         let fQuery = cloudDB.from('folders').select('*');
-        if (authState.user.role !== 'owner') {
-            const login = authState.user.login;
-            fQuery = fQuery.or(`assignedTo.ilike.%${login}%,ownedBy.eq."${login}"`);
+        if (authState.user.role === 'owner') {
+            fQuery = fQuery.eq('ownedby', login);
+        } else {
+            fQuery = fQuery.or(`assignedto.ilike.%${login}%,ownedby.eq."${login}"`);
         }
         const { data: cloudFolders, error: fErr } = await fQuery;
         if (fErr) {
-            console.error("❌ Folder Load Error:", fErr);
-            logStatus("❌ Ошибка загрузки каналов: " + fErr.message, "error");
+            console.error("Folder Load Error:", fErr);
+            logStatus("Ошибка загрузки каналов: " + fErr.message, "error");
             throw fErr;
         }
 
@@ -2857,7 +2856,8 @@ async function loadState() {
                     const f = state.folders[localIdx];
                     f.views = cloudItem.views;
                     f.revenue = cloudItem.revenue;
-                    f.assignedTo = cloudItem.assignedTo || cloudItem.assignedto;
+                    f.assignedTo = cloudItem.assignedto;
+                    f.ownedBy = cloudItem.ownedby;
                 } else {
                     state.folders.push(cloudItem);
                 }
@@ -4549,9 +4549,9 @@ window.openPartnerProfile = async function(login) {
         let query = cloudDB.from('folders').select('*');
         if (isTargetOwner) {
             // For owners: show only their UNASSIGNED channels to keep the view clean
-            query = query.eq('ownedBy', login).is('assignedTo', null);
+            query = query.eq('ownedby', login).is('assignedto', null);
         } else {
-            query = query.or(`assignedTo.ilike.%${login}%,ownedBy.eq."${login}"`);
+            query = query.or(`assignedto.ilike.%${login}%,ownedby.eq."${login}"`);
         }
         
         const { data: userFolders } = await query;
