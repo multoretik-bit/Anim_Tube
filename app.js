@@ -1981,8 +1981,20 @@ function renderAccountPage() {
     if (!container) return;
 
     container.innerHTML = `
-        <div style="margin-top: 20px;">
-            <h3 class="section-title" style="font-size: 20px; margin-bottom: 20px;">Управление аккаунтом</h3>
+        <div style="margin-top: 20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
+            <h3 class="section-title" style="font-size: 20px; margin:0;">Управление аккаунтом</h3>
+            <button onclick="clearLocalCache()" style="
+                display: flex; align-items: center; gap: 8px;
+                background: linear-gradient(135deg, rgba(239,68,68,0.12), rgba(239,68,68,0.05));
+                border: 1px solid rgba(239,68,68,0.35);
+                color: #ef4444; border-radius: 14px; padding: 10px 20px;
+                font-size: 13px; font-weight: 700; cursor: pointer; letter-spacing: 0.5px;
+                transition: all 0.2s;" 
+                onmouseenter="this.style.background='rgba(239,68,68,0.22)'; this.style.borderColor='#ef4444';"
+                onmouseleave="this.style.background='linear-gradient(135deg,rgba(239,68,68,0.12),rgba(239,68,68,0.05))'; this.style.borderColor='rgba(239,68,68,0.35)';"
+                title="Очищает кэш браузера (localStorage). Облачные данные не затрагиваются.">
+                🗑️ Очистить кэш браузера
+            </button>
         </div>
         <!-- PARTNER MANAGEMENT (Owner Only) -->
         ${user.role === 'owner' ? `
@@ -2106,7 +2118,7 @@ window.updateChannelStats = async function(folderId, fieldOrData, value) {
 
     logStatus(`⏳ Синхронизация статистики...`, "info");
     
-    localStorage.setItem('animtube_folders', JSON.stringify(state.folders));
+    try { localStorage.setItem('animtube_folders', JSON.stringify(state.folders)); } catch(e) { console.warn('⚠️ localStorage full, skipping local cache:', e.message); }
 
     if (cloudDB && authState.isLoggedIn) {
         try {
@@ -4685,3 +4697,29 @@ if (authState.isLoggedIn) {
     }, 500);
 }
 
+// --- CACHE MANAGEMENT ---
+window.clearLocalCache = function() {
+    const keys = Object.keys(localStorage).filter(k => k.startsWith('animtube_'));
+    
+    if (keys.length === 0) {
+        logStatus('✅ Кэш уже пустой — нечего удалять.', 'success');
+        return;
+    }
+
+    let totalBytes = 0;
+    keys.forEach(k => { totalBytes += (localStorage.getItem(k) || '').length * 2; });
+    const totalMB = (totalBytes / 1024 / 1024).toFixed(2);
+
+    if (!confirm(`🗑️ Очистить кэш браузера?\n\nБудет удалено ${keys.length} записей (≈${totalMB} МБ).\n\n⚠️ Облачные данные (Supabase) НЕ затрагиваются — всё восстановится из облака при следующей загрузке.`)) return;
+
+    keys.forEach(k => localStorage.removeItem(k));
+    logStatus(`✅ Кэш очищен! Освобождено ≈${totalMB} МБ. Перезагружаю данные из облака...`, 'success');
+
+    setTimeout(async () => {
+        if (cloudDB && authState.isLoggedIn) {
+            await loadState();
+            if (state.activePage === 'account') renderAccountPage();
+            logStatus('☁️ Данные успешно загружены из облака.', 'success');
+        }
+    }, 800);
+};
