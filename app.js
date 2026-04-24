@@ -102,35 +102,61 @@ async function setupRealtimeSync() {
     // Listen for Channel changes (Income/Views/Assignments)
     cloudDB.channel('folders-realtime')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'folders' }, payload => {
+        console.log("🔔 [REALTIME] Folders change:", payload.eventType, payload.new);
         if (payload.eventType === 'INSERT') {
-            if (!state.folders.find(f => f.id == payload.new.id)) {
-                state.folders.push(payload.new);
+            const exists = state.folders.find(f => String(f.id) === String(payload.new.id));
+            if (!exists) {
+                state.folders.unshift(payload.new);
                 logStatus(`✨ Новый канал: ${payload.new.name}`, "info");
             }
         } else if (payload.eventType === 'UPDATE') {
             const updatedFolder = payload.new;
-            const idx = state.folders.findIndex(f => f.id == updatedFolder.id);
+            const idx = state.folders.findIndex(f => String(f.id) === String(updatedFolder.id));
             if (idx !== -1) {
                 const oldFolder = state.folders[idx];
-                const assignmentChanged = updatedFolder.assignedTo !== oldFolder.assignedTo;
-                const viewsChanged = updatedFolder.views != oldFolder.views;
-                const revenueChanged = updatedFolder.revenue != oldFolder.revenue;
                 
+                // Detection for alerts
+                const assignmentChanged = updatedFolder.assignedTo !== oldFolder.assignedTo;
+                const viewsChanged = Number(updatedFolder.views) !== Number(oldFolder.views);
+                const revenueChanged = Number(updatedFolder.revenue) !== Number(oldFolder.revenue);
+                
+                // Merge update
                 state.folders[idx] = { ...oldFolder, ...updatedFolder };
 
                 if (viewsChanged || revenueChanged || assignmentChanged) {
-                    if (revenueChanged) flashTitleNotification("💰 ДОХОД +");
+                    if (revenueChanged) flashTitleNotification("💰 ДОХОД ОБНОВЛЕН");
                     else if (viewsChanged) flashTitleNotification("👁️ ПРОСМОТРЫ +");
-                    else if (assignmentChanged) flashTitleNotification("🛰️ КАНАЛ НАЗНАЧЕН");
+                    else if (assignmentChanged) {
+                        flashTitleNotification("🛰️ КАНАЛ НАЗНАЧЕН");
+                        logStatus(`🛰️ Изменение владельца канала: ${updatedFolder.name}`, "info");
+                    }
                 }
+            } else {
+                // If we don't have it, add it (might be a new assignment)
+                state.folders.unshift(updatedFolder);
             }
         } else if (payload.eventType === 'DELETE') {
-            state.folders = state.folders.filter(f => f.id != payload.old.id);
+            state.folders = state.folders.filter(f => String(f.id) !== String(payload.old.id));
         }
         
+        // Instant UI Refresh
         if (state.activePage === 'account') renderAccountPage();
         if (state.activePage === 'partners') renderPartnersPage();
-        renderProjects();
+        if (state.activePage === 'videos') renderProjects();
+        renderSidebarProfile();
+    })
+    .subscribe();
+
+    // Listen for Avatar changes
+    cloudDB.channel('avatars-realtime')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'user_avatars' }, payload => {
+        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            state.userAvatars[payload.new.login] = payload.new.avatar;
+            if (state.activePage === 'account') renderAccountPage();
+            if (state.activePage === 'partners') renderPartnersPage();
+            renderSidebarProfile();
+            console.log(`👤 [REALTIME] Avatar updated for: ${payload.new.login}`);
+        }
     })
     .subscribe();
 
@@ -1642,17 +1668,37 @@ function closeAvatarModal() {
     document.getElementById('avatar-upload-overlay').style.display = 'none';
 }
 
-function handleUserAvatarUpload(input) {
+async function handleUserAvatarUpload(input) {
     if (input.files && input.files[0]) {
         const reader = new FileReader();
-        reader.onload = function(e) {
+        reader.onload = async function(e) {
             const base64 = e.target.result;
-            state.userAvatars[activeAvatarTarget || authState.user.login] = base64;
-            saveState();
+            const targetLogin = activeAvatarTarget || authState.user.login;
+            
+            logStatus(`⌛ Обновление аватара для ${targetLogin}...`, "info");
+            
+            // 1. Update local state
+            state.userAvatars[targetLogin] = base64;
+            
+            // 2. Immediate Cloud Push for this specific avatar
+            if (cloudDB && authState.isLoggedIn) {
+                try {
+                    await cloudDB.from('user_avatars').upsert([{ 
+                        login: targetLogin, 
+                        avatar: base64,
+                        updated_at: new Date().toISOString()
+                    }]);
+                    logStatus(`✅ Аватар ${targetLogin} сохранен в облаке!`, "success");
+                } catch (err) {
+                    console.error("Avatar Cloud Sync Error:", err);
+                    logStatus("⚠️ Ошибка сохранения в облако, но сохранено локально.", "error");
+                }
+            }
+            
+            saveState(); // General backup
             renderAccountPage();
             renderSidebarProfile();
             closeAvatarModal();
-            logStatus("✅ Аватар успешно обновлен!", "success");
         };
         reader.readAsDataURL(input.files[0]);
     }
@@ -1788,15 +1834,15 @@ function renderAccountPage() {
     // v1.9.9: Clearer ownership logic
     const isOwner = user.role === 'owner';
     
-    // Total Stats: Owner sees the grand total of all their channels
+    // Stats Filtering: "If transferred to another, they are no longer mine, income and views too"
+    // So Owners only count UNASSIGNED channels in their grand total.
+    // Partners count their ASSIGNED channels.
     const statsFolders = isOwner 
-        ? state.folders.filter(f => (f.ownedBy || "").toLowerCase() === user.login.toLowerCase())
-        : state.folders.filter(f => (f.assignedTo || "").toLowerCase().includes(user.login.toLowerCase()));
-
-    // Dashboard "My Active Projects": For owners, show ONLY UNASSIGNED channels.
-    const myFolders = isOwner
         ? state.folders.filter(f => (f.ownedBy || "").toLowerCase() === user.login.toLowerCase() && (!f.assignedTo || f.assignedTo.trim() === ""))
         : state.folders.filter(f => (f.assignedTo || "").toLowerCase().includes(user.login.toLowerCase()));
+
+    // Dashboard "My Active Projects": Same logic as above
+    const myFolders = statsFolders;
 
     const totalProjects = myFolders.reduce((acc, f) =>
         acc + state.projects.filter(p => p.folderId == f.id).length, 0
@@ -1967,25 +2013,25 @@ function renderAccountPage() {
                                 <div style="font-size:11px; font-weight:900; color:var(--text-dim); text-transform:uppercase; margin-bottom:16px; letter-spacing:1.5px; opacity:0.6;">АКТИВНЫЕ КАНАЛЫ:</div>
                                 <div style="display:flex; flex-direction:column; gap:12px;">
                                     ${assigned.length > 0 ? assigned.map(f => `
-                                        <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); padding:10px 16px; border-radius:14px; border:1px solid rgba(255,255,255,0.05); gap: 10px; transition: background 0.2s;">
-                                            <div onclick="enterChannel(${f.id})" style="display:flex; align-items:center; gap:12px; flex: 1; cursor: pointer;" title="Войти в управление каналом" onmouseenter="this.parentElement.style.background='rgba(255,255,255,0.06)'" onmouseleave="this.parentElement.style.background='rgba(255,255,255,0.02)'">
-                                                <div style="width:28px; height:28px; border-radius:8px; overflow:hidden; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.1); flex-shrink:0;">
-                                                    ${f.avatar ? `<img src="${f.avatar}" style="width:100%; height:100%; object-fit:cover;">` : '<span style="font-size:12px; display:flex; align-items:center; justify-content:center; height:100%;">📺</span>'}
+                                            <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); padding:10px 16px; border-radius:14px; border:1px solid rgba(255,255,255,0.05); gap: 10px; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); position: relative; overflow: hidden;">
+                                                <div onclick="enterChannel(${f.id})" style="display:flex; align-items:center; gap:12px; flex: 1; cursor: pointer;" title="Войти в управление каналом" onmouseenter="this.parentElement.style.background='rgba(255,255,255,0.06)'; this.parentElement.style.borderColor='var(--accent-primary)';" onmouseleave="this.parentElement.style.background='rgba(255,255,255,0.02)'; this.parentElement.style.borderColor='rgba(255,255,255,0.05)';">
+                                                    <div style="width:28px; height:28px; border-radius:8px; overflow:hidden; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.1); flex-shrink:0;">
+                                                        ${f.avatar ? `<img src="${f.avatar}" style="width:100%; height:100%; object-fit:cover;">` : '<span style="font-size:12px; display:flex; align-items:center; justify-content:center; height:100%;">📺</span>'}
+                                                    </div>
+                                                    <span style="font-size:14px; font-weight:700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100px;">${f.name}</span>
                                                 </div>
-                                                <span style="font-size:14px; font-weight:700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100px;">${f.name}</span>
+                                                <div style="display:flex; align-items:center; gap:6px;">
+                                                    <div style="position:relative;">
+                                                        <span style="position:absolute; left:6px; top:50%; transform:translateY(-50%); font-size:10px; opacity:0.5;">👁</span>
+                                                        <input type="number" placeholder="0" value="${f.views || 0}" onchange="updateChannelStats(${f.id}, 'views', this.value); this.parentElement.parentElement.parentElement.style.boxShadow='0 0 15px var(--accent-primary)44';" onclick="event.stopPropagation()" style="width: 70px; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 6px; padding: 4px 4px 4px 20px; font-size: 11px; outline: none; transition: all 0.2s;">
+                                                    </div>
+                                                    <div style="position:relative;">
+                                                        <span style="position:absolute; left:6px; top:50%; transform:translateY(-50%); font-size:10px; opacity:0.5;">$</span>
+                                                        <input type="number" placeholder="0" value="${f.revenue || 0}" onchange="updateChannelStats(${f.id}, 'revenue', this.value); this.parentElement.parentElement.parentElement.style.boxShadow='0 0 15px #10b98144';" onclick="event.stopPropagation()" style="width: 60px; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 6px; padding: 4px 4px 4px 16px; font-size: 11px; outline: none; transition: all 0.2s;">
+                                                    </div>
+                                                    <button class="btn-del-mini" onclick="event.stopPropagation(); unassignFolder(${f.id}, '${u.login}')" title="Отвязать канал" style="opacity:0.4; transition:opacity 0.2s; font-size: 18px; line-height: 1;" onmouseenter="this.style.opacity='1'; this.style.color='#ef4444'" onmouseleave="this.style.opacity='0.4'; this.style.color='white'">×</button>
+                                                </div>
                                             </div>
-                                            <div style="display:flex; align-items:center; gap:6px;">
-                                                <div style="position:relative;">
-                                                    <span style="position:absolute; left:6px; top:50%; transform:translateY(-50%); font-size:10px; opacity:0.5;">👁</span>
-                                                    <input type="number" placeholder="0" value="${f.views || 0}" onchange="updateChannelStats(${f.id}, 'views', this.value)" onclick="event.stopPropagation()" style="width: 70px; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 6px; padding: 4px 4px 4px 20px; font-size: 11px; outline: none;">
-                                                </div>
-                                                <div style="position:relative;">
-                                                    <span style="position:absolute; left:6px; top:50%; transform:translateY(-50%); font-size:10px; opacity:0.5;">$</span>
-                                                    <input type="number" placeholder="0" value="${f.revenue || 0}" onchange="updateChannelStats(${f.id}, 'revenue', this.value)" onclick="event.stopPropagation()" style="width: 60px; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 6px; padding: 4px 4px 4px 16px; font-size: 11px; outline: none;">
-                                                </div>
-                                                <button class="btn-del-mini" onclick="event.stopPropagation(); unassignFolder(${f.id}, '${u.login}')" title="Отвязать канал" style="opacity:0.4; transition:opacity 0.2s;" onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0.4'">×</button>
-                                            </div>
-                                        </div>
                                     `).join('') : '<div style="color:var(--text-dim); font-size:13px; font-style:italic; padding:10px; text-align:center;">Нет назначенных каналов</div>'}
                                 </div>
                             </div>
@@ -2023,29 +2069,42 @@ window.updateChannelStats = async function(folderId, fieldOrData, value) {
         updateData[field] = numericValue;
     }
     
-    logStatus(`⏳ Синхронизация ${fieldOrData}...`, "info");
+    // Immediate UI Feedback (Stats reflect before DB response)
+    if (state.activePage === 'account') {
+        const dashViews = document.getElementById('dashboard-views');
+        const dashRev = document.getElementById('dashboard-revenue');
+        
+        // Recalculate totals for immediate display
+        const isOwner = authState.user.role === 'owner';
+        const statsFolders = isOwner 
+            ? state.folders.filter(f => (f.ownedBy || "").toLowerCase() === authState.user.login.toLowerCase() && (!f.assignedTo || f.assignedTo.trim() === ""))
+            : state.folders.filter(f => (f.assignedTo || "").toLowerCase().includes(authState.user.login.toLowerCase()));
+        
+        let totalViews = 0, totalRevenue = 0;
+        statsFolders.forEach(f => {
+            totalViews += Number(f.views) || 0;
+            totalRevenue += Number(f.revenue) || 0;
+        });
+
+        if (dashViews) dashViews.innerText = totalViews.toLocaleString();
+        if (dashRev) dashRev.innerText = '$' + totalRevenue.toLocaleString();
+    }
+
+    logStatus(`⏳ Синхронизация статистики...`, "info");
     
-    // Save to localStorage immediately
     localStorage.setItem('animtube_folders', JSON.stringify(state.folders));
 
     if (cloudDB && authState.isLoggedIn) {
         try {
-            const { error, data } = await cloudDB.from('folders')
+            const { error } = await cloudDB.from('folders')
                 .update(updateData)
-                .eq('id', folderId)
-                .select();
+                .eq('id', folderId);
                 
             if (error) throw error;
-            
-            console.log("✅ Supabase Update Success:", data);
-            logStatus(`✅ Статистика сохранена в облаке.`, "success");
-            
-            // Optionally refresh UI if needed, but carefully
-            // if (state.activePage === 'account') renderAccountPage();
+            logStatus(`✅ Данные сохранены.`, "success");
         } catch (err) {
             console.error("❌ Cloud Sync Error:", err);
-            logStatus("🔴 Ошибка сохранения: " + (err.message || "Неизвестная ошибка"), "error");
-            alert("Ошибка сохранения в Supabase: " + err.message);
+            logStatus("🔴 Ошибка сохранения: " + (err.message || "Ошибка соединения"), "error");
         }
     }
 }
@@ -2100,6 +2159,9 @@ window.unassignFolder = async function(folderId, userLogin) {
             
             if (error) throw error;
             logStatus(`✅ Канал отвязан от ${userLogin}.`, "success");
+            
+            // Premium Feedback: Return to owner's pool animation
+            flashTitleNotification("🛰️ КАНАЛ ВОЗВРАЩЕН");
         } catch (err) {
             console.error("❌ Unassign Error:", err);
             logStatus("❌ Ошибка отвязки: " + err.message, "error");
@@ -2184,7 +2246,7 @@ function renderProjects() {
     // 2. Render Folders (only at root)
     if (!state.currentFolderId) {
         let visibleFolders = authState.user.role === 'owner' 
-            ? state.folders.filter(f => (f.ownedBy || "").toLowerCase() === authState.user.login.toLowerCase() && (!f.assignedTo || f.assignedTo.trim() === "")) // Owner sees only UNASSIGNED channels
+            ? state.folders.filter(f => (f.ownedBy || "").toLowerCase() === authState.user.login.toLowerCase() && (!f.assignedTo || f.assignedTo.trim() === "")) 
             : state.folders.filter(f => (f.assignedTo || "").toLowerCase().includes(authState.user.login.toLowerCase()));
 
         // No longer filtering by avatar to prevent data loss
@@ -2685,10 +2747,16 @@ async function saveState() {
             if (pErr) throw pErr;
         }
 
-        // C. Sync Avatars (Self-only)
-        const userAvatar = state.userAvatars[authState.user.login];
-        if (userAvatar) {
-            await cloudDB.from('user_avatars').upsert([{ login: authState.user.login, avatar: userAvatar }]);
+        // C. Sync All Changed Avatars (v2.0 - Comprehensive)
+        const avatarsToSync = [];
+        for (const [login, avatar] of Object.entries(state.userAvatars)) {
+            avatarsToSync.push({ login, avatar, updated_at: new Date().toISOString() });
+        }
+        
+        if (avatarsToSync.length > 0) {
+            // Only sync the current user's or just let it be handled by individual uploads to save bandwidth
+            // But if we want full sync, we can batch upsert
+            await cloudDB.from('user_avatars').upsert(avatarsToSync);
         }
 
         // UI Indicators
@@ -2828,8 +2896,8 @@ async function loadState() {
         };
 
         if (cloudFolders) {
-            // Remove 'views' and 'revenue' from forceCloudFields to prevent local edits from being overwritten by stale cloud data
-            state.folders = mergeData(state.folders, cloudFolders, ['assignedTo', 'niche', 'prefix', 'scriptPrefix', 'splitPrefix', 'uploadLink'], false);
+            // v3.1: Prioritize Cloud for shared state fields (Assignments & Stats)
+            state.folders = mergeData(state.folders, cloudFolders, ['assignedTo', 'niche', 'prefix', 'scriptPrefix', 'splitPrefix', 'uploadLink', 'views', 'revenue'], false);
             
             // v3.0: AUTOMATIC INDIVIDUAL ASSET FETCH (Reliable & Permanent)
             for (const folder of state.folders) {
