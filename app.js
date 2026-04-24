@@ -1302,7 +1302,7 @@ function deleteScript(id) {
 
 async function initDB() {
     return new Promise((resolve, reject) => {
-        // v1.3.1: Upgrade DB version to 3 for audio support
+        // v3.0: High-Capacity Persistence Layer (Metadata & Images)
         const request = indexedDB.open("AnimTubeDB", 3);
         request.onupgradeneeded = (e) => {
             const db = e.target.result;
@@ -1317,6 +1317,9 @@ async function initDB() {
             }
             if (!db.objectStoreNames.contains("audio")) {
                 db.createObjectStore("audio", { keyPath: "id" });
+            }
+            if (!db.objectStoreNames.contains("projects_meta")) {
+                db.createObjectStore("projects_meta", { keyPath: "id" });
             }
         };
         request.onsuccess = (e) => {
@@ -2075,6 +2078,9 @@ window.updateChannelStats = async function(folderId, fieldOrData, value) {
         const numericValue = (field === 'views' || field === 'revenue') ? Number(value) : value;
         folder[field] = numericValue;
         updateData[field] = numericValue;
+        
+        // v4.6: Data Protection - mark as locally modified to prevent immediate overwrite by old cloud data
+        folder._lastChangeAt = Date.now();
     }
     
     // Immediate UI Feedback (Stats reflect before DB response)
@@ -2104,8 +2110,15 @@ window.updateChannelStats = async function(folderId, fieldOrData, value) {
 
     if (cloudDB && authState.isLoggedIn) {
         try {
+            // Normalize keys for individual update
+            const finalData = {};
+            for (let k in updateData) {
+                const normalizedKey = k.toLowerCase();
+                finalData[normalizedKey] = updateData[k];
+            }
+
             const { error } = await cloudDB.from('folders')
-                .update(updateData)
+                .update(finalData)
                 .eq('id', folderId);
                 
             if (error) throw error;
@@ -2316,10 +2329,6 @@ function renderProjects() {
     // 3. Render Projects (filtered by current folder)
     const filteredProjects = state.projects.filter(p => p.folderId == state.currentFolderId);
     console.log(`🎨 [RENDER] Rendering ${filteredProjects.length} projects for folder ${state.currentFolderId}`);
-    if (filteredProjects.length === 0 && state.projects.length > 0) {
-        console.warn("⚠️ [RENDER] Found projects in state, but none match currentFolderId:", 
-            state.projects.map(p => ({ name: p.name, folderId: p.folderId })));
-    }
     
     // Non-owners can't see root projects if they are not in a folder
     if (!state.currentFolderId && authState.user.role !== 'owner') {
@@ -2703,6 +2712,9 @@ async function saveState() {
         console.warn("⚠️ [Sync Shield]: Save postponed - initial load not complete.");
         return;
     }
+
+    // 0. High-Capacity Local Backup (IndexedDB - prevents data loss if cloud fails)
+    await saveProjectsToLocalDB(state.projects);
     
     // 1. Local Backup (Safe Mode - prevent QuotaExceededError)
     try {
@@ -2919,9 +2931,14 @@ async function loadState() {
                                 if (f === 'status') {
                                     if (Number(cloudVal) > Number(localItem.status || 0)) merged[f] = cloudVal;
                                 } else {
-                                    // v4.2: Owner Control - Cloud is absolute truth for stats (views, revenue, assignments)
-                                    // This allows correcting values downwards if needed.
-                                    merged[f] = cloudVal;
+                                    // v4.6: Data Protection Shield
+                                    // If local modification is fresher than 2 mins, DO NOT let old cloud data revert it.
+                                    const localAge = Date.now() - (localItem._lastChangeAt || 0);
+                                    if (localAge > 120000) { // 2 minutes
+                                        merged[f] = cloudVal;
+                                    } else {
+                                        console.log(`🛡️ [Data Shield]: Blocking cloud overwrite for ${f} (Local change is fresh)`);
+                                    }
                                 }
                             }
                         });
