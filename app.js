@@ -3865,7 +3865,10 @@ window.uploadFrameForPrompt = function(index) {
             };
             
             project.results.unshift(result);
-            if (prompt) prompt.isGeminiDone = true;
+            if (prompt) {
+                prompt.isGeminiDone = true;
+                prompt.resultId = imgId; // CRITICAL: Link image to prompt for Animation tab
+            }
             
             saveState();
             renderProjectPrompts();
