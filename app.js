@@ -2007,7 +2007,7 @@ function renderAccountPage() {
 
 // --- ASSIGNMENT LOGIC ---
 window.updateChannelStats = async function(folderId, fieldOrData, value) {
-    const folder = state.folders.find(f => f.id == folderId);
+    const folder = state.folders.find(f => String(f.id) === String(folderId));
     if (!folder) return;
 
     let updateData = {};
@@ -2016,28 +2016,34 @@ window.updateChannelStats = async function(folderId, fieldOrData, value) {
         Object.assign(folder, updateData);
     } else {
         const field = fieldOrData;
-        // Ensure numeric fields are stored as numbers to avoid type conflicts
         const numericValue = (field === 'views' || field === 'revenue') ? Number(value) : value;
         folder[field] = numericValue;
         updateData[field] = numericValue;
     }
     
-    logStatus(`⏳ Облачная синхронизация...`, "info");
+    logStatus(`⏳ Синхронизация ${fieldOrData}...`, "info");
     
     // Save to localStorage immediately
-    saveState();
+    localStorage.setItem('animtube_folders', JSON.stringify(state.folders));
 
     if (cloudDB && authState.isLoggedIn) {
         try {
-            const { error } = await cloudDB.from('folders')
+            const { error, data } = await cloudDB.from('folders')
                 .update(updateData)
-                .eq('id', folderId);
+                .eq('id', folderId)
+                .select();
                 
             if (error) throw error;
-            logStatus(`✅ Данные сохранены навсегда.`, "success");
+            
+            console.log("✅ Supabase Update Success:", data);
+            logStatus(`✅ Статистика сохранена в облаке.`, "success");
+            
+            // Optionally refresh UI if needed, but carefully
+            // if (state.activePage === 'account') renderAccountPage();
         } catch (err) {
             console.error("❌ Cloud Sync Error:", err);
-            logStatus("🔴 Ошибка сохранения: " + err.message, "error");
+            logStatus("🔴 Ошибка сохранения: " + (err.message || "Неизвестная ошибка"), "error");
+            alert("Ошибка сохранения в Supabase: " + err.message);
         }
     }
 }
@@ -2176,8 +2182,8 @@ function renderProjects() {
     // 2. Render Folders (only at root)
     if (!state.currentFolderId) {
         let visibleFolders = authState.user.role === 'owner' 
-            ? state.folders.filter(f => f.ownedBy === authState.user.login) // Owner sees all their channels
-            : state.folders.filter(f => (f.assignedTo || "").includes(authState.user.login) || f.ownedBy === authState.user.login);
+            ? state.folders.filter(f => (f.ownedBy || "").toLowerCase() === authState.user.login.toLowerCase()) // Owner sees all their channels
+            : state.folders.filter(f => (f.assignedTo || "").toLowerCase().includes(authState.user.login.toLowerCase()) || (f.ownedBy || "").toLowerCase() === authState.user.login.toLowerCase());
 
         // No longer filtering by avatar to prevent data loss
         // visibleFolders = visibleFolders.filter(f => f.avatar);
@@ -2774,6 +2780,10 @@ async function loadState() {
             
             // 1. First, populate from Cloud (Source of Truth for what exists)
             cloudArr.forEach(cloudItem => {
+                // Normalization: Handle case-mismatch between DB and App
+                if (cloudItem.ownedby !== undefined && cloudItem.ownedBy === undefined) cloudItem.ownedBy = cloudItem.ownedby;
+                if (cloudItem.assignedto !== undefined && cloudItem.assignedTo === undefined) cloudItem.assignedTo = cloudItem.assignedto;
+
                 // Unpack 'data' column if it's a project
                 const unpacked = cloudItem.data ? { ...cloudItem, ...cloudItem.data } : cloudItem;
                 map.set(cloudItem.id, unpacked);
