@@ -238,10 +238,14 @@ async function handleLogin() {
         };
         localStorage.setItem('animtube_auth', JSON.stringify(authState));
         
-        // Non-blocking Cloud Sync
-        loadState().then(() => {
+        // BLOCKING Cloud Sync (Ensures fresh data before UI transition)
+        try {
+            logStatus("☁️ Синхронизация профиля...", "info");
+            await loadState();
             setupRealtimeSync(); // Start listening after first load
-        }).catch(e => console.error("Initial cloud load failed:", e));
+        } catch (e) {
+            console.error("Initial cloud load failed:", e);
+        }
         
         applySecurityUI();
         renderAccountPage();
@@ -450,23 +454,32 @@ function sendToBridge(msg) {
 // --- INITIALIZE ---
 window.onload = async () => {
     console.log("🚀 [SYSTEM]: AnimTube Initializing...");
-    try {
-        await initDB();
-    } catch (e) { console.error("DB Init failed:", e); }
     
-    // 1. Render UI immediately
-    checkSecurity();
-    renderProjects();
+    // 1. Core UI setup (Sync)
     setupGlobalListeners();
     updateAutoModeUI();
+    checkSecurity(); 
 
-    // 2. Background tasks
-    detectIP().catch(e => console.error("IP Detect failed:", e));
-
+    // 2. Database & Data Init (Async)
+    try {
+        await initDB();
+        cloudDB = getDB(); // Ensure client is ready
+        
+        if (authState.isLoggedIn) {
+            logStatus("☁️ Первичная синхронизация...", "info");
+            await loadState(); // AWAIT here prevents local data flashing
+            setupRealtimeSync(); 
+        }
+    } catch (e) { 
+        console.error("Initialization failed:", e);
+        logStatus("⚠️ Ошибка инициализации: " + e.message, "error");
+    }
+    
+    // 3. Final Render
+    renderProjects();
     if (authState.isLoggedIn) {
         renderAccountPage();
         renderSidebarProfile();
-        loadState().catch(e => console.error("Initial load failed:", e));
         
         // AUTO-REFRESH for partners/managers every 30s
         if (authState.user.role !== 'owner') {
@@ -475,11 +488,14 @@ window.onload = async () => {
             }, 30000);
         }
 
-        // 3. Initialize Chat Subscription
+        // Initialize Chat Subscription
         if (typeof subscribeToGlobalMessages === 'function') subscribeToGlobalMessages();
     }
+
+    // 4. Background tasks
+    detectIP().catch(e => console.error("IP Detect failed:", e));
     
-    console.log("🚀 AnimTube v1.2.3 loaded.");
+    console.log("🚀 AnimTube v1.2.3 loaded and synchronized.");
 };
 
 function setupGlobalListeners() {
@@ -2041,6 +2057,10 @@ window.updateChannelStats = async function(folderId, fieldOrData, value) {
                 .eq('id', folderId);
                 
             if (error) throw error;
+            
+            // v2.5: Force local storage update to prevent "data flashing" on reload
+            await saveState(); 
+            
             logStatus(`✅ Данные сохранены навсегда.`, "success");
         } catch (err) {
             console.error("❌ Cloud Sync Error:", err);
@@ -4486,13 +4506,12 @@ let chatState = {
 };
 
 
-// Initialize Real-time if already logged in
+// Initialize Cloud Sync if already logged in
 if (authState.isLoggedIn) {
-    // v2.1: CRITICAL STARTUP SYNC
-    // Always load fresh cloud state and then start listening
-    setTimeout(async () => {
+    // v2.4: Remove timeout for instant cloud priority
+    (async () => {
         await loadState();
         setupRealtimeSync();
-    }, 500);
+    })();
 }
 
