@@ -382,7 +382,6 @@ let state = {
     userAvatars: JSON.parse(localStorage.getItem('animtube_user_avatars') || '{}'),
     currentFolderId: null,
     activeProjectId: null,
-    isInitialLoadComplete: false, 
     assembly: {
         isRunning: false,
         timerId: null,
@@ -2704,12 +2703,6 @@ async function saveState() {
     localStorage.setItem('animtube_folders', JSON.stringify(state.folders));
     localStorage.setItem('animtube_user_avatars', JSON.stringify(state.userAvatars));
 
-    // Guard: Don't save to cloud until we have successfully loaded from cloud
-    if (!state.isInitialLoadComplete) {
-        console.warn("⚠️ [SYNC] Blocked saveState: Initial load not yet complete.");
-        return;
-    }
-
     // Lazy DB Init
     if (!cloudDB) cloudDB = getDB();
     if (!cloudDB || !authState.isLoggedIn) return;
@@ -2956,14 +2949,12 @@ async function loadState() {
             });
         }
 
-        // 5. MARK SYNC COMPLETE
-        state.isInitialLoadComplete = true;
-        logStatus("✅ Облачная синхронизация завершена.", "success");
+        // 5. Initial Sync Back (Upload local data to cloud if it was just merged)
+        saveState(); 
 
         renderProjects();
         renderSidebarProfile();
         renderAccountPage(); // Always update stats/dashboard if cloud state changes
-        
         const dot = document.getElementById('sync-status-dot');
         const cDot = document.getElementById('cloud-status-indicator');
         const cText = document.getElementById('cloud-status-text');
@@ -2973,6 +2964,8 @@ async function loadState() {
         if (cDot) cDot.style.background = '#10b981';
         if (cText) cText.innerText = 'Подключено';
         if (cError) cError.innerText = '';
+
+        logStatus("✅ Облачная синхронизация завершена.", "success");
         
         // v1.4: Pre-fetch missing images for active project if any
         if (state.activeProjectId) {
@@ -2984,8 +2977,6 @@ async function loadState() {
             }
         }
     } catch (err) {
-        // Even on error, we might want to allow saves if we have some data, 
-        // but it's safer to keep it locked to prevent destructive overwrites
         console.error("Cloud Load Failed:", err);
         const dot = document.getElementById('sync-status-dot');
         const cDot = document.getElementById('cloud-status-indicator');
