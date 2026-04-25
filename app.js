@@ -4535,20 +4535,24 @@ window.renderPartnersPage = async function() {
         const viewStats = {};
         if (allFolders) {
             allFolders.forEach(f => {
-                const holder = f.assignedTo || f.ownedBy;
-                viewStats[holder] = (viewStats[holder] || 0) + (Number(f.views) || 0);
+                // Support both assignedTo and ownedBy, normalized to lowercase
+                const holders = (f.assignedTo || f.ownedBy || "").split(',').map(s => s.trim().toLowerCase());
+                holders.forEach(h => {
+                    if (h) viewStats[h] = (viewStats[h] || 0) + (Number(f.views) || 0);
+                });
             });
         }
 
         // 2. Fetch Avatars
         const { data: allAvatars } = await cloudDB.from('user_avatars').select('*');
         const avatarsMap = {};
-        if (allAvatars) allAvatars.forEach(a => avatarsMap[a.login] = a.avatar);
+        if (allAvatars) allAvatars.forEach(a => { if(a.login) avatarsMap[a.login.toLowerCase()] = a.avatar; });
 
         // 3. Render Whitelist Users
         container.innerHTML = WHITELIST.map(u => {
-            const views = viewStats[u.login] || 0;
-            const avatar = avatarsMap[u.login];
+            const loginLower = u.login.toLowerCase();
+            const views = viewStats[loginLower] || 0;
+            const avatar = avatarsMap[loginLower];
             const initials = u.login.substring(0, 2).toUpperCase();
             
             return `
@@ -4559,11 +4563,6 @@ window.renderPartnersPage = async function() {
 
                     <div class="name">${u.login}</div>
                     <div class="stats">👁️ ${views.toLocaleString()} просмотров</div>
-
-                    <button class="btn btn-primary" style="width: 100%; margin-top: 10px; padding: 10px; border-radius: 12px; font-size: 13px;" onclick="event.stopPropagation(); openChat('${u.login}')">
-                        ✉️ Написать
-                    </button>
-
 
                     <div class="badge-online">Online</div>
                 </div>
@@ -4611,7 +4610,7 @@ window.openPartnerProfile = async function(login) {
         viewsEl.innerText = `👁️ ${totalViews.toLocaleString()} просмотров`;
 
         // 2. Load Avatar
-        const { data: avatarData } = await cloudDB.from('user_avatars').select('avatar').eq('login', login).single();
+        const { data: avatarData } = await cloudDB.from('user_avatars').select('avatar').ilike('login', login).single();
         if (avatarData && avatarData.avatar) {
             imgEl.src = avatarData.avatar;
             imgEl.style.display = 'block';
@@ -4648,14 +4647,7 @@ window.openPartnerProfile = async function(login) {
             `).join('');
         }
         
-        // Connect Chat Button
-        const chatBtn = document.getElementById('partner-profile-chat-btn');
-        if (chatBtn) {
-            chatBtn.onclick = () => {
-                closePartnerProfile();
-                openChat(login);
-            };
-        }
+        // v5.1: Removed Chat Button from profile overlay
 
     } catch (err) {
         console.error("Profile Load Error:", err);
