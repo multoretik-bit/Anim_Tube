@@ -2714,10 +2714,16 @@ async function downloadProjectFiles() {
 
 
 async function saveState() {
-    // 1. Local Backup (Safe Mode - prevent QuotaExceededError, but keep old behavior)
+    // 1. Local Backup (Safe Mode) - Strip views/revenue to force cloud truth on reload
     try {
         localStorage.setItem('animtube_projects', JSON.stringify(state.projects));
-        localStorage.setItem('animtube_folders', JSON.stringify(state.folders));
+        
+        // v4.8: Clean folders for local cache (remove stats)
+        const localFolders = state.folders.map(f => {
+            const { views, revenue, ...rest } = f;
+            return rest;
+        });
+        localStorage.setItem('animtube_folders', JSON.stringify(localFolders));
         localStorage.setItem('animtube_user_avatars', JSON.stringify(state.userAvatars));
     } catch (e) {
         console.warn("⚠️ [Storage Shield]: Local storage full, relying on Cloud sync.", e);
@@ -2848,7 +2854,7 @@ async function loadState() {
 
         const [folderResult, avatarResult] = await Promise.all([
             fQuery,
-            cloudDB.from('user_avatars').select('*').catch(e => { console.warn('Avatar fetch failed:', e); return { data: null }; })
+            cloudDB.from('user_avatars').select('*').then(res => res, e => { console.warn('Avatar fetch failed:', e); return { data: null }; })
         ]);
         const { data: cloudFolders, error: fErr } = folderResult;
         if (fErr) {
