@@ -4535,24 +4535,22 @@ window.renderPartnersPage = async function() {
         const viewStats = {};
         if (allFolders) {
             allFolders.forEach(f => {
-                // Support both assignedTo and ownedBy, normalized to lowercase
                 const holders = (f.assignedTo || f.ownedBy || "").split(',').map(s => s.trim().toLowerCase());
-                holders.forEach(h => {
-                    if (h) viewStats[h] = (viewStats[h] || 0) + (Number(f.views) || 0);
-                });
+                holders.forEach(h => { if (h) viewStats[h] = (viewStats[h] || 0) + (Number(f.views) || 0); });
             });
         }
 
-        // 2. Fetch Avatars
-        const { data: allAvatars } = await cloudDB.from('user_avatars').select('*');
-        const avatarsMap = {};
-        if (allAvatars) allAvatars.forEach(a => { if(a.login) avatarsMap[a.login.toLowerCase()] = a.avatar; });
+        // 2. Use cached avatars or fetch once
+        if (Object.keys(state.userAvatars).length === 0) {
+             const { data: allAvatars } = await cloudDB.from('user_avatars').select('*');
+             if (allAvatars) allAvatars.forEach(a => { if(a.login) state.userAvatars[a.login.toLowerCase()] = a.avatar; });
+        }
 
         // 3. Render Whitelist Users
         container.innerHTML = WHITELIST.map(u => {
             const loginLower = u.login.toLowerCase();
             const views = viewStats[loginLower] || 0;
-            const avatar = avatarsMap[loginLower];
+            const avatar = state.userAvatars[loginLower] || state.userAvatars[u.login]; // Try both case-insensitive and exact
             const initials = u.login.substring(0, 2).toUpperCase();
             
             return `
@@ -4610,9 +4608,14 @@ window.openPartnerProfile = async function(login) {
         viewsEl.innerText = `👁️ ${totalViews.toLocaleString()} просмотров`;
 
         // 2. Load Avatar
-        const { data: avatarData } = await cloudDB.from('user_avatars').select('avatar').ilike('login', login).single();
-        if (avatarData && avatarData.avatar) {
-            imgEl.src = avatarData.avatar;
+        let avatar = state.userAvatars[login.toLowerCase()] || state.userAvatars[login];
+        if (!avatar) {
+            const { data: avatarData } = await cloudDB.from('user_avatars').select('avatar').eq('login', login).maybeSingle();
+            if (avatarData) avatar = avatarData.avatar;
+        }
+        
+        if (avatar) {
+            imgEl.src = avatar;
             imgEl.style.display = 'block';
             initialsEl.style.display = 'none';
         } else {
