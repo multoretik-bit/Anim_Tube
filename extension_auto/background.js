@@ -297,8 +297,8 @@ async function executeGrokCycle(promptText, assets, assetIds) {
         });
 
         // 4. Wait and trigger next
-        report("⌛ Генерация анимации... (90 сек)");
-        for (let i = 90; i > 0; i--) {
+        report("⌛ Генерация анимации... (120 сек)");
+        for (let i = 120; i > 0; i--) {
             if (i % 10 === 0) report(`⌛ Ожидание: ${i} сек...`);
             await sleep(1000);
         }

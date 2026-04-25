@@ -2499,6 +2499,10 @@ async function deleteProject(id) {
     // 2. Cloud cleanup in background (don't block UI)
     if (cloudDB && authState.isLoggedIn) {
         try {
+            if (project.results && project.results.length > 0) {
+                const imageIds = project.results.map(r => r.id);
+                await cloudDB.from('project_images').delete().in('id', imageIds);
+            }
             await cloudDB.from('projects').delete().eq('id', id);
         } catch (e) {
             console.error("❌ Cloud delete failed:", e);
@@ -3367,18 +3371,18 @@ async function processNextItem() {
         stopRollAssembly(false);
         
         // AUTO-TRANSITION (v1.3.8)
-        if (state.isAutoMode) {
-            logStatus("⏳ [АВТО]: Переход к анимации через 5 секунд...", "info");
+        if (state.isAutoMode || (state.assembly.superAuto && state.assembly.superAuto.active)) {
+            logStatus("⏳ [АВТО]: Кадры готовы. Переход к анимации через 5 секунд...", "info");
             setTimeout(() => {
                 // Ensure we are still in auto mode and on the workspace page
-                if (state.isAutoMode && state.activePage === 'workspace') {
+                if ((state.isAutoMode || state.assembly.superAuto.active) && state.activePage === 'workspace') {
                     switchProjectTab('animation');
-                    logStatus("🎬 [АВТО]: Вкладка переключена. Запуск сборки...", "success");
+                    logStatus("🎬 [АВТО]: Вкладка анимации активна. Запуск сборки...", "success");
                     
                     // Small delay to ensure tab is rendered and buttons are reachable
                     setTimeout(() => {
                         startAnimationAssembly();
-                    }, 1000);
+                    }, 2000);
                 }
             }, 5000);
         }
@@ -3633,6 +3637,27 @@ async function handleIncomingImage(base64) {
         state.assembly.isWaitingForImage = false;
         renderQueue();
         
+        // CHECK FOR COMPLETION (v1.3.9 Fix for AUTO mode)
+        if (state.assembly.currentIdx >= state.assembly.queue.length) {
+            logStatus("✅ Пакетная сборка полностью завершена!", "success");
+            _stopRollAssembly(false);
+            
+            const isAnyAuto = state.isAutoMode || (state.assembly.superAuto && state.assembly.superAuto.active);
+            if (isAnyAuto) {
+                logStatus("⏳ [АВТО]: Все кадры получены. Переход к анимации через 3 секунды...", "info");
+                setTimeout(() => {
+                    if (state.activePage === 'workspace') {
+                        switchProjectTab('animation');
+                        logStatus("🎬 [АВТО]: Вкладка анимации активна. Запуск сборки...", "success");
+                        setTimeout(() => {
+                            if (typeof startAnimationAssembly === 'function') startAnimationAssembly();
+                        }, 2500);
+                    }
+                }, 3000);
+            }
+            return;
+        }
+
         // Wait 4s (v10.3) to show success/flash before next prompt
         logStatus("⏳ Пауза 4 сек перед следующим промтом...", "info");
         setTimeout(processNextItem, 4000);

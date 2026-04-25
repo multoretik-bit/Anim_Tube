@@ -136,9 +136,9 @@ async function executeGrokCycle(promptText, assets, assetIds) {
             }
         });
 
-        // 4. Wait for generation (90 seconds)
-        report("⌛ Генерация анимации... (90 сек)");
-        for (let i = 90; i > 0; i--) {
+        // 4. Wait for generation (120 seconds)
+        report("⌛ Генерация анимации... (120 сек)");
+        for (let i = 120; i > 0; i--) {
             if (i % 10 === 0) report(`⌛ Ожидание Grok... ${i} сек`);
             await sleep(1000);
         }
