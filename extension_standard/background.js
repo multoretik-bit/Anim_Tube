@@ -168,10 +168,10 @@ async function executeGrokCycle(promptText, assets, assetIds) {
         });
         await sleep(4000); // Wait for download to start
 
-        // 6. Redirect to /imagine/saved
-        report("🔄 Возврат в историю...");
-        await chrome.tabs.update(grokTab.id, { url: "https://grok.com/imagine/saved" });
-        await sleep(5000); // Wait for history to load
+        // 6. Redirect to /imagine (Clean state for next prompt)
+        report("🔄 Возврат на главную Grok...");
+        await chrome.tabs.update(grokTab.id, { url: "https://grok.com/imagine" });
+        await sleep(6000); // Wait for page to fully load
 
         report("✅ Анимация готова! Перехожу к следующему...");
         relayToStudio({ type: "FROM_GROK_AUTO_DONE" });
