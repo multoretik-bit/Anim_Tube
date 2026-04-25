@@ -1,4 +1,4 @@
-/**
+﻿/**
  * AnimTube v1.1 - BULK & DELETE Support
  * Sequence: Text First -> Website Return -> Visual Copy -> ChatGPT Send
  */
@@ -2030,16 +2030,10 @@ function renderAccountPage() {
                                                     </div>
                                                     <span style="font-size:14px; font-weight:700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100px;">${f.name}</span>
                                                 </div>
-                                                <div style="display:flex; align-items:center; gap:6px;">
-                                                    <div style="position:relative;">
-                                                        <span style="position:absolute; left:6px; top:50%; transform:translateY(-50%); font-size:10px; opacity:0.5;">👁</span>
-                                                        <input type="number" placeholder="0" value="${f.views || 0}" onchange="updateChannelStats(${f.id}, 'views', this.value); this.parentElement.parentElement.parentElement.style.boxShadow='0 0 15px var(--accent-primary)44';" onclick="event.stopPropagation()" style="width: 70px; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 6px; padding: 4px 4px 4px 20px; font-size: 11px; outline: none; transition: all 0.2s;">
-                                                    </div>
-                                                    <div style="position:relative;">
-                                                        <span style="position:absolute; left:6px; top:50%; transform:translateY(-50%); font-size:10px; opacity:0.5;">$</span>
-                                                        <input type="number" placeholder="0" value="${f.revenue || 0}" onchange="updateChannelStats(${f.id}, 'revenue', this.value); this.parentElement.parentElement.parentElement.style.boxShadow='0 0 15px #10b98144';" onclick="event.stopPropagation()" style="width: 60px; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 6px; padding: 4px 4px 4px 16px; font-size: 11px; outline: none; transition: all 0.2s;">
-                                                    </div>
-                                                    <button class="btn-del-mini" onclick="event.stopPropagation(); unassignFolder(${f.id}, '${u.login}')" title="Отвязать канал" style="opacity:0.4; transition:opacity 0.2s; font-size: 18px; line-height: 1;" onmouseenter="this.style.opacity='1'; this.style.color='#ef4444'" onmouseleave="this.style.opacity='0.4'; this.style.color='white'">×</button>
+                                                <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
+                                                    <div title="Просмотры (задаются в Supabase)" style="background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.3); border-radius:8px; padding:3px 8px; font-size:11px; font-weight:700; color:#a5b4fc; white-space:nowrap;">👁 ${(Number(f.views)||0).toLocaleString()}</div>
+                                                    <div title="Доход (задаётся в Supabase)" style="background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3); border-radius:8px; padding:3px 8px; font-size:11px; font-weight:700; color:#6ee7b7; white-space:nowrap;">$${(Number(f.revenue)||0).toLocaleString()}</div>
+                                                    <button class="btn-del-mini" onclick="event.stopPropagation(); unassignFolder(${f.id}, '${u.login}')" title="Отвязать канал" style="opacity:0.4; transition:opacity 0.2s; font-size:18px; line-height:1;" onmouseenter="this.style.opacity='1'; this.style.color='#ef4444'" onmouseleave="this.style.opacity='0.4'; this.style.color='white'">×</button>
                                                 </div>
                                             </div>
                                     `).join('') : '<div style="color:var(--text-dim); font-size:13px; font-style:italic; padding:10px; text-align:center;">Нет назначенных каналов</div>'}
@@ -2724,13 +2718,13 @@ async function saveState() {
     try {
         // A. Batch Save Folders (Owner ONLY - Source of Truth for metadata)
         if (authState.user.role === 'owner') {
+            // NOTE: views & revenue intentionally EXCLUDED — managed directly in Supabase.
+            // ON CONFLICT DO UPDATE only touches listed columns, preserving existing values.
             const foldersToSave = state.folders.map(f => ({
                 id: f.id,
                 name: f.name,
                 ownedby: f.ownedBy || authState.user.login,
                 assignedto: f.assignedTo || "",
-                views: Number(f.views) || 0,
-                revenue: Number(f.revenue) || 0,
                 niche: f.niche,
                 avatar: f.avatar,
                 color: f.color,
@@ -2831,42 +2825,57 @@ async function loadState() {
         }
         logStatus("☁️ Синхронизация с облаком...", "info");
 
-        // 1. Load Cloud Folders
+        // PHASE 1: Load folders + avatars IN PARALLEL for instant UI render
         const login = authState.user.login;
         let fQuery = cloudDB.from('folders').select('*');
         if (authState.user.role === 'owner') {
-            // ilike = case-insensitive: 'Denis' matches 'denis' in DB
             fQuery = fQuery.ilike('ownedby', login);
         } else {
-            fQuery = fQuery.or(`assignedto.ilike.%${login}%,ownedby.ilike.${login}`);
+            fQuery = fQuery.or(ssignedto.ilike.%%,ownedby.ilike.);
         }
-        const { data: cloudFolders, error: fErr } = await fQuery;
+        const [folderResult, avatarResult] = await Promise.all([
+            fQuery,
+            cloudDB.from('user_avatars').select('*').catch(e => { console.warn('Avatar fetch failed:', e); return { data: null }; })
+        ]);
+        const { data: cloudFolders, error: fErr } = folderResult;
         if (fErr) {
-            console.error("Folder Load Error:", fErr);
-            logStatus("Ошибка загрузки каналов: " + fErr.message, "error");
+            console.error('Folder Load Error:', fErr);
+            logStatus('Ошибка загрузки каналов: ' + fErr.message, 'error');
             throw fErr;
         }
-
-        // v4.3: IMMEDIATE SYNC GUARD - Apply critical fields BEFORE long-running project/asset fetch
+        // Apply avatars IMMEDIATELY
+        if (avatarResult && avatarResult.data) {
+            avatarResult.data.forEach(row => { state.userAvatars[row.login] = row.avatar; });
+            try { localStorage.setItem('animtube_user_avatars', JSON.stringify(state.userAvatars)); } catch(e) {}
+        }
+        // Apply critical folder fields IMMEDIATELY (views, revenue, avatar, assignments)
         if (cloudFolders && cloudFolders.length > 0) {
             cloudFolders.forEach(cloudItem => {
                 const localIdx = state.folders.findIndex(f => String(f.id) === String(cloudItem.id));
                 if (localIdx !== -1) {
-                    // Update ONLY the absolute truth fields immediately
                     const f = state.folders[localIdx];
                     f.views = cloudItem.views;
                     f.revenue = cloudItem.revenue;
                     f.assignedTo = cloudItem.assignedto;
                     f.ownedBy = cloudItem.ownedby;
+                    f.avatar = cloudItem.avatar;
+                    f.name = cloudItem.name;
+                    f.niche = cloudItem.niche;
+                    f.color = cloudItem.color;
                 } else {
-                    state.folders.push(cloudItem);
+                    state.folders.push({ ...cloudItem, ownedBy: cloudItem.ownedby, assignedTo: cloudItem.assignedto });
                 }
             });
-            console.log("📂 [SYNC] Critical Folder Fields Updated (Immediate).");
+            // Remove local folders deleted from cloud
+            const cloudIds = new Set(cloudFolders.map(f => String(f.id)));
+            state.folders = state.folders.filter(f => cloudIds.has(String(f.id)) || (Date.now() - Number(f.id)) < 60000);
         }
-        
-        console.log("📂 [SYNC] Cloud Folders Loaded:", cloudFolders.length, cloudFolders.map(f => f.name));
-        
+        // IMMEDIATE RENDER — sidebar, account page and projects show correct data NOW
+        renderSidebarProfile();
+        if (state.activePage === 'account') renderAccountPage();
+        if (state.activePage === 'videos') renderProjects();
+        logStatus('✅ Каналы и аватары загружены!', 'success');
+        console.log('[SYNC] Phase 1 done: ' + (cloudFolders ? cloudFolders.length : 0) + ' folders loaded.');
         // 2. Load Cloud Projects
         let pQuery = cloudDB.from('projects').select('*');
         if (authState.user.role !== 'owner') {
@@ -2925,14 +2934,16 @@ async function loadState() {
                             if (cloudVal !== undefined && cloudVal !== null && cloudVal !== "") {
                                 if (f === 'status') {
                                     if (Number(cloudVal) > Number(localItem.status || 0)) merged[f] = cloudVal;
+                                } else if (f === 'views' || f === 'revenue') {
+                                    // ALWAYS trust Supabase for views/revenue — managed directly in DB
+                                    merged[f] = cloudVal;
                                 } else {
-                                    // v4.6: Data Protection Shield
-                                    // If local modification is fresher than 2 mins, DO NOT let old cloud data revert it.
+                                    // v4.6: Data Protection Shield (non-stats fields)
                                     const localAge = Date.now() - (localItem._lastChangeAt || 0);
-                                    if (localAge > 120000) { // 2 minutes
+                                    if (localAge > 120000) {
                                         merged[f] = cloudVal;
                                     } else {
-                                        console.log(`🛡️ [Data Shield]: Blocking cloud overwrite for ${f} (Local change is fresh)`);
+                                        console.log('[Data Shield]: Blocking cloud overwrite for ' + f + ' (fresh local)');
                                     }
                                 }
                             }
@@ -2986,19 +2997,7 @@ async function loadState() {
                 state.projects = mergeData(state.projects, unpackedProjects, []).filter(p => folderIds.has(String(p.folderId)));
             }
         }
-
-        // 4. Load Avatars (Soft Fetch - Don't break sync if this fails)
-        try {
-            const { data: aData } = await cloudDB.from('user_avatars').select('*');
-            if (aData) {
-                aData.forEach(row => {
-                    // v3.2: Always prioritize cloud avatar for sync
-                    state.userAvatars[row.login] = row.avatar;
-                });
-            }
-        } catch (e) {
-            console.warn("⚠️ [Sync Shield]: Avatars failed to load, continuing...", e);
-        }
+        // 4. Avatars already loaded in Phase 1 (parallel with folders)
 
         // 5. Initial Sync Back (Upload local data to cloud if it was just merged)
         state.isInitialLoadComplete = true;
