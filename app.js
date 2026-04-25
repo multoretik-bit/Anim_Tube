@@ -3987,7 +3987,7 @@ async function renderProjectVoice() {
                 <div style="font-size: 56px; opacity: 0.3;">🎵</div>
                 <div>
                     <p style="margin: 0; font-size: 16px; color: white; font-weight: 700;">Озвучка еще не загружена</p>
-                    <p style="margin: 5px 0 0 0; font-size: 13px;">Используйте кнопку ниже, чтобы перейти в папку или загрузить файл вручную.</p>
+                    <p style="margin: 5px 0 0 0; font-size: 13px;">Используйте кнопку ниже, чтобы перейти в папку проекта.</p>
                 </div>
                 
                 <div style="display: flex; gap: 16px; align-items: center;">
@@ -3996,12 +3996,7 @@ async function renderProjectVoice() {
                                 style="background: linear-gradient(135deg, #10b981, #059669); padding: 16px 32px; border-radius: 16px; font-weight: 800; font-size: 14px; box-shadow: 0 10px 20px rgba(16, 185, 129, 0.2); border: none; cursor: pointer; display: flex; align-items: center; gap: 10px; color: white;">
                             <span>🔗</span> ВЗЯТЬ ОЗВУЧКУ
                         </button>
-                    ` : ''}
-                    
-                    <button class="btn btn-secondary" onclick="document.getElementById('audio-file-input').click()" 
-                            style="padding: 16px 32px; border-radius: 16px; font-weight: 700; font-size: 14px; border: 1px solid var(--border-glass); background: rgba(255,255,255,0.05); color: white; cursor: pointer; display: flex; align-items: center; gap: 10px;">
-                        <span>🎙️</span> ЗАГРУЗИТЬ ФАЙЛ
-                    </button>
+                    ` : '<p style="font-size:12px; opacity:0.5;">(Ссылка на папку не найдена)</p>'}
                 </div>
             </div>
         `;
