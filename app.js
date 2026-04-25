@@ -2937,6 +2937,10 @@ async function loadState() {
 
                 // Unpack 'data' column if it's a project
                 const unpacked = cloudItem.data ? { ...cloudItem, ...cloudItem.data } : cloudItem;
+                // v4.9: Force top-level stats to win over legacy JSON data
+                if (cloudItem.views !== undefined) unpacked.views = cloudItem.views;
+                if (cloudItem.revenue !== undefined) unpacked.revenue = cloudItem.revenue;
+                
                 if (unpacked.folderid !== undefined && unpacked.folderId === undefined) unpacked.folderId = unpacked.folderid;
                 map.set(String(cloudItem.id), unpacked);
             });
