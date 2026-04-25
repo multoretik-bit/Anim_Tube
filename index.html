@@ -132,7 +132,10 @@
                 <div class="stat-card" style="box-shadow: 0 10px 30px rgba(138,43,226,0.15); border-color: rgba(138,43,226,0.3);">
                     <div class="stat-header">
                         <span class="stat-title">Просмотры за месяц</span>
-                        <span class="stat-tag" style="background: rgba(138,43,226,0.1); color: #8a2be2;">📺</span>
+                        <div style="display:flex; gap:8px; align-items:center;">
+                            <button onclick="refreshCloudStats(this)" class="btn-refresh-mini" title="Обновить из облака">🔄</button>
+                            <span class="stat-tag" style="background: rgba(138,43,226,0.1); color: #8a2be2;">📺</span>
+                        </div>
                     </div>
                     <div class="stat-value" id="dashboard-views" style="text-shadow: 0 0 20px rgba(138,43,226,0.5);">0</div>
                     <div class="stat-growth success" id="stats-label-views">Личные каналы (без партнёров)</div>
@@ -140,7 +143,10 @@
                 <div class="stat-card stat-card-alt" style="box-shadow: 0 10px 30px rgba(0,210,255,0.15); border-color: rgba(0,210,255,0.3);">
                     <div class="stat-header">
                         <span class="stat-title">Доход</span>
-                        <span class="stat-tag" style="background: rgba(0,210,255,0.1); color: #00d2ff;">💰</span>
+                        <div style="display:flex; gap:8px; align-items:center;">
+                            <button onclick="refreshCloudStats(this)" class="btn-refresh-mini" title="Обновить из облака">🔄</button>
+                            <span class="stat-tag" style="background: rgba(0,210,255,0.1); color: #00d2ff;">💰</span>
+                        </div>
                     </div>
                     <div class="stat-value" id="dashboard-revenue" style="text-shadow: 0 0 20px rgba(0,210,255,0.5);">$0</div>
                     <div class="stat-growth success" id="stats-label-revenue">Личные каналы (без партнёров)</div>
@@ -297,6 +303,37 @@
                     </div>
                     
                     <div id="animation-list-container" class="animation-list">
+                        <style>
+                        .btn-refresh-mini {
+                            background: rgba(255,255,255,0.05);
+                            border: 1px solid rgba(255,255,255,0.1);
+                            color: var(--text-dim);
+                            border-radius: 8px;
+                            width: 28px;
+                            height: 28px;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            cursor: pointer;
+                            transition: all 0.2s;
+                            font-size: 14px;
+                        }
+                        .btn-refresh-mini:hover {
+                            background: var(--accent-primary);
+                            color: white;
+                            border-color: var(--accent-primary);
+                            transform: rotate(30deg);
+                        }
+                        .btn-refresh-mini.spinning {
+                            animation: spin 0.8s linear infinite;
+                            pointer-events: none;
+                            opacity: 0.7;
+                        }
+                        @keyframes spin {
+                            from { transform: rotate(0deg); }
+                            to { transform: rotate(360deg); }
+                        }
+                        </style>
                         <!-- Animation cards injected via JS -->
                     </div>
                 </div>

@@ -2071,6 +2071,20 @@ function renderAccountPage() {
 }
 
 // --- ASSIGNMENT LOGIC ---
+// --- STATS REFRESH ---
+window.refreshCloudStats = async function(btn) {
+    if (btn) btn.classList.add('spinning');
+    try {
+        await loadState();
+        logStatus("📊 Статистика обновлена!", "success");
+    } catch (e) {
+        console.error("Manual refresh failed:", e);
+        logStatus("❌ Ошибка обновления", "error");
+    } finally {
+        if (btn) btn.classList.remove('spinning');
+    }
+};
+
 window.updateChannelStats = async function(folderId, fieldOrData, value) {
     const folder = state.folders.find(f => String(f.id) === String(folderId));
     if (!folder) return;
@@ -2867,6 +2881,7 @@ async function loadState() {
         if (avatarResult && avatarResult.data) {
             avatarResult.data.forEach(row => { state.userAvatars[row.login] = row.avatar; });
             try { localStorage.setItem('animtube_user_avatars', JSON.stringify(state.userAvatars)); } catch(e) {}
+            renderSidebarProfile(); // v5.0: Show avatar ASAP
         }
 
         // Apply critical folder fields IMMEDIATELY (views, revenue, avatar, assignments)
