@@ -460,6 +460,7 @@ window.submitUserAvatar = submitUserAvatar;
 window.handleChannelAvatarUpload = handleChannelAvatarUpload;
 window.closeCreateChannel = closeCreateChannel;
 window.submitCreateChannel = submitCreateChannel;
+window.enterChannel = (id) => { openFolder(id); showPage('videos'); };
 window.createNewFolder = createNewFolder;
 window.triggerVisualAssemblyStart = triggerVisualAssemblyStart;
 
@@ -1847,13 +1848,13 @@ function renderAccountPage() {
         : state.folders.filter(f => (f.assignedTo || "").toLowerCase().includes(user.login.toLowerCase()));
 
     // Dashboard "My Active Projects": Same logic as above
-    const myFolders = statsFolders;
+    const myFolders = user.role === 'manager' ? state.folders : statsFolders;
 
     // Update labels to be explicit about what is being counted
     const viewsLabel = document.getElementById('stats-label-views');
     const revLabel = document.getElementById('stats-label-revenue');
-    if (viewsLabel) viewsLabel.innerText = isOwner ? 'Личные каналы (без партнёров)' : 'Ваши назначенные каналы';
-    if (revLabel) revLabel.innerText = isOwner ? 'Личные каналы (без партнёров)' : 'Ваши назначенные каналы';
+    if (viewsLabel) viewsLabel.innerText = isOwner ? 'Личные каналы (без партнёров)' : (user.role === 'manager' ? 'Просмотры по всем каналам' : 'Ваши назначенные каналы');
+    if (revLabel) revLabel.innerText = isOwner ? 'Личные каналы (без партнёров)' : (user.role === 'manager' ? 'Доход (Скрыто)' : 'Ваши назначенные каналы');
 
     const totalProjects = myFolders.reduce((acc, f) =>
         acc + state.projects.filter(p => p.folderId == f.id).length, 0
@@ -1924,7 +1925,7 @@ function renderAccountPage() {
                         <div class="card-footer">
                             <div class="card-stats">
                                 <div style="color: ${channelColor};">Просмотров: ${Number(f.views || 0).toLocaleString()}</div>
-                                <div style="color: #34d399;">Доход: $${Number(f.revenue || 0).toLocaleString()}</div>
+                                ${user.role !== 'manager' ? `<div style="color: #34d399;">Доход: $${Number(f.revenue || 0).toLocaleString()}</div>` : '<div style="color: #34d399; opacity: 0.3;">Доход: $***</div>'}
                             </div>
                             <button class="btn-open-project" onclick="openFolder(${f.id}); showPage('videos')" style="background: linear-gradient(90deg, #7f1d1d, ${channelColor});">Открыть →</button>
                         </div>
@@ -1945,17 +1946,22 @@ function renderAccountPage() {
     // Update global dashboard stats
     const dashViews = document.getElementById('dashboard-views');
     const dashRev = document.getElementById('dashboard-revenue');
+    
+    // Test Manager: no income/views totals for self
+    const displayViews = user.role === 'manager' ? 0 : totalViews;
+    const displayRevenue = user.role === 'manager' ? 0 : totalRevenue;
+
     if (dashViews) {
-        if (totalViews >= 1000000) {
-            dashViews.innerText = (totalViews / 1000000).toFixed(2) + ' млн';
-        } else if (totalViews >= 1000) {
-            dashViews.innerText = (totalViews / 1000).toFixed(1) + ' тыс';
+        if (displayViews >= 1000000) {
+            dashViews.innerText = (displayViews / 1000000).toFixed(2) + ' млн';
+        } else if (displayViews >= 1000) {
+            dashViews.innerText = (displayViews / 1000).toFixed(1) + ' тыс';
         } else {
-            dashViews.innerText = totalViews;
+            dashViews.innerText = displayViews;
         }
     }
     if (dashRev) {
-        dashRev.innerText = '$' + totalRevenue.toLocaleString('en-US');
+        dashRev.innerText = '$' + displayRevenue.toLocaleString('en-US');
     }
 
     const folderCards = myFolders.map(f => {
@@ -1996,8 +2002,8 @@ function renderAccountPage() {
                 🗑️ Очистить кэш браузера
             </button>
         </div>
-        <!-- PARTNER MANAGEMENT (Owner Only) -->
-        ${user.role === 'owner' ? `
+        <!-- PARTNER MANAGEMENT (Owner & Manager) -->
+        ${(user.role === 'owner' || user.role === 'manager') ? `
         <div style="margin-top:64px; padding-top:48px; border-top:1px solid var(--border-glass);">
             <div style="margin-bottom:32px;">
                 <h3 style="margin:0; font-size:20px; font-weight:800; letter-spacing:1px;">👥 УПРАВЛЕНИЕ ПАРТНЁРАМИ</h3>
@@ -2045,8 +2051,8 @@ function renderAccountPage() {
                                                 </div>
                                                 <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
                                                     <div title="Просмотры (задаются в Supabase)" style="background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.3); border-radius:8px; padding:3px 8px; font-size:11px; font-weight:700; color:#a5b4fc; white-space:nowrap;">👁 ${(Number(f.views)||0).toLocaleString()}</div>
-                                                    <div title="Доход (задаётся в Supabase)" style="background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3); border-radius:8px; padding:3px 8px; font-size:11px; font-weight:700; color:#6ee7b7; white-space:nowrap;">$${(Number(f.revenue)||0).toLocaleString()}</div>
-                                                    <button class="btn-del-mini" onclick="event.stopPropagation(); unassignFolder(${f.id}, '${u.login}')" title="Отвязать канал" style="opacity:0.4; transition:opacity 0.2s; font-size: 18px; line-height: 1;" onmouseenter="this.style.opacity='1'; this.style.color='#ef4444'" onmouseleave="this.style.opacity='0.4'; this.style.color='white'">×</button>
+                                                    ${user.role !== 'manager' ? `<div title="Доход (задаётся в Supabase)" style="background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3); border-radius:8px; padding:3px 8px; font-size:11px; font-weight:700; color:#6ee7b7; white-space:nowrap;">$${(Number(f.revenue)||0).toLocaleString()}</div>` : ''}
+                                                    ${user.role === 'owner' ? `<button class="btn-del-mini" onclick="event.stopPropagation(); unassignFolder(${f.id}, '${u.login}')" title="Отвязать канал" style="opacity:0.4; transition:opacity 0.2s; font-size: 18px; line-height: 1;" onmouseenter="this.style.opacity='1'; this.style.color='#ef4444'" onmouseleave="this.style.opacity='0.4'; this.style.color='white'">×</button>` : ''}
                                                 </div>
                                             </div>
                                     `).join('') : '<div style="color:var(--text-dim); font-size:13px; font-style:italic; padding:10px; text-align:center;">Нет назначенных каналов</div>'}
@@ -2054,12 +2060,14 @@ function renderAccountPage() {
                             </div>
 
                             <div style="margin-top:24px;">
+                                ${user.role === 'owner' ? `
                                 <select onchange="assignFolderToUser(this.value, '${u.login}')" style="width:100%; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.1); border-radius:16px; padding:14px; color:white; font-size:12px; font-weight:700; outline:none; cursor:pointer; transition:all 0.2s; appearance:none;" onfocus="this.style.borderColor='var(--accent-primary)'; this.style.background='rgba(255,255,255,0.05)';" onblur="this.style.borderColor='rgba(255,255,255,0.1)'; this.style.background='rgba(255,255,255,0.03)';">
                                     <option value="" style="background:#0a0a0c;">+ ПРИВЯЗАТЬ НОВЫЙ КАНАЛ...</option>
                                     ${state.folders.filter(f => f.ownedBy === authState.user.login).map(f => `
                                         <option value="${f.id}">${f.name} ${f.assignedTo ? '(Уже назначен)' : ''}</option>
                                     `).join('')}
                                 </select>
+                                ` : ''}
                             </div>
                         </div>
                     `;
@@ -2288,7 +2296,7 @@ function renderProjects() {
     if (!state.currentFolderId) {
         let visibleFolders = authState.user.role === 'owner' 
             ? state.folders.filter(f => (f.ownedBy || "").toLowerCase() === authState.user.login.toLowerCase() && (!f.assignedTo || f.assignedTo.trim() === "")) 
-            : state.folders.filter(f => (f.assignedTo || "").toLowerCase().includes(authState.user.login.toLowerCase()));
+            : (authState.user.role === 'manager' ? state.folders : state.folders.filter(f => (f.assignedTo || "").toLowerCase().includes(authState.user.login.toLowerCase())));
 
         // No longer filtering by avatar to prevent data loss
         // visibleFolders = visibleFolders.filter(f => f.avatar);
@@ -2314,6 +2322,10 @@ function renderProjects() {
                         <div class="folder-badge" style="background:${channelColor}; margin-bottom:8px; width:fit-content; position:static;">АКТИВНЫЙ КАНАЛ</div>
                         <h2 style="font-size: 28px; font-weight: 900; margin-bottom: 2px;">${f.name}</h2>
                         <div style="color:${channelColor}; font-weight:800; text-transform:uppercase; letter-spacing:1.5px; font-size:11px; margin-bottom:10px;">${f.niche || 'Общая ниша'}</div>
+                        <div style="display:flex; align-items:center; gap:15px; margin-bottom:5px;">
+                             <div title="Просмотры" style="background:rgba(99,102,241,0.1); border:1px solid rgba(99,102,241,0.2); border-radius:8px; padding:4px 10px; font-size:12px; font-weight:800; color:#a5b4fc;">👁 ${(Number(f.views)||0).toLocaleString()}</div>
+                             ${authState.user.role !== 'manager' ? `<div title="Доход" style="background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.2); border-radius:8px; padding:4px 10px; font-size:12px; font-weight:800; color:#6ee7b7;">$${(Number(f.revenue)||0).toLocaleString()}</div>` : ''}
+                        </div>
                         <p style="color: var(--text-secondary); font-size: 13px;">${projectCount} активных проектов • Ведущий: ${leading}</p>
                     </div>
                 </div>
