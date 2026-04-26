@@ -2763,8 +2763,11 @@ async function saveState() {
     if (!cloudDB) cloudDB = getDB();
     if (!cloudDB || !authState.isLoggedIn) return;
 
-    // 2. Cloud Sync (Optimized v4.0 - Batch Upserts)
-    try {
+    // Debounce Save (v4.1)
+    if (window._saveTimeout) clearTimeout(window._saveTimeout);
+    window._saveTimeout = setTimeout(async () => {
+        try {
+            console.log("💾 [SYNC]: Starting Cloud Save...");
         // A. Batch Save Folders (Owner & Manager - Source of Truth for metadata)
         if (authState.user.role === 'owner' || authState.user.role === 'manager') {
             const foldersToSave = state.folders.map(f => ({
@@ -3029,15 +3032,34 @@ async function loadState() {
             // v3.1: Prioritize Cloud for shared state fields (Assignments & Stats)
             state.folders = mergeData(state.folders, cloudFolders, ['assignedTo', 'niche', 'prefix', 'scriptPrefix', 'splitPrefix', 'uploadLink', 'views', 'revenue'], false);
             
-            // v3.0: AUTOMATIC INDIVIDUAL ASSET FETCH (Reliable & Permanent)
-            for (const folder of state.folders) {
+            // v3.0: BATCH ASSET FETCH (Optimized for performance)
+            const allFolderIds = state.folders.map(f => f.id);
+            if (allFolderIds.length > 0) {
                 try {
-                    const { data: cloudAssets } = await cloudDB.from('folder_assets').select('*').eq('folderid', folder.id);
+                    const { data: cloudAssets, error: aErr } = await cloudDB.from('folder_assets').select('*').in('folderid', allFolderIds);
+                    if (aErr) throw aErr;
+                    
                     if (cloudAssets && cloudAssets.length > 0) {
-                        folder.assets = cloudAssets; // Cloud is the source of truth for assets
-                        console.log(`🛡️ [Asset Shield]: Restored ${cloudAssets.length} assets for ${folder.name}`);
+                        // Group assets by folder ID
+                        const assetMap = {};
+                        cloudAssets.forEach(asset => {
+                            if (!assetMap[asset.folderid]) assetMap[asset.folderid] = [];
+                            assetMap[asset.folderid].push(asset);
+                        });
+                        
+                        // Apply to state
+                        state.folders.forEach(f => {
+                            if (assetMap[f.id]) {
+                                f.assets = assetMap[f.id];
+                            } else {
+                                f.assets = [];
+                            }
+                        });
+                        console.log(`🛡️ [Asset Shield]: Batch restored assets for ${state.folders.length} folders.`);
                     }
-                } catch (e) { console.error("Asset Fetch Error:", e); }
+                } catch (e) {
+                    console.error("Batch Asset Fetch Error:", e);
+                }
             }
         }
 
@@ -4570,12 +4592,20 @@ window.renderPartnersPage = async function() {
             }).subscribe();
         }
 
-        // 1. Fetch ALL Folders to calculate views
-        const { data: allFolders } = await cloudDB.from('folders').select('ownedBy, assignedTo, views');
+        // 1. Fetch ALL Folders to calculate views (only if not already loaded in state)
+        let allFolders = [];
+        if (authState.user.role === 'manager' && state.folders.length > 0) {
+            allFolders = state.folders;
+        } else {
+            const { data, error } = await cloudDB.from('folders').select('ownedby, assignedto, views');
+            if (error) console.error("Stats Fetch Error:", error);
+            allFolders = data || [];
+        }
+        
         const viewStats = {};
         if (allFolders) {
             allFolders.forEach(f => {
-                const holders = (f.assignedTo || f.ownedBy || "").split(',').map(s => s.trim().toLowerCase());
+                const holders = (f.assignedto || f.ownedby || "").split(',').map(s => s.trim().toLowerCase());
                 holders.forEach(h => { if (h) viewStats[h] = (viewStats[h] || 0) + (Number(f.views) || 0); });
             });
         }
