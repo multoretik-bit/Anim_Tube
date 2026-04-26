@@ -1493,10 +1493,6 @@ function switchProjectTab(tabId) {
         logStatus("🚫 Доступ запрещен: Сценарий доступен только менеджеру.", "error");
         return;
     }
-    if (role === 'manager' && (tabId === 'prompts' || tabId === 'frames' || tabId === 'animation')) {
-        logStatus("🚫 Доступ запрещен: Разделение и Генерация доступны только партнёру.", "error");
-        return;
-    }
 
     // 1. Update Tab Buttons
     state.activeProjectTab = tabId; 
@@ -2893,7 +2889,10 @@ async function loadState() {
 
         const [folderResult, avatarResult] = await Promise.all([
             fQuery,
-            cloudDB.from('user_avatars').select('*').then(res => res, e => { console.warn('Avatar fetch failed:', e); return { data: null }; })
+            cloudDB.from('user_avatars').select('*').then(res => res).catch(e => { 
+                console.warn('⚠️ [Sync Shield]: Avatar fetch failed (500/Network):', e); 
+                return { data: null, error: e }; 
+            })
         ]);
         const { data: cloudFolders, error: fErr } = folderResult;
         if (fErr) {
@@ -2943,7 +2942,7 @@ async function loadState() {
         
         // 2. Load Cloud Projects
         let pQuery = cloudDB.from('projects').select('*');
-        if (authState.user.role !== 'owner') {
+        if (authState.user.role !== 'owner' && authState.user.role !== 'manager') {
             const allFolderIds = cloudFolders ? cloudFolders.map(f => f.id) : [];
             console.log("🔍 [SYNC] Searching projects for Folder IDs:", allFolderIds);
             if (allFolderIds.length > 0) {
@@ -3067,7 +3066,7 @@ async function loadState() {
         }
 
         if (cloudProjects) {
-            const isPartner = authState.user.role !== 'owner';
+            const isPartner = authState.user.role !== 'owner' && authState.user.role !== 'manager';
             const folderIds = new Set(state.folders.map(f => String(f.id)));
             
             // Unpack 'data' column for all cloud projects
@@ -3143,6 +3142,7 @@ async function loadState() {
         // Show detailed error message to help the user debug
         const errorMsg = err.message || (err.error ? err.error.message : "Неизвестная ошибка");
         if (cError) cError.innerText = errorMsg;
+        state.isSyncInProgress = false;
         logStatus("⚠️ Ошибка синхронизации: " + errorMsg, "error");
     }
 }
