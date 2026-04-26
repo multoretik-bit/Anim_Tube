@@ -516,8 +516,19 @@
         <div class="modal" style="width: 500px;">
             <div style="font-size: 40px; margin-bottom: 20px;">⚙️</div>
             <h2 id="folder-settings-title" style="margin-bottom: 12px;">НАСТРОЙКИ КАНАЛА</h2>
-            <p style="color: var(--text-secondary); margin-bottom: 24px; font-size: 14px;">Настройте базовые промпты для этого канала.</p>
+            <p style="color: var(--text-secondary); margin-bottom: 24px; font-size: 14px;">Настройте внешний вид и промпты для этого канала.</p>
             
+            <div style="display: flex; gap: 20px; margin-bottom: 24px; align-items: center;">
+                <div id="folder-settings-avatar-preview" style="width: 80px; height: 80px; border-radius: 16px; border: 2px solid var(--border-glass); background: var(--bg-glass); display: flex; align-items: center; justify-content: center; flex-shrink: 0; position: relative; overflow: hidden; cursor: pointer;" onclick="document.getElementById('folder-settings-avatar-input').click()">
+                    <span style="font-size: 24px;">🖼️</span>
+                </div>
+                <div style="flex: 1; text-align: left;">
+                    <label style="display: block; font-size: 11px; font-weight: 800; color: var(--accent-primary); margin-bottom: 8px; text-transform: uppercase;">Иконка канала</label>
+                    <button class="btn btn-secondary" onclick="document.getElementById('folder-settings-avatar-input').click()" style="width: 100%; padding: 10px; font-size: 12px;">СМЕНИТЬ АВАТАР</button>
+                    <input type="file" id="folder-settings-avatar-input" accept="image/*" style="display: none;" onchange="handleFolderSettingsAvatarUpload(this)">
+                </div>
+            </div>
+
             <div style="text-align: left; margin-bottom: 15px;">
                 <label style="display: block; font-size: 11px; font-weight: 800; color: var(--accent-primary); margin-bottom: 8px; text-transform: uppercase;">Промт для кадров (Style Prefix)</label>
                 <textarea id="folder-prompt-prefix" placeholder="Напр: Create an image that closely resembles the style of the Peppa Pig cartoon..." style="height: 60px; font-size: 13px;"></textarea>

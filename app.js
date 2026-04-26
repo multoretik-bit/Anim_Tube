@@ -1558,6 +1558,7 @@ function getFolderForProject(projectId) {
 // --- CHANNEL MANAGEMENT (v1.4) ---
 let currentChannelAvatar = null;
 let currentChannelColor = '#6366f1';
+let tempFolderAvatar = null; // v2.0: For editing existing folder avatars
 
 function createNewFolder() {
     if (authState.user.role !== 'owner' && authState.user.role !== 'manager') {
@@ -1580,20 +1581,50 @@ function closeCreateChannel() {
     document.getElementById('create-channel-overlay').style.display = 'none';
 }
 
-function handleChannelAvatarUpload(input) {
+async function handleChannelAvatarUpload(input) {
     if (input.files && input.files[0]) {
         const reader = new FileReader();
-        reader.onload = function(e) {
+        reader.onload = async function(e) {
             const imgUrl = e.target.result;
-            currentChannelAvatar = imgUrl;
-            document.getElementById('channel-avatar-preview').innerHTML = `<img src="${imgUrl}" style="width:100%; height:100%; object-fit:cover;">`;
-            
-            // Extract dominant color
-            extractDominantColor(imgUrl, (color) => {
-                currentChannelColor = color;
-                document.getElementById('channel-avatar-preview').style.borderColor = color;
-                document.getElementById('channel-avatar-preview').style.boxShadow = `0 0 20px ${color}44`;
-            });
+            try {
+                logStatus("⌛ Сжатие иконки канала...", "info");
+                const compressed = await compressImage(imgUrl, 400, 0.7);
+                currentChannelAvatar = compressed;
+                document.getElementById('channel-avatar-preview').innerHTML = `<img src="${compressed}" style="width:100%; height:100%; object-fit:cover;">`;
+                
+                // Extract dominant color
+                extractDominantColor(compressed, (color) => {
+                    currentChannelColor = color;
+                    document.getElementById('channel-avatar-preview').style.borderColor = color;
+                    document.getElementById('channel-avatar-preview').style.boxShadow = `0 0 20px ${color}44`;
+                });
+            } catch (err) {
+                console.error("Folder avatar compression failed:", err);
+                currentChannelAvatar = imgUrl;
+                document.getElementById('channel-avatar-preview').innerHTML = `<img src="${imgUrl}" style="width:100%; height:100%; object-fit:cover;">`;
+            }
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+
+async function handleFolderSettingsAvatarUpload(input) {
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = async function(e) {
+            const imgUrl = e.target.result;
+            try {
+                logStatus("⌛ Сжатие новой иконки...", "info");
+                const compressed = await compressImage(imgUrl, 400, 0.7);
+                tempFolderAvatar = compressed;
+                const preview = document.getElementById('folder-settings-avatar-preview');
+                if (preview) preview.innerHTML = `<img src="${compressed}" style="width:100%; height:100%; object-fit:cover;">`;
+            } catch (err) {
+                console.error("Folder settings avatar compression failed:", err);
+                tempFolderAvatar = imgUrl;
+                const preview = document.getElementById('folder-settings-avatar-preview');
+                if (preview) preview.innerHTML = `<img src="${imgUrl}" style="width:100%; height:100%; object-fit:cover;">`;
+            }
         };
         reader.readAsDataURL(input.files[0]);
     }
@@ -1738,6 +1769,17 @@ function openFolderSettings(id) {
     document.getElementById('folder-script-prefix').value = folder.scriptPrefix || "";
     document.getElementById('folder-split-prefix').value = folder.splitPrefix || "";
     
+    // v2.0: Setup Avatar Preview
+    tempFolderAvatar = folder.avatar;
+    const preview = document.getElementById('folder-settings-avatar-preview');
+    if (preview) {
+        if (folder.avatar) {
+            preview.innerHTML = `<img src="${folder.avatar}" style="width:100%; height:100%; object-fit:cover;">`;
+        } else {
+            preview.innerHTML = `<span style="font-size: 24px;">🖼️</span>`;
+        }
+    }
+    
     const uploadInput = document.getElementById('folder-upload-link');
     if (uploadInput) {
         let link = folder.uploadLink || "";
@@ -1771,6 +1813,7 @@ async function saveFolderSettings() {
         folder.prefix = document.getElementById('folder-prompt-prefix').value;
         folder.scriptPrefix = document.getElementById('folder-script-prefix').value;
         folder.splitPrefix = document.getElementById('folder-split-prefix').value;
+        folder.avatar = tempFolderAvatar; // v2.0: Apply new avatar
         
         const uploadInput = document.getElementById('folder-upload-link');
         if (uploadInput) folder.uploadLink = uploadInput.value;
@@ -2750,8 +2793,8 @@ async function saveState() {
         // v4.8: Clean folders for local cache (remove stats and LARGE assets to avoid QuotaExceededError)
         const localFolders = state.folders.map(f => {
             const { views, revenue, assets, avatar, ...rest } = f;
-            // Only keep avatar if it's a URL or small string, otherwise skip it for local storage
-            const cleanAvatar = (avatar && avatar.length < 1000) ? avatar : null;
+            // Only keep avatar if it's small string (v4.8)
+            const cleanAvatar = (avatar && avatar.length < 300000) ? avatar : null;
             return { ...rest, avatar: cleanAvatar }; // Skip assets entirely for local storage
         });
         localStorage.setItem('animtube_folders', JSON.stringify(localFolders));
@@ -2777,7 +2820,7 @@ async function saveState() {
                 ownedby: f.ownedBy || authState.user.login,
                 assignedto: f.assignedTo || "",
                 niche: f.niche,
-                avatar: (f.avatar && f.avatar.length < 100000) ? f.avatar : null, // Limit to ~100KB for safety
+                avatar: (f.avatar && f.avatar.length < 500000) ? f.avatar : null, // Limit to ~500KB for safety (v4.9)
                 color: f.color,
                 prefix: f.prefix,
                 scriptPrefix: f.scriptPrefix,
