@@ -1,9 +1,12 @@
 /* AnimTube Studio v2.0 - Lumen Premium Design System */
 
-.role-owner-only { display: none !important; }
-.role-owner .role-owner-only { display: inline-flex !important; }
-.role-owner div.role-owner-only { display: block !important; }
-.role-owner section.role-owner-only { display: block !important; }
+.role-owner-only, .role-manager-only { display: none !important; }
+.role-owner .role-owner-only, .role-owner .role-manager-only { display: inline-flex !important; }
+.role-manager .role-manager-only { display: inline-flex !important; }
+.role-owner div.role-owner-only, .role-owner div.role-manager-only { display: block !important; }
+.role-manager div.role-manager-only { display: block !important; }
+.role-owner section.role-owner-only, .role-owner section.role-manager-only { display: block !important; }
+.role-manager section.role-manager-only { display: block !important; }
 
 :root {
     /* Dark Red Theme Palette */

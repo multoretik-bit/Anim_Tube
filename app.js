@@ -1564,8 +1564,8 @@ let currentChannelAvatar = null;
 let currentChannelColor = '#6366f1';
 
 function createNewFolder() {
-    if (authState.user.role !== 'owner') {
-        alert("🚫 Создавать новые каналы может только Владелец.");
+    if (authState.user.role !== 'owner' && authState.user.role !== 'manager') {
+        alert("🚫 Создавать новые каналы может только Владелец или Менеджер.");
         return;
     }
     
@@ -1797,7 +1797,7 @@ async function saveFolderSettings() {
 
 // --- PROJECT MANAGEMENT ---
 function createNewProject() {
-    if (!state.currentFolderId && authState.user.role !== 'owner') {
+    if (!state.currentFolderId && authState.user.role !== 'owner' && authState.user.role !== 'manager') {
         alert("⚠️ Пожалуйста, сначала войдите в ваш Канал, чтобы создать в нём проект.");
         return;
     }
@@ -2338,10 +2338,10 @@ function renderProjects() {
             container.appendChild(card);
         });
 
-        // Add square "Create Channel" button at the end (Owner only)
-        if (authState.user.role === 'owner') {
+        // Add square "Create Channel" button at the end (Owner & Manager)
+        if (authState.user.role === 'owner' || authState.user.role === 'manager') {
             const addCard = document.createElement('div');
-            addCard.className = "featured-channel-card role-owner-only";
+            addCard.className = "featured-channel-card role-owner-only role-manager-only";
             addCard.style.width = "100px";
             addCard.style.height = "100px";
             addCard.style.display = "flex";
@@ -2454,8 +2454,8 @@ window.toggleProjectStatus = async (projectId, step) => {
 };
 
 async function deleteFolder(id) {
-    if (authState.user.role !== 'owner') {
-        alert("🚫 Удалять каналы может только Владелец.");
+    if (authState.user.role !== 'owner' && authState.user.role !== 'manager') {
+        alert("🚫 Удалять каналы может только Владелец или Менеджер.");
         return;
     }
     // Use == for flexible ID comparison
@@ -2765,8 +2765,8 @@ async function saveState() {
 
     // 2. Cloud Sync (Optimized v4.0 - Batch Upserts)
     try {
-        // A. Batch Save Folders (Owner ONLY - Source of Truth for metadata)
-        if (authState.user.role === 'owner') {
+        // A. Batch Save Folders (Owner & Manager - Source of Truth for metadata)
+        if (authState.user.role === 'owner' || authState.user.role === 'manager') {
             const foldersToSave = state.folders.map(f => ({
                 id: f.id,
                 name: f.name,
