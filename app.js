@@ -1680,21 +1680,24 @@ async function handleUserAvatarUpload(input) {
             
             logStatus(`⌛ Обновление аватара для ${targetLogin}...`, "info");
             
-            // 1. Update local state
-            state.userAvatars[targetLogin] = base64;
-            
-            // 2. Immediate Cloud Push for this specific avatar
-            if (cloudDB && authState.isLoggedIn) {
-                try {
-                    await cloudDB.from('user_avatars').upsert([{ 
-                        login: targetLogin, 
-                        avatar: base64
-                    }]);
+            // 1. Update local state with compressed version (v1.6)
+            try {
+                const compressedBase64 = await compressImage(base64, 400, 0.6); // Avatars don't need high res
+                state.userAvatars[targetLogin] = compressedBase64;
+                
+                // 2. Immediate Cloud Push
+                if (cloudDB && authState.isLoggedIn) {
+                    const { error: upsertErr } = await cloudDB.from('user_avatars').upsert(
+                        [{ login: targetLogin, avatar: compressedBase64 }], 
+                        { onConflict: 'login' }
+                    );
+                    if (upsertErr) throw upsertErr;
                     logStatus(`✅ Аватар ${targetLogin} сохранен в облаке!`, "success");
-                } catch (err) {
-                    console.error("Avatar Cloud Sync Error:", err);
-                    logStatus("⚠️ Ошибка сохранения в облако, но сохранено локально.", "error");
                 }
+            } catch (err) {
+                console.error("Avatar Cloud Sync Error:", err);
+                state.userAvatars[targetLogin] = base64; // Fallback to original locally
+                logStatus("⚠️ Ошибка сжатия или синхронизации: " + err.message, "error");
             }
             
             saveState(); // General backup
@@ -2774,18 +2777,18 @@ async function saveState() {
                 ownedby: f.ownedBy || authState.user.login,
                 assignedto: f.assignedTo || "",
                 niche: f.niche,
-                avatar: f.avatar,
+                avatar: (f.avatar && f.avatar.length < 100000) ? f.avatar : null, // Limit to ~100KB for safety
                 color: f.color,
                 prefix: f.prefix,
                 scriptPrefix: f.scriptPrefix,
                 splitPrefix: f.splitPrefix,
-                uploadLink: f.uploadLink,
-                assets: f.assets || []
+                uploadLink: f.uploadLink
+                // assets are EXCLUDED - managed via folder_assets table to avoid row size limits
                 // views and revenue are EXCLUDED - managed directly in Supabase
             }));
             
             if (foldersToSave.length > 0) {
-                const { error: fErr } = await cloudDB.from('folders').upsert(foldersToSave);
+                const { error: fErr } = await cloudDB.from('folders').upsert(foldersToSave, { onConflict: 'id' });
                 if (fErr) throw fErr;
             }
         } else {
@@ -2810,20 +2813,17 @@ async function saveState() {
         }));
         
         if (projectsToSave.length > 0) {
-            const { error: pErr } = await cloudDB.from('projects').upsert(projectsToSave);
+            const { error: pErr } = await cloudDB.from('projects').upsert(projectsToSave, { onConflict: 'id' });
             if (pErr) throw pErr;
         }
 
-        // C. Sync All Changed Avatars (v2.0 - Comprehensive)
-        const avatarsToSync = [];
-        for (const [login, avatar] of Object.entries(state.userAvatars)) {
-            avatarsToSync.push({ login, avatar });
-        }
-        
-        if (avatarsToSync.length > 0) {
-            // Only sync the current user's or just let it be handled by individual uploads to save bandwidth
-            // But if we want full sync, we can batch upsert
-            await cloudDB.from('user_avatars').upsert(avatarsToSync);
+        // C. Sync ONLY current user avatar if needed (v2.1 Optimization + Size Guard)
+        const myAvatar = state.userAvatars[authState.user.login];
+        if (myAvatar && myAvatar.length < 500000) { // Safety limit: ~500KB
+            await cloudDB.from('user_avatars').upsert(
+                [{ login: authState.user.login, avatar: myAvatar }],
+                { onConflict: 'login' }
+            );
         }
 
         // UI Indicators
