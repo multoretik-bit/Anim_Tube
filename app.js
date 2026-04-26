@@ -2748,10 +2748,12 @@ async function saveState() {
     try {
         localStorage.setItem('animtube_projects', JSON.stringify(state.projects));
         
-        // v4.8: Clean folders for local cache (remove stats)
+        // v4.8: Clean folders for local cache (remove stats and LARGE assets to avoid QuotaExceededError)
         const localFolders = state.folders.map(f => {
-            const { views, revenue, ...rest } = f;
-            return rest;
+            const { views, revenue, assets, avatar, ...rest } = f;
+            // Only keep avatar if it's a URL or small string, otherwise skip it for local storage
+            const cleanAvatar = (avatar && avatar.length < 1000) ? avatar : null;
+            return { ...rest, avatar: cleanAvatar }; // Skip assets entirely for local storage
         });
         localStorage.setItem('animtube_folders', JSON.stringify(localFolders));
         localStorage.setItem('animtube_user_avatars', JSON.stringify(state.userAvatars));
@@ -2857,6 +2859,7 @@ async function saveState() {
         if (cError) cError.innerText = errorMsg;
         logStatus("⚠️ Ошибка сохранения: " + errorMsg, "error");
     }
+    }, 1000);
 }
 
 async function loadState() {
