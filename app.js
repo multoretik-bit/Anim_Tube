@@ -2247,7 +2247,7 @@ function renderProjects() {
 
     // 1. Handle Navigation Header (Breadcrumbs)
     if (state.currentFolderId) {
-        const folder = state.folders.find(f => f.id === state.currentFolderId);
+        const folder = state.folders.find(f => f.id == state.currentFolderId);
         const folderName = folder ? folder.name : "Канал";
         
         if (description) description.innerHTML = `<span style="color:var(--accent-primary); cursor:pointer;" onclick="exitFolder()">Мои Каналы</span> / <b>${folderName}</b>`;
@@ -2878,6 +2878,9 @@ async function loadState() {
         let fQuery = cloudDB.from('folders').select('*');
         if (authState.user.role === 'owner') {
             fQuery = fQuery.ilike('ownedby', login);
+        } else if (authState.user.role === 'manager') {
+            // Manager sees everything
+            fQuery = fQuery;
         } else {
             fQuery = fQuery.or('assignedto.ilike.%' + login + '%,ownedby.ilike.' + login);
         }
