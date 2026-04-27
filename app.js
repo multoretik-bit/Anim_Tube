@@ -3275,8 +3275,6 @@ window.handleAddFolderAsset = async (input) => {
         saveState();
         renderFolderAssets();
         logStatus(`📦 Ассет "${name}" добавлен.`, "success");
-        
-        }
     };
     reader.readAsDataURL(file);
 };
