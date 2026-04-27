@@ -3084,7 +3084,7 @@ async function loadState() {
                     const { data: cloudAssets, error: aErr } = await cloudDB.from('folder_assets').select('*').in('folderid', allFolderIds);
                     if (aErr) throw aErr;
                     
-                    if (cloudAssets && cloudAssets.length > 0) {
+                    if (cloudAssets) {
                         // Group assets by folder ID
                         const assetMap = {};
                         cloudAssets.forEach(asset => {
