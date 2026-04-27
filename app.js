@@ -55,10 +55,10 @@ let activeAvatarTarget = null;
 // --- SECURITY CONFIG & STATE ---
 const WHITELIST = [
     { login: "Denis", pass: "Ub1dFnfCFUzVRDv", code: "529952203893", role: "owner", ip: "*" }, // Owner allows all IPs for testing
-	{ login: "Alexander Evie", pass: "0gX1t39fZMA2HY7", code: "984377574594", role: "partner", ip: "*" }, // Example partner
+	{ login: "Alexander Evie", pass: "0gX1t39fZMA2HY7", code: "984377574594", role: "partner", ip: "185.113.136.128" }, // Example partner
 	{ login: "Alexander George", pass: "k8ocT1wRnkhMQij", code: "681523913214", role: "partner", ip: "91.132.162.219" }, // Example partner
     { login: "Alexey", pass: "JAh92C36h3MkiMk", code: "255681851403", role: "partner", ip: "127.0.0.1" }, // Example partner
-    { login: "Andrey", pass: "sbduB1HtwgQeFav", code: "743088149512", role: "manager", ip: "*" } // Test Manager
+    { login: "Andrey", pass: "sbduB1HtwgQeFav", code: "743088149512", role: "manager", ip: "130.49.89.192" } // Test Manager
 ];
 
 const HARDCODED_LINKS = {
@@ -3294,7 +3294,7 @@ window.handleAddFolderAsset = async (input) => {
         
         const assetId = "asset_" + Date.now();
         
-        const newAsset = { id: assetId, base64, name, folderId: state.currentFolderId };
+        const newAsset = { id: assetId, base64, name, folderid: state.currentFolderId };
         
         if (!folder.assets) folder.assets = [];
         folder.assets.push(newAsset);
