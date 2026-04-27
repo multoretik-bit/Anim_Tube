@@ -3307,9 +3307,26 @@ window.handleAddFolderAsset = async (input) => {
         
         // AUTO-SAVE INDIVIDUAL ASSET TO CLOUD (Bypasses row limits)
         if (authState.isLoggedIn && cloudDB) {
-            cloudDB.from('folder_assets').upsert([newAsset]).then(() => {
-                logStatus(`✅ Ассет зафиксирован в облаке.`, "success");
-            }).catch(e => console.error("Cloud Asset Save Error:", e));
+            // Omit local string ID, let Supabase generate its own (e.g. UUID or BigInt)
+            const cloudAsset = { base64, name, folderid: state.currentFolderId };
+            cloudDB.from('folder_assets').insert([cloudAsset]).select('id').single().then(({data, error}) => {
+                if (error) {
+                    console.error("Cloud Asset Save Error:", error);
+                    logStatus(`❌ Ошибка сохранения ассета: ${error.message}`, "error");
+                } else if (data && data.id) {
+                    // Update local asset ID with the real cloud ID
+                    const asset = folder.assets.find(a => a.id === assetId);
+                    if (asset) {
+                        asset.id = data.id;
+                        saveState();
+                        renderFolderAssets();
+                    }
+                    logStatus(`✅ Ассет зафиксирован в облаке.`, "success");
+                }
+            }).catch(e => {
+                console.error("Cloud Asset Save Exception:", e);
+                logStatus(`❌ Ошибка сохранения ассета: ${e.message}`, "error");
+            });
         }
     };
     reader.readAsDataURL(file);
