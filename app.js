@@ -3031,7 +3031,7 @@ async function loadState() {
         console.log("📂 [SYNC] Cloud Folders Loaded:", cloudFolders.length, cloudFolders.map(f => f.name));
         
         // 2. Load Cloud Projects (v5.2: Metadata first to avoid Timeout/500 on heavy 'data' column)
-        const projectMetadataColumns = 'id, name, folderid, status, created_at';
+        const projectMetadataColumns = 'id, name, folderid, status, created';
         let pQuery = cloudDB.from('projects').select(projectMetadataColumns);
         
         if (authState.user.role !== 'owner' && authState.user.role !== 'manager') {
