@@ -3361,10 +3361,11 @@ async function renderFolderAssets() {
 
 async function deleteFolderAsset(id) {
     if (!confirm("Удалить этот ассет?")) return;
-    const folder = state.folders.find(f => f.id === state.currentFolderId);
+    const folder = state.folders.find(f => String(f.id) === String(state.currentFolderId));
     if (!folder || !folder.assets) return;
 
-    folder.assets = folder.assets.filter(a => a.id !== id);
+    // Use String comparison because a.id might be a number from the cloud, and id is a string from the HTML onclick
+    folder.assets = folder.assets.filter(a => String(a.id) !== String(id));
     saveState();
     renderFolderAssets();
     
