@@ -2825,9 +2825,8 @@ async function saveState() {
                 prefix: f.prefix,
                 scriptPrefix: f.scriptPrefix,
                 splitPrefix: f.splitPrefix,
-                uploadLink: f.uploadLink
-                // assets are EXCLUDED - managed via folder_assets table to avoid row size limits
-                // views and revenue are EXCLUDED - managed directly in Supabase
+                uploadLink: f.uploadLink,
+                assets: f.assets || [] // v3.2: Reverted to inline assets as per user request
             }));
             
             if (foldersToSave.length > 0) {
@@ -3077,35 +3076,7 @@ async function loadState() {
             // v3.1: Prioritize Cloud for shared state fields (Assignments & Stats)
             state.folders = mergeData(state.folders, cloudFolders, ['assignedTo', 'niche', 'prefix', 'scriptPrefix', 'splitPrefix', 'uploadLink', 'views', 'revenue'], false);
             
-            // v3.0: BATCH ASSET FETCH (Optimized for performance)
-            const allFolderIds = state.folders.map(f => f.id);
-            if (allFolderIds.length > 0) {
-                try {
-                    const { data: cloudAssets, error: aErr } = await cloudDB.from('folder_assets').select('*').in('folderid', allFolderIds);
-                    if (aErr) throw aErr;
-                    
-                    if (cloudAssets) {
-                        // Group assets by folder ID
-                        const assetMap = {};
-                        cloudAssets.forEach(asset => {
-                            if (!assetMap[asset.folderid]) assetMap[asset.folderid] = [];
-                            assetMap[asset.folderid].push(asset);
-                        });
-                        
-                        // Apply to state
-                        state.folders.forEach(f => {
-                            if (assetMap[f.id]) {
-                                f.assets = assetMap[f.id];
-                            } else {
-                                f.assets = [];
-                            }
-                        });
-                        console.log(`🛡️ [Asset Shield]: Batch restored assets for ${state.folders.length} folders.`);
-                    }
-                } catch (e) {
-                    console.error("Batch Asset Fetch Error:", e);
-                }
-            }
+
         }
 
         if (cloudProjects) {
@@ -3305,28 +3276,6 @@ window.handleAddFolderAsset = async (input) => {
         renderFolderAssets();
         logStatus(`📦 Ассет "${name}" добавлен.`, "success");
         
-        // AUTO-SAVE INDIVIDUAL ASSET TO CLOUD (Bypasses row limits)
-        if (authState.isLoggedIn && cloudDB) {
-            // Omit local string ID, let Supabase generate its own (e.g. UUID or BigInt)
-            const cloudAsset = { base64, name, folderid: state.currentFolderId };
-            cloudDB.from('folder_assets').insert([cloudAsset]).select('id').single().then(({data, error}) => {
-                if (error) {
-                    console.error("Cloud Asset Save Error:", error);
-                    logStatus(`❌ Ошибка сохранения ассета: ${error.message}`, "error");
-                } else if (data && data.id) {
-                    // Update local asset ID with the real cloud ID
-                    const asset = folder.assets.find(a => a.id === assetId);
-                    if (asset) {
-                        asset.id = data.id;
-                        saveState();
-                        renderFolderAssets();
-                    }
-                    logStatus(`✅ Ассет зафиксирован в облаке.`, "success");
-                }
-            }).catch(e => {
-                console.error("Cloud Asset Save Exception:", e);
-                logStatus(`❌ Ошибка сохранения ассета: ${e.message}`, "error");
-            });
         }
     };
     reader.readAsDataURL(file);
@@ -3368,12 +3317,6 @@ async function deleteFolderAsset(id) {
     folder.assets = folder.assets.filter(a => String(a.id) !== String(id));
     saveState();
     renderFolderAssets();
-    
-    if (cloudDB && authState.isLoggedIn) {
-        cloudDB.from('folder_assets').delete().eq('id', id).then(({error}) => {
-            if (error) console.error("Cloud Delete Error:", error);
-        });
-    }
 }
 
 // --- PROJECT ASSET SELECTION ---
