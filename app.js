@@ -2814,6 +2814,7 @@ async function saveState() {
             console.log("💾 [SYNC]: Starting Cloud Save...");
         // A. Batch Save Folders (Owner & Manager - Source of Truth for metadata)
         if (authState.user.role === 'owner' || authState.user.role === 'manager') {
+            const foldersToSave = state.folders.map(f => {
                 const folderRow = {
                     id: f.id,
                     name: f.name,
