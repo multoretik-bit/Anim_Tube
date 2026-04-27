@@ -3370,7 +3370,9 @@ async function deleteFolderAsset(id) {
     renderFolderAssets();
     
     if (cloudDB && authState.isLoggedIn) {
-        cloudDB.from('folder_assets').delete().eq('id', id).catch(e => console.error(e));
+        cloudDB.from('folder_assets').delete().eq('id', id).then(({error}) => {
+            if (error) console.error("Cloud Delete Error:", error);
+        });
     }
 }
 
