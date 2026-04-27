@@ -2814,23 +2814,29 @@ async function saveState() {
             console.log("💾 [SYNC]: Starting Cloud Save...");
         // A. Batch Save Folders (Owner & Manager - Source of Truth for metadata)
         if (authState.user.role === 'owner' || authState.user.role === 'manager') {
-            const foldersToSave = state.folders.map(f => ({
-                id: f.id,
-                name: f.name,
-                ownedby: f.ownedBy || authState.user.login,
-                assignedto: f.assignedTo || "",
-                niche: f.niche,
-                avatar: (f.avatar && f.avatar.length < 500000) ? f.avatar : null, // Limit to ~500KB for safety (v4.9)
-                color: f.color,
-                prefix: f.prefix,
-                scriptPrefix: f.scriptPrefix,
-                splitPrefix: f.splitPrefix,
-                uploadLink: f.uploadLink,
-                assets: f.assets || [] // v3.2: Reverted to inline assets as per user request
-            }));
+                const folderRow = {
+                    id: f.id,
+                    name: f.name,
+                    ownedby: f.ownedBy || authState.user.login,
+                    assignedto: f.assignedTo || "",
+                    niche: f.niche,
+                    color: f.color,
+                    prefix: f.prefix,
+                    scriptPrefix: f.scriptPrefix,
+                    splitPrefix: f.splitPrefix,
+                    uploadLink: f.uploadLink
+                    // v5.5: Heavy columns (assets, avatar) are EXCLUDED from batch upsert
+                    // to prevent Timeout/Data Loss during background sync.
+                };
+                return folderRow;
+            });
             
             if (foldersToSave.length > 0) {
-                const { error: fErr } = await cloudDB.from('folders').upsert(foldersToSave, { onConflict: 'id' });
+                // Select only specific columns to update to be absolutely sure we don't touch assets/avatar
+                const { error: fErr } = await cloudDB.from('folders').upsert(foldersToSave, { 
+                    onConflict: 'id',
+                    ignoreDuplicates: false
+                });
                 if (fErr) throw fErr;
             }
         } else {
@@ -2900,6 +2906,39 @@ async function saveState() {
     }, 1000);
 }
 
+// v5.5: Target Sync for heavy columns
+async function syncFolderAssets(folderId) {
+    if (!cloudDB || !authState.isLoggedIn) return;
+    const folder = state.folders.find(f => String(f.id) === String(folderId));
+    if (!folder || folder.assets === undefined) return;
+
+    console.log(`📡 [SYNC]: Target syncing assets for folder: ${folder.name}`);
+    const { error } = await cloudDB.from('folders')
+        .update({ assets: folder.assets })
+        .eq('id', folderId);
+    
+    if (error) {
+        console.error("Asset Sync Error:", error);
+        logStatus("❌ Ошибка синхронизации ассетов: " + error.message, "error");
+    } else {
+        logStatus("✅ Ассеты синхронизированы.", "success");
+    }
+}
+
+async function syncFolderAvatar(folderId) {
+    if (!cloudDB || !authState.isLoggedIn) return;
+    const folder = state.folders.find(f => String(f.id) === String(folderId));
+    if (!folder || folder.avatar === undefined) return;
+
+    console.log(`📡 [SYNC]: Target syncing avatar for folder: ${folder.name}`);
+    const { error } = await cloudDB.from('folders')
+        .update({ avatar: folder.avatar })
+        .eq('id', folderId);
+    
+    if (error) console.error("Avatar Sync Error:", error);
+}
+
+
 async function loadState() {
     // Force re-init if current DB is broken
     if (!cloudDB || typeof cloudDB.from !== 'function') {
@@ -2917,13 +2956,15 @@ async function loadState() {
         }
         logStatus("☁️ Синхронизация с облаком...", "info");
 
-        // 1. Load Cloud Folders
+        // 1. Load Cloud Folders (v5.1: Metadata first to avoid Timeout/500 on heavy rows)
         const login = authState.user.login;
-        let fQuery = cloudDB.from('folders').select('*');
+        // Fetch everything EXCEPT heavy blobs (assets, avatar)
+        const metadataColumns = 'id, name, ownedby, assignedto, niche, color, prefix, scriptPrefix, splitPrefix, uploadLink, views, revenue';
+        let fQuery = cloudDB.from('folders').select(metadataColumns);
+        
         if (authState.user.role === 'owner') {
             fQuery = fQuery.ilike('ownedby', login);
         } else if (authState.user.role === 'manager') {
-            // Manager sees everything
             fQuery = fQuery;
         } else {
             fQuery = fQuery.or('assignedto.ilike.%' + login + '%,ownedby.ilike.' + login);
@@ -2939,8 +2980,14 @@ async function loadState() {
         const { data: cloudFolders, error: fErr } = folderResult;
         if (fErr) {
             console.error("Folder Load Error:", fErr);
-            logStatus("Ошибка загрузки каналов: " + fErr.message, "error");
-            throw fErr;
+            // FALLBACK: If metadata fetch fails with 500/timeout, try fetching just IDs to at least allow projects to load
+            logStatus("⚠️ Ошибка загрузки метаданных (Timeout), пробуем упрощенный режим...", "info");
+            const { data: retryFolders, error: rErr } = await cloudDB.from('folders').select('id, name, ownedby, assignedto');
+            if (rErr) {
+                logStatus("❌ Ошибка загрузки каналов: " + rErr.message, "error");
+                throw rErr;
+            }
+            cloudFolders = retryFolders;
         }
 
         // Apply avatars IMMEDIATELY
@@ -2982,8 +3029,10 @@ async function loadState() {
         
         console.log("📂 [SYNC] Cloud Folders Loaded:", cloudFolders.length, cloudFolders.map(f => f.name));
         
-        // 2. Load Cloud Projects
-        let pQuery = cloudDB.from('projects').select('*');
+        // 2. Load Cloud Projects (v5.2: Metadata first to avoid Timeout/500 on heavy 'data' column)
+        const projectMetadataColumns = 'id, name, folderid, status, created_at';
+        let pQuery = cloudDB.from('projects').select(projectMetadataColumns);
+        
         if (authState.user.role !== 'owner' && authState.user.role !== 'manager') {
             const allFolderIds = cloudFolders ? cloudFolders.map(f => f.id) : [];
             console.log("🔍 [SYNC] Searching projects for Folder IDs:", allFolderIds);
@@ -3131,6 +3180,54 @@ async function loadState() {
         if (cText) cText.innerText = 'Подключено';
         if (cError) cError.innerText = '';
 
+        // 6. Background Heavy Data Load (v5.3: Load assets/blobs without blocking UI)
+        setTimeout(async () => {
+            console.log("⚡ [SYNC] Starting background load of heavy data...");
+            try {
+                // A. Load Folder Assets & Avatars for visible folders
+                const activeFolderIds = state.folders.map(f => f.id);
+                if (activeFolderIds.length > 0) {
+                    const { data: heavyFolders } = await cloudDB.from('folders').select('id, assets, avatar').in('id', activeFolderIds);
+                    if (heavyFolders) {
+                        heavyFolders.forEach(hf => {
+                            const f = state.folders.find(folder => String(folder.id) === String(hf.id));
+                            if (f) {
+                                // v5.5: Only populate if not already modified locally during the 1s delay
+                                if (f.assets === undefined && hf.assets) f.assets = hf.assets;
+                                if (f.avatar === undefined && hf.avatar) f.avatar = hf.avatar;
+                            }
+                        });
+                        console.log("⚡ [SYNC] Background Folder Assets loaded.");
+                        if (state.activePage === 'account') renderAccountPage();
+                        renderFolderAssets(); // Refresh if open
+                    }
+                }
+
+                // B. Load Project Data for active folder projects
+                const folderProjectIds = state.projects.map(p => p.id);
+                if (folderProjectIds.length > 0) {
+                    // Load in chunks of 20 to avoid massive response sizes
+                    for (let i = 0; i < folderProjectIds.length; i += 20) {
+                        const chunk = folderProjectIds.slice(i, i + 20);
+                        const { data: heavyProjects } = await cloudDB.from('projects').select('id, data').in('id', chunk);
+                        if (heavyProjects) {
+                            heavyProjects.forEach(hp => {
+                                const pIdx = state.projects.findIndex(proj => String(proj.id) === String(hp.id));
+                                if (pIdx !== -1 && hp.data) {
+                                    state.projects[pIdx] = { ...state.projects[pIdx], ...hp.data };
+                                }
+                            });
+                        }
+                    }
+                    console.log("⚡ [SYNC] Background Project Data loaded.");
+                    renderProjects();
+                }
+            } catch (e) {
+                console.warn("⚠️ [Sync Shield]: Background heavy load partially failed:", e);
+            }
+        }, 1000);
+
+
         logStatus("✅ Облачная синхронизация завершена.", "success");
         
         // v1.4: Pre-fetch missing images for active project if any
@@ -3272,8 +3369,9 @@ window.handleAddFolderAsset = async (input) => {
         
         nameInput.value = "";
         input.value = "";
-        saveState();
+        saveState(); // For metadata if needed
         renderFolderAssets();
+        syncFolderAssets(state.currentFolderId); // v5.5: Immediate targeted sync
         logStatus(`📦 Ассет "${name}" добавлен.`, "success");
     };
     reader.readAsDataURL(file);
@@ -3313,8 +3411,9 @@ async function deleteFolderAsset(id) {
 
     // Use String comparison because a.id might be a number from the cloud, and id is a string from the HTML onclick
     folder.assets = folder.assets.filter(a => String(a.id) !== String(id));
-    saveState();
+    saveState(); // For metadata
     renderFolderAssets();
+    syncFolderAssets(state.currentFolderId); // v5.5: Immediate targeted sync
 }
 
 // --- PROJECT ASSET SELECTION ---
