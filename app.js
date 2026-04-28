@@ -1838,11 +1838,24 @@ async function saveFolderSettings() {
         logStatus(`🛰️ Сохранение настроек канала "${folder.name}"...`, "info");
         
         try {
-            await saveState();
-            logStatus(`✅ Настройки канала "${folder.name}" сохранены!`, "success");
+            if (cloudDB && authState.isLoggedIn) {
+                const { error } = await cloudDB.from('folders')
+                    .update({
+                        prefix: folder.prefix,
+                        scriptPrefix: folder.scriptPrefix,
+                        splitPrefix: folder.splitPrefix,
+                        avatar: folder.avatar,
+                        uploadLink: folder.uploadLink
+                    })
+                    .eq('id', id);
+                if (error) throw error;
+                logStatus(`✅ Настройки канала "${folder.name}" сохранены в облаке!`, "success");
+            } else {
+                saveState(); // Fallback to local
+            }
         } catch (e) {
             console.error("Save Folder Settings Error:", e);
-            logStatus("❌ Ошибка синхронизации: " + e.message, "error");
+            logStatus("❌ Ошибка облака: " + e.message, "error");
         }
     } else {
         console.error("Active folder not found for saving:", id);
@@ -2825,8 +2838,10 @@ async function saveState() {
     window._saveTimeout = setTimeout(async () => {
         try {
             console.log("💾 [SYNC]: Starting Cloud Save...");
-        // A. Batch Save Folders (Owner & Manager)
-        if (authState.user.role === 'owner' || authState.user.role === 'manager') {
+        // A. Batch Save Folders (ONLY for Owner and ONLY if changed)
+        // Optimization: Owners only sync folder metadata here. 
+        // Targeted sync is handled in saveFolderSettings / updateChannelStats.
+        if (authState.user.role === 'owner' && state.folders.length < 20) {
             try {
                 const foldersToSave = state.folders.map(f => ({
                     id: f.id,
@@ -2842,16 +2857,13 @@ async function saveState() {
                 }));
                 
                 if (foldersToSave.length > 0) {
-                    const { error: fErr } = await cloudDB.from('folders').upsert(foldersToSave, { 
-                        onConflict: 'id',
-                        ignoreDuplicates: false
-                    });
-                    if (fErr) console.warn("⚠️ Folder Sync Warning (Metadata):", fErr);
+                    await cloudDB.from('folders').upsert(foldersToSave, { onConflict: 'id' });
                 }
             } catch (e) {
-                console.error("❌ Folder Batch Save Failed:", e);
+                console.warn("⚠️ Background Folder Sync skipped (will retry on next change).");
             }
         }
+        // Managers and Partners NEVER batch-sync folders here to prevent timeouts.
 
         // B. Batch Save Projects
         try {
