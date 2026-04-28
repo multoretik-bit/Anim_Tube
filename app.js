@@ -146,7 +146,13 @@ async function setupRealtimeSync() {
         if (state.activePage === 'videos') renderProjects();
         renderSidebarProfile();
     })
-    .subscribe();
+    .subscribe((status) => {
+        if (status === 'CHANNEL_ERROR') {
+            console.warn("⚠️ Realtime Folders Error.");
+            const cDot = document.getElementById('cloud-status-indicator');
+            if (cDot) cDot.style.background = '#f59e0b';
+        }
+    });
 
     // Listen for Avatar changes
     cloudDB.channel('avatars-realtime')
@@ -159,7 +165,9 @@ async function setupRealtimeSync() {
             console.log(`👤 [REALTIME] Avatar updated for: ${payload.new.login}`);
         }
     })
-    .subscribe();
+    .subscribe((status) => {
+        if (status === 'CHANNEL_ERROR') console.warn("⚠️ Realtime Avatars Error.");
+    });
 
     // Listen for Project changes (Checkboxes, Status, Audio, etc.)
     cloudDB.channel('projects-realtime')
@@ -208,7 +216,12 @@ async function setupRealtimeSync() {
             renderProjects();
         }
     })
-    .subscribe();
+    .subscribe((status) => {
+        if (status === 'CHANNEL_ERROR') {
+            console.warn("⚠️ Realtime Projects Error.");
+            logStatus("📡 Проблема с Realtime-синхронизацией. Обновите страницу, если данные не приходят.", "info");
+        }
+    });
 
 }
 
@@ -2812,10 +2825,10 @@ async function saveState() {
     window._saveTimeout = setTimeout(async () => {
         try {
             console.log("💾 [SYNC]: Starting Cloud Save...");
-        // A. Batch Save Folders (Owner & Manager - Source of Truth for metadata)
+        // A. Batch Save Folders (Owner & Manager)
         if (authState.user.role === 'owner' || authState.user.role === 'manager') {
-            const foldersToSave = state.folders.map(f => {
-                const folderRow = {
+            try {
+                const foldersToSave = state.folders.map(f => ({
                     id: f.id,
                     name: f.name,
                     ownedby: f.ownedBy || authState.user.login,
@@ -2826,44 +2839,45 @@ async function saveState() {
                     scriptPrefix: f.scriptPrefix,
                     splitPrefix: f.splitPrefix,
                     uploadLink: f.uploadLink
-                    // v5.5: Heavy columns (assets, avatar) are EXCLUDED from batch upsert
-                    // to prevent Timeout/Data Loss during background sync.
-                };
-                return folderRow;
-            });
-            
-            if (foldersToSave.length > 0) {
-                // Select only specific columns to update to be absolutely sure we don't touch assets/avatar
-                const { error: fErr } = await cloudDB.from('folders').upsert(foldersToSave, { 
-                    onConflict: 'id',
-                    ignoreDuplicates: false
-                });
-                if (fErr) throw fErr;
+                }));
+                
+                if (foldersToSave.length > 0) {
+                    const { error: fErr } = await cloudDB.from('folders').upsert(foldersToSave, { 
+                        onConflict: 'id',
+                        ignoreDuplicates: false
+                    });
+                    if (fErr) console.warn("⚠️ Folder Sync Warning (Metadata):", fErr);
+                }
+            } catch (e) {
+                console.error("❌ Folder Batch Save Failed:", e);
             }
-        } else {
-            console.log("🛡️ [Sync Shield]: Skipping global folder save (Non-owner user).");
         }
 
         // B. Batch Save Projects
-        const projectsToSave = state.projects.map(p => ({
-            id: p.id,
-            folderid: p.folderId,
-            name: p.name,
-            status: Number(p.status || 0),
-            created: p.created || new Date().toLocaleDateString(),
-            data: {
-                scripts: p.scripts || [],
-                promptsList: p.promptsList || [],
-                results: p.results || [],
-                assets: p.assets || [],
-                audioId: p.audioId || null,
-                prefix: p.prefix || ""
+        try {
+            const projectsToSave = state.projects.map(p => ({
+                id: p.id,
+                folderid: p.folderId,
+                name: p.name,
+                status: Number(p.status || 0),
+                created: p.created || new Date().toLocaleDateString(),
+                data: {
+                    scripts: p.scripts || [],
+                    promptsList: p.promptsList || [],
+                    results: p.results || [],
+                    assets: p.assets || [],
+                    audioId: p.audioId || null,
+                    prefix: p.prefix || ""
+                }
+            }));
+            
+            if (projectsToSave.length > 0) {
+                const { error: pErr } = await cloudDB.from('projects').upsert(projectsToSave, { onConflict: 'id' });
+                if (pErr) console.warn("⚠️ Project Sync Warning:", pErr);
             }
-        }));
-        
-        if (projectsToSave.length > 0) {
-            const { error: pErr } = await cloudDB.from('projects').upsert(projectsToSave, { onConflict: 'id' });
-            if (pErr) throw pErr;
+        } catch (e) {
+            console.error("❌ Project Batch Save Failed:", e);
+            throw e; // Still throw to show the red dot in UI
         }
 
         // C. Sync ONLY current user avatar if needed (v2.1 Optimization + Size Guard)
@@ -3185,22 +3199,25 @@ async function loadState() {
         setTimeout(async () => {
             console.log("⚡ [SYNC] Starting background load of heavy data...");
             try {
-                // A. Load Folder Assets & Avatars for visible folders
-                const activeFolderIds = state.folders.map(f => f.id);
-                if (activeFolderIds.length > 0) {
-                    const { data: heavyFolders } = await cloudDB.from('folders').select('id, assets, avatar').in('id', activeFolderIds);
-                    if (heavyFolders) {
-                        heavyFolders.forEach(hf => {
-                            const f = state.folders.find(folder => String(folder.id) === String(hf.id));
-                            if (f) {
-                                // v5.5: Only populate if not already modified locally during the 1s delay
-                                if (f.assets === undefined && hf.assets) f.assets = hf.assets;
-                                if (f.avatar === undefined && hf.avatar) f.avatar = hf.avatar;
-                            }
-                        });
-                        console.log("⚡ [SYNC] Background Folder Assets loaded.");
+                // A. Load Folder Assets & Avatars ONLY for active project folder (v5.6 Optimization)
+                const targetFolderId = state.currentFolderId || (state.activeProjectId ? getCurrentProject()?.folderId : null);
+                
+                if (targetFolderId) {
+                    console.log(`⚡ [SYNC] Loading heavy data for folder: ${targetFolderId}`);
+                    const { data: heavyFolders } = await cloudDB.from('folders')
+                        .select('id, assets, avatar')
+                        .eq('id', targetFolderId);
+                        
+                    if (heavyFolders && heavyFolders.length > 0) {
+                        const hf = heavyFolders[0];
+                        const f = state.folders.find(folder => String(folder.id) === String(hf.id));
+                        if (f) {
+                            if (f.assets === undefined && hf.assets) f.assets = hf.assets;
+                            if (f.avatar === undefined && hf.avatar) f.avatar = hf.avatar;
+                        }
+                        console.log("⚡ [SYNC] Active Folder Assets loaded.");
                         if (state.activePage === 'account') renderAccountPage();
-                        renderFolderAssets(); // Refresh if open
+                        renderFolderAssets(); 
                     }
                 }
 
