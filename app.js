@@ -26,8 +26,13 @@ function getDB() {
                     if (error) {
                          console.error("🔏 Database connection test failed:", error.message);
                          logStatus("⚠️ База данных недоступна: " + error.message, "error");
+                         if (error.message.includes("403") || error.message.includes("JWT")) {
+                             logStatus("🔑 Ошибка авторизации. Проверьте настройки проекта Supabase.", "error");
+                         }
                     } else {
                          console.log("📡 Cloud Database reachable.");
+                         const cDot = document.getElementById('cloud-status-indicator');
+                         if (cDot) cDot.style.background = '#10b981';
                     }
                 });
                 return client;
@@ -39,12 +44,14 @@ function getDB() {
                 throw new Error("Client structure invalid. Keys: " + (keys || "none"));
             }
         }
+        console.error("❌ Failed to create Supabase client.");
         return null;
     } catch (e) {
         console.error("❌ getDB Error:", e);
         // Display error in UI if possible
         const errBox = document.getElementById('cloud-error-box');
         if (errBox) errBox.innerText = "Init Error: " + e.message;
+        logStatus("❌ Ошибка инициализации БД: " + e.message, "error");
         return null;
     }
 }
@@ -3004,13 +3011,16 @@ async function loadState() {
                 return { data: null, error: e }; 
             })
         ]);
-        const { data: cloudFolders, error: fErr } = folderResult;
+        const { data: initialFolders, error: fErr } = folderResult;
+        let cloudFolders = initialFolders;
+
         if (fErr) {
             console.error("Folder Load Error:", fErr);
             // FALLBACK: If metadata fetch fails with 500/timeout, try fetching just IDs to at least allow projects to load
             logStatus("⚠️ Ошибка загрузки метаданных (Timeout), пробуем упрощенный режим...", "info");
             const { data: retryFolders, error: rErr } = await cloudDB.from('folders').select('id, name, ownedby, assignedto');
             if (rErr) {
+                console.error("Folder Retry Error:", rErr);
                 logStatus("❌ Ошибка загрузки каналов: " + rErr.message, "error");
                 throw rErr;
             }
