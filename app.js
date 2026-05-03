@@ -2910,8 +2910,8 @@ async function saveState() {
         }
 
         // UI Indicators
-        const dot = document.getElementById('sync-status-dot');
-        const cDot = document.getElementById('cloud-status-indicator');
+        var dot = document.getElementById('sync-status-dot');
+        var cDot = document.getElementById('cloud-status-indicator');
         const cText = document.getElementById('cloud-status-text');
         const cError = document.getElementById('cloud-error-box');
 
@@ -2925,8 +2925,8 @@ async function saveState() {
 
     } catch (err) {
         console.error("Supabase Sync Error:", err);
-        const dot = document.getElementById('sync-status-dot');
-        const cDot = document.getElementById('cloud-status-indicator');
+        var dot = document.getElementById('sync-status-dot');
+        var cDot = document.getElementById('cloud-status-indicator');
         const cText = document.getElementById('cloud-status-text');
         const cError = document.getElementById('cloud-error-box');
 
@@ -2994,7 +2994,7 @@ async function loadState() {
                 if (!cloudDB) throw new Error("Could not initialize Supabase client");
             }
             
-            const dot = document.getElementById('sync-status-dot');
+            var dot = document.getElementById('sync-status-dot');
             if (dot) dot.style.background = '#f59e0b'; // Amber - in progress
             logStatus(retryCount > 0 ? `🔄 Попытка синхронизации #${retryCount}...` : "☁️ Синхронизация с облаком...", "info");
 
@@ -3208,8 +3208,8 @@ async function loadState() {
         }
 
         // 5. Initial Sync Back (Upload local data to cloud if it was just merged)
-        const dot = document.getElementById('sync-status-dot');
-        const cDot = document.getElementById('cloud-status-indicator');
+        var dot = document.getElementById('sync-status-dot');
+        var cDot = document.getElementById('cloud-status-indicator');
         if (dot) dot.style.background = '#10b981';
         if (cDot) cDot.style.background = '#10b981';
 
@@ -3229,8 +3229,8 @@ async function loadState() {
             return await attemptLoad(retryCount + 1);
         }
 
-        const dot = document.getElementById('sync-status-dot');
-        const cDot = document.getElementById('cloud-status-indicator');
+        var dot = document.getElementById('sync-status-dot');
+        var cDot = document.getElementById('cloud-status-indicator');
         const cError = document.getElementById('cloud-error-box');
 
         if (dot) dot.style.background = '#ef4444';
