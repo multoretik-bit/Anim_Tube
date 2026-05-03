@@ -1510,10 +1510,7 @@ function switchProjectTab(tabId) {
     // Navigation Guard
     // Navigation Guard (v15 Access Control)
     const role = authState.user?.role;
-    if (role === 'partner' && tabId === 'script') {
-        logStatus("🚫 Доступ запрещен: Сценарий доступен только менеджеру.", "error");
-        return;
-    }
+    // Script tab restriction removed per user request
 
     // 1. Update Tab Buttons
     state.activeProjectTab = tabId; 
