@@ -65,6 +65,7 @@ const WHITELIST = [
 	{ login: "Alexander Evie", pass: "0gX1t39fZMA2HY7", code: "984377574594", role: "partner", ip: "185.113.136.128" }, // Example partner
 	{ login: "Alexander George", pass: "k8ocT1wRnkhMQij", code: "681523913214", role: "partner", ip: "91.132.162.219" }, // Example partner
     { login: "Alexey", pass: "JAh92C36h3MkiMk", code: "255681851403", role: "partner", ip: "127.0.0.1" }, // Example partner
+	{ login: "Alya", pass: "JAh92C36h3MkiMk", code: "805344411736", role: "partner", ip: "49.228.11.136" }, // Example partner
     { login: "Andrey", pass: "sbduB1HtwgQeFav", code: "743088149512", role: "manager", ip: "130.49.89.192" } // Test Manager
 ];
 
@@ -2980,15 +2981,22 @@ async function loadState() {
     }
     
     if (!cloudDB || !authState.isLoggedIn) return;
+    
+    // Prevent overlapping syncs
+    if (state.isSyncInProgress) return;
     state.isSyncInProgress = true;
 
-    try {
-        // Double check .from before calling
-        if (typeof cloudDB.from !== 'function') {
-            const keys = Object.keys(cloudDB).join(', ');
-            throw new Error("cloudDB.from missing. Keys: " + (keys || "empty"));
-        }
-        logStatus("☁️ Синхронизация с облаком...", "info");
+    async function attemptLoad(retryCount = 0) {
+        try {
+            // Double check .from before calling
+            if (typeof cloudDB.from !== 'function') {
+                cloudDB = getDB();
+                if (!cloudDB) throw new Error("Could not initialize Supabase client");
+            }
+            
+            const dot = document.getElementById('sync-status-dot');
+            if (dot) dot.style.background = '#f59e0b'; // Amber - in progress
+            logStatus(retryCount > 0 ? `🔄 Попытка синхронизации #${retryCount}...` : "☁️ Синхронизация с облаком...", "info");
 
         // 1. Load Cloud Folders (v5.1: Metadata first to avoid Timeout/500 on heavy rows)
         const login = authState.user.login;
@@ -3200,102 +3208,44 @@ async function loadState() {
         }
 
         // 5. Initial Sync Back (Upload local data to cloud if it was just merged)
-        state.isInitialLoadComplete = true;
-        state.isSyncInProgress = false;
-        saveState(); 
-
-        renderProjects();
-        renderSidebarProfile();
-        renderAccountPage(); // Always update stats/dashboard if cloud state changes
         const dot = document.getElementById('sync-status-dot');
         const cDot = document.getElementById('cloud-status-indicator');
-        const cText = document.getElementById('cloud-status-text');
-        const cError = document.getElementById('cloud-error-box');
-
-        if (dot) dot.style.background = '#10b981'; // Green
+        if (dot) dot.style.background = '#10b981';
         if (cDot) cDot.style.background = '#10b981';
-        if (cText) cText.innerText = 'Подключено';
-        if (cError) cError.innerText = '';
 
-        // 6. Background Heavy Data Load (v5.3: Load assets/blobs without blocking UI)
-        setTimeout(async () => {
-            console.log("⚡ [SYNC] Starting background load of heavy data...");
-            try {
-                // A. Load Folder Assets & Avatars ONLY for active project folder (v5.6 Optimization)
-                const targetFolderId = state.currentFolderId || (state.activeProjectId ? getCurrentProject()?.folderId : null);
-                
-                if (targetFolderId) {
-                    console.log(`⚡ [SYNC] Loading heavy data for folder: ${targetFolderId}`);
-                    const { data: heavyFolders } = await cloudDB.from('folders')
-                        .select('id, assets, avatar')
-                        .eq('id', targetFolderId);
-                        
-                    if (heavyFolders && heavyFolders.length > 0) {
-                        const hf = heavyFolders[0];
-                        const f = state.folders.find(folder => String(folder.id) === String(hf.id));
-                        if (f) {
-                            if (f.assets === undefined && hf.assets) f.assets = hf.assets;
-                            if (f.avatar === undefined && hf.avatar) f.avatar = hf.avatar;
-                        }
-                        console.log("⚡ [SYNC] Active Folder Assets loaded.");
-                        if (state.activePage === 'account') renderAccountPage();
-                        renderFolderAssets(); 
-                    }
-                }
+        state.isSyncInProgress = false;
+        return true;
 
-                // B. Load Project Data for active folder projects
-                const folderProjectIds = state.projects.map(p => p.id);
-                if (folderProjectIds.length > 0) {
-                    // Load in chunks of 20 to avoid massive response sizes
-                    for (let i = 0; i < folderProjectIds.length; i += 20) {
-                        const chunk = folderProjectIds.slice(i, i + 20);
-                        const { data: heavyProjects } = await cloudDB.from('projects').select('id, data').in('id', chunk);
-                        if (heavyProjects) {
-                            heavyProjects.forEach(hp => {
-                                const pIdx = state.projects.findIndex(proj => String(proj.id) === String(hp.id));
-                                if (pIdx !== -1 && hp.data) {
-                                    state.projects[pIdx] = { ...state.projects[pIdx], ...hp.data };
-                                }
-                            });
-                        }
-                    }
-                    console.log("⚡ [SYNC] Background Project Data loaded.");
-                    renderProjects();
-                }
-            } catch (e) {
-                console.warn("⚠️ [Sync Shield]: Background heavy load partially failed:", e);
-            }
-        }, 1000);
-
-
-        logStatus("✅ Облачная синхронизация завершена.", "success");
-        
-        // v1.4: Pre-fetch missing images for active project if any
-        if (state.activeProjectId) {
-            const project = getCurrentProject();
-            if (project && project.results) {
-                for (const res of project.results) {
-                    getImageFromDB(res.id).catch(() => {}); // This triggers the fallback/cache logic
-                }
-            }
-        }
     } catch (err) {
-        console.error("Cloud Load Failed:", err);
+        console.error("Supabase Load Error:", err);
+        
+        // Handle 504/Timeout with Retries
+        const isTimeout = err.message?.includes("timeout") || err.status === 504 || err.code === 'PGRST504';
+        
+        if (isTimeout && retryCount < 3) {
+            const delay = Math.pow(2, retryCount) * 1000;
+            logStatus(`⚠️ Таймаут базы данных. Повтор через ${delay/1000} сек...`, "info");
+            await new Promise(r => setTimeout(r, delay));
+            return await attemptLoad(retryCount + 1);
+        }
+
         const dot = document.getElementById('sync-status-dot');
         const cDot = document.getElementById('cloud-status-indicator');
-        const cText = document.getElementById('cloud-status-text');
         const cError = document.getElementById('cloud-error-box');
 
-        if (dot) dot.style.background = '#ef4444'; // Red
+        if (dot) dot.style.background = '#ef4444';
         if (cDot) cDot.style.background = '#ef4444';
-        if (cText) cText.innerText = 'Ошибка подключения';
         
-        // Show detailed error message to help the user debug
-        const errorMsg = err.message || (err.error ? err.error.message : "Неизвестная ошибка");
+        const errorMsg = err.message || "Ошибка соединения с облаком";
         if (cError) cError.innerText = errorMsg;
+        
+        logStatus("❌ Ошибка синхронизации: " + errorMsg, "error");
         state.isSyncInProgress = false;
-        logStatus("⚠️ Ошибка синхронизации: " + errorMsg, "error");
+        return false;
     }
+    }
+
+    return await attemptLoad();
 }
 
 // --- BATCH GENERATION ---
