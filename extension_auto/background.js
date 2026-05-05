@@ -219,9 +219,10 @@ async function executeSplitCycle(scriptText, customPrefix) {
 }
 
 async function executeGrokCycle(promptText, assets, assetIds) {
-... (keep existing functions) ...
     if (isRunningGrokCycle) return;
     isRunningGrokCycle = true;
+    // Immediately acknowledge to Studio so watchdog doesn't time out
+    relayToStudio({ type: "ANIMTUBE_STATUS", text: "🎬 Grok цикл запущен..." });
     try {
         const sleep = (ms) => new Promise(r => setTimeout(r, ms));
         const report = (msg) => relayToStudio({ type: "ANIMTUBE_STATUS", text: msg });

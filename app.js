@@ -65,6 +65,7 @@ const WHITELIST = [
 	{ login: "Alexander Evie", pass: "0gX1t39fZMA2HY7", code: "984377574594", role: "partner", ip: "185.113.136.128" }, // Example partner
 	{ login: "Alexander George", pass: "k8ocT1wRnkhMQij", code: "681523913214", role: "partner", ip: "91.132.162.219" }, // Example partner
 	{ login: "Alya", pass: "JAh92C36h3MkiMk", code: "805344411736", role: "partner", ip: "*" }, // Example partner
+    { login: "Alya Time", pass: "12345", code: "123456", role: "partner", ip: "*" }, // Limited partner
     { login: "Alexey", pass: "JAh92C36h3MkiMk", code: "255681851403", role: "partner", ip: "127.0.0.1" }, // Example partner
     { login: "Andrey", pass: "sbduB1HtwgQeFav", code: "743088149512", role: "manager", ip: "130.49.89.192" } // Test Manager
 ];
@@ -317,7 +318,12 @@ function applySecurityUI() {
     
     renderSidebarProfile();
     
-    document.getElementById('partner-hud').style.display = 'none';
+    if (authState.user.login === "Alya Time") {
+        document.getElementById('partner-hud').style.display = 'flex';
+        startPartnerTimer();
+    } else {
+        document.getElementById('partner-hud').style.display = 'none';
+    }
 }
 
 function renderSidebarProfile() {
@@ -344,13 +350,15 @@ function renderSidebarProfile() {
 }
 
 function startPartnerTimer() {
-    return; // Time limit removed per user request
+    if (!authState || !authState.user || authState.user.login !== "Alya Time") {
+        return; // Only Alya Time has a time limit
+    }
     
     const today = new Date().toLocaleDateString();
     let usage = JSON.parse(localStorage.getItem('animtube_usage') || '{}');
     if (!usage[today]) usage[today] = 0; // seconds
 
-    const MAX_SECONDS = 3 * 60 * 60; // 3 hours
+    const MAX_SECONDS = 120 * 60; // 120 hours limit - wait, 120 minutes limit!
 
     const timerInterval = setInterval(() => {
         // Check if day changed while using
@@ -368,7 +376,7 @@ function startPartnerTimer() {
 
         if (remaining <= 0) {
             clearInterval(timerInterval);
-            alert("⏰ Ваше время на сегодня закончилось (3 часа). Доступ заблокирован.");
+            alert("⏰ Ваше время на сегодня закончилось (120 минут). Доступ заблокирован.");
             logout();
         }
     }, 1000);
@@ -4415,14 +4423,14 @@ async function processNextAnimation() {
     const base64 = await getImageFromDB(item.resultId);
     console.log("✅ [DEBUG] Изображение загружено, размер:", base64 ? base64.length : 0);
     
-    // Connection watchdog
+    // Connection watchdog (20s — enough time for Grok page redirect ~6s + load)
     let bridgeResponded = false;
     const watchdog = setTimeout(() => {
         if (!bridgeResponded) {
-            logStatus("⚠️ Ошибка: Расширение не ответило! Проверьте, обновлена ли эта страница (F5) и включено ли расширение.", "error");
+            logStatus("⚠️ Ошибка: Расширение не ответило за 20 сек! Проверьте, обновлена ли эта страница (F5) и включено ли расширение.", "error");
             stopAnimationAssembly(true);
         }
-    }, 3000);
+    }, 20000);
 
     // One-time listener to disable watchdog
     const listener = (event) => {
