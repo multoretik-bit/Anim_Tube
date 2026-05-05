@@ -720,10 +720,12 @@ function setupGlobalListeners() {
 
         // 9. GROK ANIMATION DOWNLOADED SIGNAL
         if (event.data.type === "FROM_GROK_DONE" || event.data.type === "FROM_GROK_AUTO_DONE") {
-            // Guard against double processing if both extensions are active
-            if (state.animAssembly.lastProcessedIndex === state.animAssembly.currentIdx) return;
-            state.animAssembly.lastProcessedIndex = state.animAssembly.currentIdx;
-            
+            // Guard: both extensions relay this signal — block duplicates with a time-lock
+            if (window._grokDoneLock) {
+                console.log("🔒 [GrokDone] Duplicate signal blocked.");
+                return;
+            }
+            window._grokDoneLock = true;
             if (window.handleGrokDone) window.handleGrokDone();
         }
     });
@@ -4460,13 +4462,23 @@ async function handleIncomingAnimation(base64) {
     console.log("Legacy handler called, ignored");
 }
 
+window._grokDoneLock = false;
+
 window.handleGrokDone = async () => {
     const targetId = state.animAssembly.isRunning ? state.animAssembly.lockedProjectId : state.activeProjectId;
     const project = state.projects.find(p => p.id == targetId);
-    if (!project) return;
+    if (!project) {
+        console.error("[GrokDone] Project not found! targetId:", targetId);
+        window._grokDoneLock = false;
+        return;
+    }
     
     const currentItem = state.animAssembly.queue[state.animAssembly.currentIdx];
-    if (!currentItem) return;
+    if (!currentItem) {
+        console.error("[GrokDone] No item at currentIdx:", state.animAssembly.currentIdx);
+        window._grokDoneLock = false;
+        return;
+    }
     
     // Update the specific prompt status (1-to-1 sync)
     const originalPrompt = project.promptsList[currentItem.index];
@@ -4475,7 +4487,7 @@ window.handleGrokDone = async () => {
     }
     
     // Also cross-link with results library for UI consistency
-    const resultFrame = project.results.find(r => r.id == currentItem.resultId);
+    const resultFrame = project.results?.find(r => r.id == currentItem.resultId);
     if (resultFrame) {
         resultFrame.isGrokDone = true;
     }
@@ -4484,13 +4496,15 @@ window.handleGrokDone = async () => {
     logStatus(`🎉 Анимация кадра #${currentItem.index + 1} успешно скачана!`, "success");
     
     state.animAssembly.currentIdx++;
-    // Reset the duplicate-guard so the NEXT frame's signal can pass through
-    state.animAssembly.lastProcessedIndex = -1;
     renderProjectAnimation();
     
     if (state.animAssembly.isRunning) {
         logStatus("⏳ Пауза 5 сек перед следующим кадром...", "info");
+        // Release the lock after 3s — long enough to block any late duplicate signal
+        setTimeout(() => { window._grokDoneLock = false; }, 3000);
         setTimeout(processNextAnimation, 5000);
+    } else {
+        window._grokDoneLock = false;
     }
 };
 
