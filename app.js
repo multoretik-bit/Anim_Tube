@@ -4484,6 +4484,8 @@ window.handleGrokDone = async () => {
     logStatus(`🎉 Анимация кадра #${currentItem.index + 1} успешно скачана!`, "success");
     
     state.animAssembly.currentIdx++;
+    // Reset the duplicate-guard so the NEXT frame's signal can pass through
+    state.animAssembly.lastProcessedIndex = -1;
     renderProjectAnimation();
     
     if (state.animAssembly.isRunning) {
