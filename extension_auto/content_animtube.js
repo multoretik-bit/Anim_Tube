@@ -26,13 +26,16 @@ window.addEventListener("message", (event) => {
         internalMsg.image = event.data.image || null;
     }
     else if (event.data.type.includes("TO_CHATGPT")) internalMsg.type = "TO_CHATGPT";
-    else if (event.data.type.includes("TO_GROK")) internalMsg.type = "TO_GROK";
+    else if (event.data.type === "ANIMTUBE_GROK_AUTO_COMMAND") {
+        internalMsg.type = "TO_GROK";
+        internalMsg.msgId = event.data.msgId;
+    }
     else if (event.data.type.includes("_CMD_SCRIPT")) internalMsg.type = "ANIMTUBE_CMD_SCRIPT";
     else if (event.data.type.includes("_CMD_SPLIT")) internalMsg.type = "ANIMTUBE_CMD_SPLIT";
     else if (event.data.type.includes("ANIMTUBE_AUTO_CMD")) internalMsg.type = "TO_GEMINI"; 
 
     if (internalMsg.type) {
-        console.log("✈️ [BRIDGE] Forwarding AUTO to Background:", internalMsg.type);
+        console.log("✈️ [BRIDGE] Forwarding AUTO to Background:", internalMsg.type, internalMsg.msgId || "");
         chrome.runtime.sendMessage(internalMsg);
     }
 });

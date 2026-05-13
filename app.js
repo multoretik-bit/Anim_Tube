@@ -4444,7 +4444,8 @@ async function processNextAnimation() {
     window.addEventListener("message", listener);
 
     sendToBridge({
-        type: "AUTO_TO_GROK", // Custom command for extension
+        type: "ANIMTUBE_GROK_AUTO_COMMAND", // Unique type to avoid conflicts
+        msgId: Date.now() + "-" + Math.random(), // Unique ID for deduplication
         prompt: fullPrompt,
         assets: [base64], // Send the actual base64 to be pasted
         assetIds: [`anim-frame-${item.index}`] // ID for visual copy trigger

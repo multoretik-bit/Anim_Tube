@@ -1,5 +1,6 @@
 let isLiteralCycleRunning = false;
 let isRunningGrokCycle = false;
+let processedMsgIds = new Set(); // Cache for deduplication
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     console.log("📥 [BACKGROUND] Received message:", request.type);
@@ -11,6 +12,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     } else if (request.type === "FEEDBACK_TO_GEMINI") {
         executeFeedbackCycle(request.image);
     } else if (request.type === "TO_GROK") {
+        if (request.msgId && processedMsgIds.has(request.msgId)) {
+            console.warn("⚠️ [BACKGROUND] Duplicate Grok message ignored:", request.msgId);
+            return;
+        }
+        if (request.msgId) {
+            processedMsgIds.add(request.msgId);
+            setTimeout(() => processedMsgIds.delete(request.msgId), 30000); // Clear after 30s
+        }
         console.log("🎬 [BACKGROUND] Starting executeGrokCycle...");
         executeGrokCycle(request.prompt, request.assets, request.assetIds);
     } else if (request.type === "ANIMTUBE_STATUS") {
