@@ -4324,6 +4324,10 @@ window.toggleAnimDone = (index, isDone) => {
 
 // --- GROK ANIMATION ORCHESTRATION ---
 async function _startAnimationAssembly() {
+    if (state.animAssembly.isRunning) {
+        console.warn("⚠️ [DEBUG] Animation assembly is already running. Ignoring duplicate start.");
+        return;
+    }
     console.log("🚀 [START_ANIM] Функция _startAnimationAssembly вызвана!");
     const project = getCurrentProject();
     if (!project || !project.promptsList || project.promptsList.length === 0) {

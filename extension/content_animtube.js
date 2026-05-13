@@ -7,50 +7,61 @@ window.addEventListener("message", (event) => {
     // Legacy extension version ONLY handles specific non-AUTO commands
     if (event.data.type.includes("AUTO")) return;
 
-    // Cross-extension deduplication check: if another extension already claimed this msgId, skip.
-    if (event.data.msgId && sessionStorage.getItem('animtube_msg_lock_' + event.data.msgId)) {
+    // Cross-extension deduplication check
+    if (event.data.msgId) {
+        // Add a tiny random delay to prevent race conditions when multiple extensions check at once
+        const delay = Math.floor(Math.random() * 30);
+        setTimeout(() => {
+            if (sessionStorage.getItem('animtube_msg_lock_' + event.data.msgId)) {
+                return;
+            }
+            // Claim immediately
+            sessionStorage.setItem('animtube_msg_lock_' + event.data.msgId, 'true');
+            setTimeout(() => sessionStorage.removeItem('animtube_msg_lock_' + event.data.msgId), 60000);
+            
+            processMessage(event.data);
+        }, delay);
         return;
     }
+    
+    processMessage(event.data);
+});
 
+function processMessage(data) {
     let internalMsg = null;
 
-    if (event.data.type === "ANIMTUBE_CMD") {
+    if (data.type === "ANIMTUBE_CMD") {
         internalMsg = {
             type: "TO_GEMINI",
-            msgId: event.data.msgId,
-            prompt: event.data.prompt || "",
-            assets: event.data.assets || [],
-            assetIds: event.data.assetIds || []
+            msgId: data.msgId,
+            prompt: data.prompt || "",
+            assets: data.assets || [],
+            assetIds: data.assetIds || []
         };
     }
     
-    if (event.data.type === "ANIMTUBE_CMD_SCRIPT") {
+    if (data.type === "ANIMTUBE_CMD_SCRIPT") {
         internalMsg = {
             type: "ANIMTUBE_CMD_SCRIPT",
-            msgId: event.data.msgId,
-            prefix: event.data.prefix || ""
+            msgId: data.msgId,
+            prefix: data.prefix || ""
         };
     }
 
-    if (event.data.type === "ANIMTUBE_CMD_SPLIT") {
+    if (data.type === "ANIMTUBE_CMD_SPLIT") {
         internalMsg = {
             type: "ANIMTUBE_CMD_SPLIT",
-            msgId: event.data.msgId,
-            script: event.data.script || "",
-            prefix: event.data.prefix || ""
+            msgId: data.msgId,
+            script: data.script || "",
+            prefix: data.prefix || ""
         };
     }
 
     if (internalMsg) {
-        // Claim the message
-        if (event.data.msgId) {
-            sessionStorage.setItem('animtube_msg_lock_' + event.data.msgId, 'true');
-            setTimeout(() => sessionStorage.removeItem('animtube_msg_lock_' + event.data.msgId), 60000);
-        }
         console.log("✈️ [BRIDGE] Forwarding to Background (Legacy):", internalMsg.type);
         chrome.runtime.sendMessage(internalMsg);
     }
-});
+}
 
 // 2. Background -> Studio (Image Arrival & Auto-Paste Signals)
 chrome.runtime.onMessage.addListener((msg) => {
