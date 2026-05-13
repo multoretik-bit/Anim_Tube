@@ -4,7 +4,18 @@ window.addEventListener("message", (event) => {
     if (!event.data || !event.data.type) return;
     
     // Auto extension version handles AUTO commands, Grok commands, and Script/Split commands
-    if (!event.data.type.includes("AUTO") && !event.data.type.includes("TO_GROK") && !event.data.type.includes("CMD_SCRIPT") && !event.data.type.includes("CMD_SPLIT")) return;
+    if (!event.data.type.includes("AUTO") && !event.data.type.includes("TO_GROK") && !event.data.type.includes("ANIMTUBE_GROK_AUTO_COMMAND") && !event.data.type.includes("CMD_SCRIPT") && !event.data.type.includes("CMD_SPLIT")) return;
+
+    // Cross-extension deduplication using sessionStorage
+    if (event.data.msgId) {
+        if (sessionStorage.getItem('animtube_msg_lock_' + event.data.msgId)) {
+            console.log("🛰️ [BRIDGE] Duplicate message detected via session lock, ignoring:", event.data.msgId);
+            return;
+        }
+        sessionStorage.setItem('animtube_msg_lock_' + event.data.msgId, 'true');
+        // Clean up old locks periodically (optional, but good practice)
+        setTimeout(() => sessionStorage.removeItem('animtube_msg_lock_' + event.data.msgId), 60000);
+    }
     
     console.log("🛰️ [BRIDGE] Received AUTO message in Content Script:", event.data.type);
 
