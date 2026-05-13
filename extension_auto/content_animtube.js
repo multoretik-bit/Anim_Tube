@@ -6,15 +6,11 @@ window.addEventListener("message", (event) => {
     // Auto extension version handles AUTO commands, Grok commands, and Script/Split commands
     if (!event.data.type.includes("AUTO") && !event.data.type.includes("TO_GROK") && !event.data.type.includes("ANIMTUBE_GROK_AUTO_COMMAND") && !event.data.type.includes("CMD_SCRIPT") && !event.data.type.includes("CMD_SPLIT")) return;
 
-    // Cross-extension deduplication using sessionStorage
+    // Cross-extension deduplication using sessionStorage (only for types we handle)
     if (event.data.msgId) {
         if (sessionStorage.getItem('animtube_msg_lock_' + event.data.msgId)) {
-            console.log("🛰️ [BRIDGE] Duplicate message detected via session lock, ignoring:", event.data.msgId);
             return;
         }
-        sessionStorage.setItem('animtube_msg_lock_' + event.data.msgId, 'true');
-        // Clean up old locks periodically (optional, but good practice)
-        setTimeout(() => sessionStorage.removeItem('animtube_msg_lock_' + event.data.msgId), 60000);
     }
     
     console.log("🛰️ [BRIDGE] Received AUTO message in Content Script:", event.data.type);
@@ -24,7 +20,8 @@ window.addEventListener("message", (event) => {
         assets: event.data.assets || [],
         assetIds: event.data.assetIds || [],
         prefix: event.data.prefix || "",
-        script: event.data.script || ""
+        script: event.data.script || "",
+        msgId: event.data.msgId // Pass through the ID
     };
 
     if (event.data.type.includes("TO_GEMINI")) {
@@ -46,6 +43,11 @@ window.addEventListener("message", (event) => {
     else if (event.data.type.includes("ANIMTUBE_AUTO_CMD")) internalMsg.type = "TO_GEMINI"; 
 
     if (internalMsg.type) {
+        // Final lock set just before sending
+        if (event.data.msgId) {
+            sessionStorage.setItem('animtube_msg_lock_' + event.data.msgId, 'true');
+            setTimeout(() => sessionStorage.removeItem('animtube_msg_lock_' + event.data.msgId), 60000);
+        }
         console.log("✈️ [BRIDGE] Forwarding AUTO to Background:", internalMsg.type, internalMsg.msgId || "");
         chrome.runtime.sendMessage(internalMsg);
     }

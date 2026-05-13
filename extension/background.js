@@ -1,5 +1,11 @@
 // AnimTube Bridge v1.1 - BULK & DELETE Support
+const processedMsgIds = new Set();
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.msgId) {
+        if (processedMsgIds.has(request.msgId)) return;
+        processedMsgIds.add(request.msgId);
+        setTimeout(() => processedMsgIds.delete(request.msgId), 60000);
+    }
     if (request.type === "TO_GEMINI") {
         executeLiteralCycle(request.prompt, request.assets, request.assetIds);
     } else if (request.type === "ANIMTUBE_CMD_SCRIPT") {

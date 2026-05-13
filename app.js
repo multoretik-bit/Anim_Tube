@@ -768,6 +768,7 @@ function startScriptGeneration(isAutomatic = false) {
         
         sendToBridge({ 
             type: "ANIMTUBE_CMD_SCRIPT", 
+            msgId: Date.now() + "-" + Math.random(),
             prefix: prefix 
         });
     }, 200);
@@ -1106,6 +1107,7 @@ function startScriptSplitting(scriptId) {
 
         sendToBridge({ 
             type: "ANIMTUBE_CMD_SPLIT", 
+            msgId: Date.now() + "-" + Math.random(),
             script: text,
             prefix: splitPrefix
         });
@@ -3668,6 +3670,7 @@ async function processNextItem() {
     
     sendToBridge({ 
         type: "TO_GEMINI", 
+        msgId: Date.now() + "-" + Math.random(),
         prompt: fullPrompt,
         assets: matchingAssets,
         assetIds: matchedIds,
