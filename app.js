@@ -4444,7 +4444,7 @@ async function processNextAnimation() {
     window.addEventListener("message", listener);
 
     sendToBridge({
-        type: "TO_GROK", // Custom command for extension
+        type: "AUTO_TO_GROK", // Custom command for extension
         prompt: fullPrompt,
         assets: [base64], // Send the actual base64 to be pasted
         assetIds: [`anim-frame-${item.index}`] // ID for visual copy trigger
