@@ -1873,7 +1873,6 @@ async function saveFolderSettings() {
             console.error("Save Folder Settings Error:", e);
             logStatus("❌ Ошибка облака: " + e.message, "error");
         }
-        }
     } else {
         console.error("Active folder not found for saving:", id);
         closeFolderSettings();
