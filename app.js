@@ -1873,11 +1873,83 @@ async function saveFolderSettings() {
             console.error("Save Folder Settings Error:", e);
             logStatus("❌ Ошибка облака: " + e.message, "error");
         }
+        }
     } else {
         console.error("Active folder not found for saving:", id);
         closeFolderSettings();
     }
 }
+
+// --- MONETIZATION PROGRESS MODAL ---
+let currentMonetizationFolderId = null;
+
+window.openMonetizationModal = function(id) {
+    const folder = state.folders.find(f => f.id == id);
+    if (!folder) return;
+    
+    currentMonetizationFolderId = id;
+    
+    // Set values
+    const subs = Number(folder.subscribers) || 0;
+    const hours = Number(folder.watchHours) || 0;
+    
+    const subsValEl = document.getElementById('mon-subs-val');
+    const hoursValEl = document.getElementById('mon-hours-val');
+    const subsBarEl = document.getElementById('mon-subs-bar');
+    const hoursBarEl = document.getElementById('mon-hours-bar');
+    const subsInputEl = document.getElementById('mon-subs-input');
+    const hoursInputEl = document.getElementById('mon-hours-input');
+    const viewsInputEl = document.getElementById('mon-views-input');
+    const revInputEl = document.getElementById('mon-rev-input');
+
+    if (subsValEl) subsValEl.innerText = subs.toLocaleString();
+    if (hoursValEl) hoursValEl.innerText = hours.toLocaleString();
+    
+    const subsPercent = Math.min(100, (subs / 1000) * 100);
+    const hoursPercent = Math.min(100, (hours / 4000) * 100);
+    
+    if (subsBarEl) subsBarEl.style.width = subsPercent + '%';
+    if (hoursBarEl) hoursBarEl.style.width = hoursPercent + '%';
+    
+    if (subsInputEl) subsInputEl.value = subs;
+    if (hoursInputEl) hoursInputEl.value = hours;
+    if (viewsInputEl) viewsInputEl.value = Number(folder.views) || 0;
+    if (revInputEl) revInputEl.value = Number(folder.revenue) || 0;
+    
+    const overlay = document.getElementById('monetization-overlay');
+    if (overlay) overlay.style.display = 'flex';
+};
+
+window.closeMonetizationModal = function() {
+    const overlay = document.getElementById('monetization-overlay');
+    if (overlay) overlay.style.display = 'none';
+    currentMonetizationFolderId = null;
+};
+
+window.saveMonetizationModal = async function() {
+    if (!currentMonetizationFolderId) return;
+    
+    const subsInput = document.getElementById('mon-subs-input').value;
+    const hoursInput = document.getElementById('mon-hours-input').value;
+    const viewsInput = document.getElementById('mon-views-input') ? document.getElementById('mon-views-input').value : 0;
+    const revInput = document.getElementById('mon-rev-input') ? document.getElementById('mon-rev-input').value : 0;
+    
+    const subs = Number(subsInput);
+    const hours = Number(hoursInput);
+    const views = Number(viewsInput);
+    const rev = Number(revInput);
+    
+    await updateChannelStats(currentMonetizationFolderId, {
+        subscribers: subs,
+        watchHours: hours,
+        views: views,
+        revenue: rev
+    });
+    
+    closeMonetizationModal();
+    renderAccountPage();
+    renderProjects();
+};
 
 // --- PROJECT MANAGEMENT ---
 function createNewProject() {
@@ -2014,7 +2086,13 @@ function renderAccountPage() {
                                 <div style="color: ${channelColor};">Подписчиков: ${Number(f.subscribers || 0).toLocaleString()}</div>
                                 ${user.role !== 'manager' ? (
                                     Number(f.revenue || 0) === 0 ? 
-                                    `<div style="color: #ef4444; font-size: 10px; font-weight: 800; line-height: 1.2;">ДО МОНЕТИЗАЦИИ<br><span style="color:var(--text-dim);">${Number(f.views || 0).toLocaleString()} часов и ${Number(f.subscribers || 0).toLocaleString()} сабов</span></div>`
+                                    `<div style="background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.2); border-radius:8px; padding:6px 10px; cursor:pointer; width:100%;" onclick="event.stopPropagation(); openMonetizationModal(${f.id})">
+                                        <div style="font-size:9px; font-weight:800; color:#fca5a5; margin-bottom:4px; text-transform:uppercase; line-height: 1;">До монетизации</div>
+                                        <div style="display:flex; gap:4px; width: 100%;">
+                                            <div style="height:4px; flex:1; background:rgba(255,255,255,0.1); border-radius:2px; overflow:hidden;" title="Подписчики: ${f.subscribers||0}/1000"><div style="height:100%; width:${Math.min(100, ((Number(f.subscribers)||0)/1000)*100)}%; background:#f472b6;"></div></div>
+                                            <div style="height:4px; flex:1; background:rgba(255,255,255,0.1); border-radius:2px; overflow:hidden;" title="Часы: ${f.watchHours||0}/4000"><div style="height:100%; width:${Math.min(100, ((Number(f.watchHours)||0)/4000)*100)}%; background:#a5b4fc;"></div></div>
+                                        </div>
+                                    </div>`
                                     : `<div style="color: #34d399;">Доход: $${Number(f.revenue || 0).toLocaleString()}</div>`
                                 ) : '<div style="color: #34d399; opacity: 0.3;">Доход: $***</div>'}
                             </div>
@@ -2114,7 +2192,7 @@ function renderAccountPage() {
                 <p style="color:var(--text-secondary); font-size:13px; margin-top:4px;">Назначьте каналы вашим сотрудникам для ведения.</p>
             </div>
 
-            <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap:32px;">
+            <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(430px, 1fr)); gap:32px;">
                 ${WHITELIST.map(u => {
                     const assigned = state.folders.filter(f => {
                         const users = (f.assignedTo || "").split(',').map(s => s.trim()).filter(Boolean);
@@ -2158,9 +2236,15 @@ function renderAccountPage() {
                                                     <div title="Подписчики (задаются в Supabase)" style="background:rgba(236,72,153,0.15); border:1px solid rgba(236,72,153,0.3); border-radius:8px; padding:3px 8px; font-size:11px; font-weight:700; color:#f472b6; white-space:nowrap; ${user.role==='owner'?'cursor:pointer;':''}" ${user.role==='owner'?`onclick="event.stopPropagation(); let v=prompt('Подписчики:', '${f.subscribers||0}'); if(v!==null) updateChannelStats(${f.id}, 'subscribers', v)"`:''}>👥 ${(Number(f.subscribers)||0).toLocaleString()}</div>
                                                     ${user.role !== 'manager' ? (
                                                         Number(f.revenue || 0) === 0 ?
-                                                        `<div title="До монетизации" style="background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); border-radius:8px; padding:3px 8px; font-size:11px; font-weight:700; color:#fca5a5; white-space:nowrap; ${user.role==='owner'?'cursor:pointer;':''}" ${user.role==='owner'?`onclick="event.stopPropagation(); let v=prompt('Доход:', '${f.revenue||0}'); if(v!==null) updateChannelStats(${f.id}, 'revenue', v)"`:''}>До монетизации: ${(Number(f.views)||0).toLocaleString()} часов и ${(Number(f.subscribers)||0).toLocaleString()} подписчиков</div>`
+                                                        `<div title="До монетизации" style="background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.2); border-radius:8px; padding:4px 8px; cursor:pointer;" onclick="event.stopPropagation(); openMonetizationModal(${f.id})">
+                                                            <div style="font-size:9px; font-weight:800; color:#fca5a5; margin-bottom:4px; text-transform:uppercase; line-height: 1;">До монетизации</div>
+                                                            <div style="display:flex; gap:4px; width: 60px;">
+                                                                <div style="height:4px; flex:1; background:rgba(255,255,255,0.1); border-radius:2px; overflow:hidden;" title="Подписчики: ${f.subscribers||0}/1000"><div style="height:100%; width:${Math.min(100, ((Number(f.subscribers)||0)/1000)*100)}%; background:#f472b6;"></div></div>
+                                                                <div style="height:4px; flex:1; background:rgba(255,255,255,0.1); border-radius:2px; overflow:hidden;" title="Часы: ${f.watchHours||0}/4000"><div style="height:100%; width:${Math.min(100, ((Number(f.watchHours)||0)/4000)*100)}%; background:#a5b4fc;"></div></div>
+                                                            </div>
+                                                        </div>`
                                                         :
-                                                        `<div title="Доход (задаётся в Supabase)" style="background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3); border-radius:8px; padding:3px 8px; font-size:11px; font-weight:700; color:#6ee7b7; white-space:nowrap; ${user.role==='owner'?'cursor:pointer;':''}" ${user.role==='owner'?`onclick="event.stopPropagation(); let v=prompt('Доход:', '${f.revenue||0}'); if(v!==null) updateChannelStats(${f.id}, 'revenue', v)"`:''}>$${(Number(f.revenue)||0).toLocaleString()}</div>`
+                                                        `<div title="Доход (задаётся в Supabase)" style="background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3); border-radius:8px; padding:3px 8px; font-size:11px; font-weight:700; color:#6ee7b7; white-space:nowrap; ${user.role==='owner'?'cursor:pointer;':''}" ${user.role==='owner'?`onclick="event.stopPropagation(); openMonetizationModal(${f.id})"`:''}>$${(Number(f.revenue)||0).toLocaleString()}</div>`
                                                     ) : ''}
                                                     ${user.role === 'owner' ? `<button class="btn-del-mini" onclick="event.stopPropagation(); unassignFolder(${f.id}, '${u.login}')" title="Отвязать канал" style="opacity:0.4; transition:opacity 0.2s; font-size: 18px; line-height: 1;" onmouseenter="this.style.opacity='1'; this.style.color='#ef4444'" onmouseleave="this.style.opacity='0.4'; this.style.color='white'">×</button>` : ''}
                                                 </div>
@@ -2213,7 +2297,7 @@ window.updateChannelStats = async function(folderId, fieldOrData, value) {
         Object.assign(folder, updateData);
     } else {
         const field = fieldOrData;
-        const numericValue = (field === 'views' || field === 'revenue') ? Number(value) : value;
+        const numericValue = (field === 'views' || field === 'revenue' || field === 'subscribers' || field === 'watchHours') ? Number(value) : value;
         folder[field] = numericValue;
         updateData[field] = numericValue;
         
@@ -2436,13 +2520,19 @@ function renderProjects() {
                         <h2 style="font-size: 28px; font-weight: 900; margin-bottom: 2px;">${f.name}</h2>
                         <div style="color:${channelColor}; font-weight:800; text-transform:uppercase; letter-spacing:1.5px; font-size:11px; margin-bottom:10px;">${f.niche || 'Общая ниша'}</div>
                         <div style="display:flex; align-items:center; gap:15px; margin-bottom:5px;">
-                             <div title="Просмотры" style="background:rgba(99,102,241,0.1); border:1px solid rgba(99,102,241,0.2); border-radius:8px; padding:4px 10px; font-size:12px; font-weight:800; color:#a5b4fc; ${authState.user.role==='owner'?'cursor:pointer;':''}" ${authState.user.role==='owner'?`onclick="event.stopPropagation(); let v=prompt('Просмотры:', '${f.views||0}'); if(v!==null) updateChannelStats(${f.id}, 'views', v)"`:''}>👁 ${(Number(f.views)||0).toLocaleString()}</div>
-                             <div title="Подписчики" style="background:rgba(236,72,153,0.1); border:1px solid rgba(236,72,153,0.2); border-radius:8px; padding:4px 10px; font-size:12px; font-weight:800; color:#f472b6; ${authState.user.role==='owner'?'cursor:pointer;':''}" ${authState.user.role==='owner'?`onclick="event.stopPropagation(); let v=prompt('Подписчики:', '${f.subscribers||0}'); if(v!==null) updateChannelStats(${f.id}, 'subscribers', v)"`:''}>👥 ${(Number(f.subscribers)||0).toLocaleString()}</div>
+                             <div title="Просмотры" style="background:rgba(99,102,241,0.1); border:1px solid rgba(99,102,241,0.2); border-radius:8px; padding:4px 10px; font-size:12px; font-weight:800; color:#a5b4fc; ${authState.user.role==='owner'?'cursor:pointer;':''}" ${authState.user.role==='owner'?`onclick="event.stopPropagation(); openMonetizationModal(${f.id})"`:''}>👁 ${(Number(f.views)||0).toLocaleString()}</div>
+                             <div title="Подписчики" style="background:rgba(236,72,153,0.1); border:1px solid rgba(236,72,153,0.2); border-radius:8px; padding:4px 10px; font-size:12px; font-weight:800; color:#f472b6; ${authState.user.role==='owner'?'cursor:pointer;':''}" ${authState.user.role==='owner'?`onclick="event.stopPropagation(); openMonetizationModal(${f.id})"`:''}>👥 ${(Number(f.subscribers)||0).toLocaleString()}</div>
                              ${authState.user.role !== 'manager' ? (
                                  Number(f.revenue || 0) === 0 ?
-                                 `<div title="До монетизации" style="background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.2); border-radius:8px; padding:4px 10px; font-size:12px; font-weight:800; color:#fca5a5; ${authState.user.role==='owner'?'cursor:pointer;':''}" ${authState.user.role==='owner'?`onclick="event.stopPropagation(); let v=prompt('Доход:', '${f.revenue||0}'); if(v!==null) updateChannelStats(${f.id}, 'revenue', v)"`:''}>До монетизации: ${(Number(f.views)||0).toLocaleString()} часов и ${(Number(f.subscribers)||0).toLocaleString()} подписчиков</div>`
+                                 `<div title="До монетизации" style="background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.2); border-radius:8px; padding:4px 8px; cursor:pointer;" onclick="event.stopPropagation(); openMonetizationModal(${f.id})">
+                                     <div style="font-size:9px; font-weight:800; color:#fca5a5; margin-bottom:4px; text-transform:uppercase; line-height: 1;">До монетизации</div>
+                                     <div style="display:flex; gap:4px; width: 60px;">
+                                         <div style="height:4px; flex:1; background:rgba(255,255,255,0.1); border-radius:2px; overflow:hidden;" title="Подписчики: ${f.subscribers||0}/1000"><div style="height:100%; width:${Math.min(100, ((Number(f.subscribers)||0)/1000)*100)}%; background:#f472b6;"></div></div>
+                                         <div style="height:4px; flex:1; background:rgba(255,255,255,0.1); border-radius:2px; overflow:hidden;" title="Часы: ${f.watchHours||0}/4000"><div style="height:100%; width:${Math.min(100, ((Number(f.watchHours)||0)/4000)*100)}%; background:#a5b4fc;"></div></div>
+                                     </div>
+                                 </div>`
                                  :
-                                 `<div title="Доход" style="background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.2); border-radius:8px; padding:4px 10px; font-size:12px; font-weight:800; color:#6ee7b7; ${authState.user.role==='owner'?'cursor:pointer;':''}" ${authState.user.role==='owner'?`onclick="event.stopPropagation(); let v=prompt('Доход:', '${f.revenue||0}'); if(v!==null) updateChannelStats(${f.id}, 'revenue', v)"`:''}>$${(Number(f.revenue)||0).toLocaleString()}</div>`
+                                 `<div title="Доход" style="background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.2); border-radius:8px; padding:4px 10px; font-size:12px; font-weight:800; color:#6ee7b7; ${authState.user.role==='owner'?'cursor:pointer;':''}" ${authState.user.role==='owner'?`onclick="event.stopPropagation(); openMonetizationModal(${f.id})"`:''}>$${(Number(f.revenue)||0).toLocaleString()}</div>`
                              ) : ''}
                         </div>
                         <p style="color: var(--text-secondary); font-size: 13px;">${projectCount} активных проектов • Ведущий: ${leading}</p>

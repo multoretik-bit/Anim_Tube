@@ -611,6 +611,52 @@
         </div>
     </div>
 
+    <!-- MODAL: Monetization Progress -->
+    <div id="monetization-overlay" class="modal-overlay">
+        <div class="modal" style="width: 450px;">
+            <div style="font-size: 40px; margin-bottom: 20px;">📈</div>
+            <h2 style="margin-bottom: 12px;">СТАТИСТИКА КАНАЛА</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 24px; font-size: 14px;">Отслеживание прогресса до монетизации и управление статистикой.</p>
+            
+            <div style="text-align: left; margin-bottom: 20px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                    <span style="font-size: 12px; font-weight: 800; color: #f472b6;">ПОДПИСЧИКИ</span>
+                    <span style="font-size: 12px; font-weight: 800; color: white;"><span id="mon-subs-val">0</span> / 1000</span>
+                </div>
+                <div style="height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; margin-bottom: 10px;">
+                    <div id="mon-subs-bar" style="height: 100%; width: 0%; background: #f472b6; transition: width 0.3s;"></div>
+                </div>
+                <input type="number" id="mon-subs-input" placeholder="Кол-во подписчиков" style="width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--border-glass); border-radius: 8px; padding: 10px; color: white; font-size: 13px;" class="role-owner-only">
+            </div>
+
+            <div style="text-align: left; margin-bottom: 20px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                    <span style="font-size: 12px; font-weight: 800; color: #a5b4fc;">ЧАСЫ ПРОСМОТРОВ</span>
+                    <span style="font-size: 12px; font-weight: 800; color: white;"><span id="mon-hours-val">0</span> / 4000</span>
+                </div>
+                <div style="height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; margin-bottom: 10px;">
+                    <div id="mon-hours-bar" style="height: 100%; width: 0%; background: #a5b4fc; transition: width 0.3s;"></div>
+                </div>
+                <input type="number" id="mon-hours-input" placeholder="Кол-во часов" style="width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--border-glass); border-radius: 8px; padding: 10px; color: white; font-size: 13px;" class="role-owner-only">
+            </div>
+
+            <div style="display: flex; gap: 15px; margin-bottom: 24px;" class="role-owner-only">
+                <div style="flex: 1; text-align: left;">
+                    <label style="display: block; font-size: 11px; font-weight: 800; color: var(--accent-primary); margin-bottom: 8px; text-transform: uppercase;">ОБЩИЕ ПРОСМОТРЫ</label>
+                    <input type="number" id="mon-views-input" placeholder="Просмотры" style="width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--border-glass); border-radius: 8px; padding: 10px; color: white; font-size: 13px;">
+                </div>
+                <div style="flex: 1; text-align: left;">
+                    <label style="display: block; font-size: 11px; font-weight: 800; color: #34d399; margin-bottom: 8px; text-transform: uppercase;">ДОХОД ($)</label>
+                    <input type="number" id="mon-rev-input" placeholder="0 = До монетизации" style="width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--border-glass); border-radius: 8px; padding: 10px; color: white; font-size: 13px;">
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 12px;">
+                <button class="btn btn-secondary" style="flex: 1;" onclick="closeMonetizationModal()">ЗАКРЫТЬ</button>
+                <button class="btn btn-primary role-owner-only" style="flex: 1;" onclick="saveMonetizationModal()">СОХРАНИТЬ</button>
+            </div>
+        </div>
+    </div>
 
     <!-- SUPABASE CLIENT -->
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
