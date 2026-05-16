@@ -1936,8 +1936,10 @@ function renderAccountPage() {
 
     // Update labels to be explicit about what is being counted
     const viewsLabel = document.getElementById('stats-label-views');
+    const subsLabel = document.getElementById('stats-label-subscribers');
     const revLabel = document.getElementById('stats-label-revenue');
     if (viewsLabel) viewsLabel.innerText = isOwner ? 'Личные каналы (без партнёров)' : (user.role === 'manager' ? 'Просмотры по всем каналам' : 'Ваши назначенные каналы');
+    if (subsLabel) subsLabel.innerText = isOwner ? 'Личные каналы (без партнёров)' : (user.role === 'manager' ? 'Подписчики по всем каналам' : 'Ваши назначенные каналы');
     if (revLabel) revLabel.innerText = isOwner ? 'Личные каналы (без партнёров)' : (user.role === 'manager' ? 'Доход (Скрыто)' : 'Ваши назначенные каналы');
 
     const totalProjects = myFolders.reduce((acc, f) =>
@@ -2009,7 +2011,12 @@ function renderAccountPage() {
                         <div class="card-footer">
                             <div class="card-stats">
                                 <div style="color: ${channelColor};">Просмотров: ${Number(f.views || 0).toLocaleString()}</div>
-                                ${user.role !== 'manager' ? `<div style="color: #34d399;">Доход: $${Number(f.revenue || 0).toLocaleString()}</div>` : '<div style="color: #34d399; opacity: 0.3;">Доход: $***</div>'}
+                                <div style="color: ${channelColor};">Подписчиков: ${Number(f.subscribers || 0).toLocaleString()}</div>
+                                ${user.role !== 'manager' ? (
+                                    Number(f.revenue || 0) === 0 ? 
+                                    `<div style="color: #ef4444; font-size: 10px; font-weight: 800; line-height: 1.2;">ДО МОНЕТИЗАЦИИ<br><span style="color:var(--text-dim);">${Number(f.views || 0).toLocaleString()} часов и ${Number(f.subscribers || 0).toLocaleString()} сабов</span></div>`
+                                    : `<div style="color: #34d399;">Доход: $${Number(f.revenue || 0).toLocaleString()}</div>`
+                                ) : '<div style="color: #34d399; opacity: 0.3;">Доход: $***</div>'}
                             </div>
                             <button class="btn-open-project" onclick="openFolder(${f.id}); showPage('videos')" style="background: linear-gradient(90deg, #7f1d1d, ${channelColor});">Открыть →</button>
                         </div>
@@ -2021,18 +2028,22 @@ function renderAccountPage() {
 
     // 1. Calculate totals for current user's network
     let totalViews = 0;
+    let totalSubscribers = 0;
     let totalRevenue = 0;
     statsFolders.forEach(f => {
         totalViews += Number(f.views) || 0;
+        totalSubscribers += Number(f.subscribers) || 0;
         totalRevenue += Number(f.revenue) || 0;
     });
 
     // Update global dashboard stats
     const dashViews = document.getElementById('dashboard-views');
+    const dashSubs = document.getElementById('dashboard-subscribers');
     const dashRev = document.getElementById('dashboard-revenue');
     
     // Test Manager: no income/views totals for self
     const displayViews = user.role === 'manager' ? 0 : totalViews;
+    const displaySubs = user.role === 'manager' ? 0 : totalSubscribers;
     const displayRevenue = user.role === 'manager' ? 0 : totalRevenue;
 
     if (dashViews) {
@@ -2042,6 +2053,15 @@ function renderAccountPage() {
             dashViews.innerText = (displayViews / 1000).toFixed(1) + ' тыс';
         } else {
             dashViews.innerText = displayViews;
+        }
+    }
+    if (dashSubs) {
+        if (displaySubs >= 1000000) {
+            dashSubs.innerText = (displaySubs / 1000000).toFixed(2) + ' млн';
+        } else if (displaySubs >= 1000) {
+            dashSubs.innerText = (displaySubs / 1000).toFixed(1) + ' тыс';
+        } else {
+            dashSubs.innerText = displaySubs;
         }
     }
     if (dashRev) {
@@ -2134,8 +2154,14 @@ function renderAccountPage() {
                                                     <span style="font-size:14px; font-weight:700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100px;">${f.name}</span>
                                                 </div>
                                                 <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
-                                                    <div title="Просмотры (задаются в Supabase)" style="background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.3); border-radius:8px; padding:3px 8px; font-size:11px; font-weight:700; color:#a5b4fc; white-space:nowrap;">👁 ${(Number(f.views)||0).toLocaleString()}</div>
-                                                    ${user.role !== 'manager' ? `<div title="Доход (задаётся в Supabase)" style="background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3); border-radius:8px; padding:3px 8px; font-size:11px; font-weight:700; color:#6ee7b7; white-space:nowrap;">$${(Number(f.revenue)||0).toLocaleString()}</div>` : ''}
+                                                    <div title="Просмотры (задаются в Supabase)" style="background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.3); border-radius:8px; padding:3px 8px; font-size:11px; font-weight:700; color:#a5b4fc; white-space:nowrap; ${user.role==='owner'?'cursor:pointer;':''}" ${user.role==='owner'?`onclick="event.stopPropagation(); let v=prompt('Просмотры:', '${f.views||0}'); if(v!==null) updateChannelStats(${f.id}, 'views', v)"`:''}>👁 ${(Number(f.views)||0).toLocaleString()}</div>
+                                                    <div title="Подписчики (задаются в Supabase)" style="background:rgba(236,72,153,0.15); border:1px solid rgba(236,72,153,0.3); border-radius:8px; padding:3px 8px; font-size:11px; font-weight:700; color:#f472b6; white-space:nowrap; ${user.role==='owner'?'cursor:pointer;':''}" ${user.role==='owner'?`onclick="event.stopPropagation(); let v=prompt('Подписчики:', '${f.subscribers||0}'); if(v!==null) updateChannelStats(${f.id}, 'subscribers', v)"`:''}>👥 ${(Number(f.subscribers)||0).toLocaleString()}</div>
+                                                    ${user.role !== 'manager' ? (
+                                                        Number(f.revenue || 0) === 0 ?
+                                                        `<div title="До монетизации" style="background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); border-radius:8px; padding:3px 8px; font-size:11px; font-weight:700; color:#fca5a5; white-space:nowrap; ${user.role==='owner'?'cursor:pointer;':''}" ${user.role==='owner'?`onclick="event.stopPropagation(); let v=prompt('Доход:', '${f.revenue||0}'); if(v!==null) updateChannelStats(${f.id}, 'revenue', v)"`:''}>До монетизации: ${(Number(f.views)||0).toLocaleString()} часов и ${(Number(f.subscribers)||0).toLocaleString()} подписчиков</div>`
+                                                        :
+                                                        `<div title="Доход (задаётся в Supabase)" style="background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3); border-radius:8px; padding:3px 8px; font-size:11px; font-weight:700; color:#6ee7b7; white-space:nowrap; ${user.role==='owner'?'cursor:pointer;':''}" ${user.role==='owner'?`onclick="event.stopPropagation(); let v=prompt('Доход:', '${f.revenue||0}'); if(v!==null) updateChannelStats(${f.id}, 'revenue', v)"`:''}>$${(Number(f.revenue)||0).toLocaleString()}</div>`
+                                                    ) : ''}
                                                     ${user.role === 'owner' ? `<button class="btn-del-mini" onclick="event.stopPropagation(); unassignFolder(${f.id}, '${u.login}')" title="Отвязать канал" style="opacity:0.4; transition:opacity 0.2s; font-size: 18px; line-height: 1;" onmouseenter="this.style.opacity='1'; this.style.color='#ef4444'" onmouseleave="this.style.opacity='0.4'; this.style.color='white'">×</button>` : ''}
                                                 </div>
                                             </div>
@@ -2206,13 +2232,16 @@ window.updateChannelStats = async function(folderId, fieldOrData, value) {
             ? state.folders.filter(f => (f.ownedBy || "").toLowerCase() === authState.user.login.toLowerCase() && (!f.assignedTo || f.assignedTo.trim() === ""))
             : state.folders.filter(f => (f.assignedTo || "").toLowerCase().includes(authState.user.login.toLowerCase()));
         
-        let totalViews = 0, totalRevenue = 0;
+        let totalViews = 0, totalSubscribers = 0, totalRevenue = 0;
         statsFolders.forEach(f => {
             totalViews += Number(f.views) || 0;
+            totalSubscribers += Number(f.subscribers) || 0;
             totalRevenue += Number(f.revenue) || 0;
         });
 
+        const dashSubs = document.getElementById('dashboard-subscribers');
         if (dashViews) dashViews.innerText = totalViews.toLocaleString();
+        if (dashSubs) dashSubs.innerText = totalSubscribers.toLocaleString();
         if (dashRev) dashRev.innerText = '$' + totalRevenue.toLocaleString();
     }
 
@@ -2407,8 +2436,14 @@ function renderProjects() {
                         <h2 style="font-size: 28px; font-weight: 900; margin-bottom: 2px;">${f.name}</h2>
                         <div style="color:${channelColor}; font-weight:800; text-transform:uppercase; letter-spacing:1.5px; font-size:11px; margin-bottom:10px;">${f.niche || 'Общая ниша'}</div>
                         <div style="display:flex; align-items:center; gap:15px; margin-bottom:5px;">
-                             <div title="Просмотры" style="background:rgba(99,102,241,0.1); border:1px solid rgba(99,102,241,0.2); border-radius:8px; padding:4px 10px; font-size:12px; font-weight:800; color:#a5b4fc;">👁 ${(Number(f.views)||0).toLocaleString()}</div>
-                             ${authState.user.role !== 'manager' ? `<div title="Доход" style="background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.2); border-radius:8px; padding:4px 10px; font-size:12px; font-weight:800; color:#6ee7b7;">$${(Number(f.revenue)||0).toLocaleString()}</div>` : ''}
+                             <div title="Просмотры" style="background:rgba(99,102,241,0.1); border:1px solid rgba(99,102,241,0.2); border-radius:8px; padding:4px 10px; font-size:12px; font-weight:800; color:#a5b4fc; ${authState.user.role==='owner'?'cursor:pointer;':''}" ${authState.user.role==='owner'?`onclick="event.stopPropagation(); let v=prompt('Просмотры:', '${f.views||0}'); if(v!==null) updateChannelStats(${f.id}, 'views', v)"`:''}>👁 ${(Number(f.views)||0).toLocaleString()}</div>
+                             <div title="Подписчики" style="background:rgba(236,72,153,0.1); border:1px solid rgba(236,72,153,0.2); border-radius:8px; padding:4px 10px; font-size:12px; font-weight:800; color:#f472b6; ${authState.user.role==='owner'?'cursor:pointer;':''}" ${authState.user.role==='owner'?`onclick="event.stopPropagation(); let v=prompt('Подписчики:', '${f.subscribers||0}'); if(v!==null) updateChannelStats(${f.id}, 'subscribers', v)"`:''}>👥 ${(Number(f.subscribers)||0).toLocaleString()}</div>
+                             ${authState.user.role !== 'manager' ? (
+                                 Number(f.revenue || 0) === 0 ?
+                                 `<div title="До монетизации" style="background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.2); border-radius:8px; padding:4px 10px; font-size:12px; font-weight:800; color:#fca5a5; ${authState.user.role==='owner'?'cursor:pointer;':''}" ${authState.user.role==='owner'?`onclick="event.stopPropagation(); let v=prompt('Доход:', '${f.revenue||0}'); if(v!==null) updateChannelStats(${f.id}, 'revenue', v)"`:''}>До монетизации: ${(Number(f.views)||0).toLocaleString()} часов и ${(Number(f.subscribers)||0).toLocaleString()} подписчиков</div>`
+                                 :
+                                 `<div title="Доход" style="background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.2); border-radius:8px; padding:4px 10px; font-size:12px; font-weight:800; color:#6ee7b7; ${authState.user.role==='owner'?'cursor:pointer;':''}" ${authState.user.role==='owner'?`onclick="event.stopPropagation(); let v=prompt('Доход:', '${f.revenue||0}'); if(v!==null) updateChannelStats(${f.id}, 'revenue', v)"`:''}>$${(Number(f.revenue)||0).toLocaleString()}</div>`
+                             ) : ''}
                         </div>
                         <p style="color: var(--text-secondary); font-size: 13px;">${projectCount} активных проектов • Ведущий: ${leading}</p>
                     </div>
@@ -4832,6 +4867,8 @@ window.openPartnerProfile = async function(login) {
                         <div style="font-weight: 700; font-size: 18px; color: white; letter-spacing: -0.5px;">${f.name}</div>
                         <div style="font-size: 14px; color: var(--text-secondary); margin-top: 4px; display: flex; align-items: center; gap: 8px;">
                             <span>👁️ ${(Number(f.views) || 0).toLocaleString()}</span>
+                            <span style="opacity: 0.3;">•</span>
+                            <span>👥 ${(Number(f.subscribers) || 0).toLocaleString()}</span>
                             <span style="opacity: 0.3;">•</span>
                             <span>${f.niche || 'General'}</span>
                         </div>
