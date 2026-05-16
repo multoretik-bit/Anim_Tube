@@ -2337,11 +2337,13 @@ window.updateChannelStats = async function(folderId, fieldOrData, value) {
             // Normalize keys for individual update
             const finalData = {};
             for (let k in updateData) {
-                // v5.3: Explicit mapping for database columns
-                let dbKey = k.toLowerCase();
-                if (k === 'watchHours') dbKey = 'watch_hours';
-                if (k === 'assignedTo') dbKey = 'assignedto';
-                if (k === 'ownedBy') dbKey = 'ownedby';
+                // v5.3.1: Use exact case for Supabase columns if they are camelCase
+                let dbKey = k;
+                if (k === 'watchHours' || k === 'scriptPrefix' || k === 'splitPrefix') {
+                    dbKey = k; // Preserve case
+                } else {
+                    dbKey = k.toLowerCase();
+                }
                 
                 finalData[dbKey] = updateData[k];
             }
@@ -3138,7 +3140,7 @@ async function loadState() {
         // 1. Load Cloud Folders (v5.1: Metadata first to avoid Timeout/500 on heavy rows)
         const login = authState.user.login;
         // Fetch everything EXCEPT heavy blobs (assets, avatar)
-        const metadataColumns = 'id, name, ownedby, assignedto, niche, color, prefix, scriptPrefix, splitPrefix, uploadLink, views, revenue, subscribers, watch_hours';
+        const metadataColumns = 'id, name, ownedby, assignedto, niche, color, prefix, scriptPrefix, splitPrefix, uploadLink, views, revenue, subscribers, watchHours';
         let fQuery = cloudDB.from('folders').select(metadataColumns);
         
         if (authState.user.role === 'owner') {
@@ -3188,7 +3190,7 @@ async function loadState() {
                     f.views = cloudItem.views;
                     f.revenue = cloudItem.revenue;
                     f.subscribers = cloudItem.subscribers;
-                    f.watchHours = cloudItem.watch_hours;
+                    f.watchHours = cloudItem.watchHours;
                     f.assignedTo = cloudItem.assignedto;
                     f.ownedBy = cloudItem.ownedby;
                     f.avatar = cloudItem.avatar;
@@ -3200,7 +3202,7 @@ async function loadState() {
                         ...cloudItem, 
                         ownedBy: cloudItem.ownedby, 
                         assignedTo: cloudItem.assignedto,
-                        watchHours: cloudItem.watch_hours 
+                        watchHours: cloudItem.watchHours 
                     });
                 }
             });
